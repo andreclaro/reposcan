@@ -12,7 +12,7 @@ from .ecosystem import (
     run_node_audit,
 )
 from .fs import detect_languages, has_terraform
-from .repos import clone_repo, ensure_audit_dirs, repo_name
+from .repos import clone_repo, ensure_audit_dirs, repo_name, update_submodules_if_present
 from .scanners import (
     run_semgrep,
     run_tfsec_checkov_tflint_scan,
@@ -102,6 +102,7 @@ def main() -> int:
             name = repo_name(repo)
             dest = args.target_dir / name
             clone_repo(repo, dest, branch, skip_lfs)
+            update_submodules_if_present(dest)
             repo_audit_dir = ensure_audit_dirs(audit_root, name)
 
             language_counts = detect_languages(dest)

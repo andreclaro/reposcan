@@ -39,3 +39,21 @@ def clone_repo(repo: str, dest_dir: Path, branch: str, skip_lfs: bool) -> None:
         git_cmd.extend(["--branch", branch])
     git_cmd.extend([repo, str(dest_dir)])
     subprocess.run(git_cmd, check=True)
+
+
+def update_submodules_if_present(dest_dir: Path) -> None:
+    if not (dest_dir / ".gitmodules").is_file():
+        return
+    print(f"Updating submodules in: {dest_dir}")
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(dest_dir),
+            "submodule",
+            "update",
+            "--init",
+            "--recursive",
+        ],
+        check=True,
+    )
