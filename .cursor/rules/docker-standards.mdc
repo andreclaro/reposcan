@@ -1,0 +1,172 @@
+---
+description: Docker best practices for sec-audit-repos containerization
+globs: Dockerfile
+alwaysApply: false
+---
+
+# Docker Standards
+
+## Multi-Architecture Support
+
+Always support both amd64 and arm64 architectures:
+
+```dockerfile
+# ✅ GOOD
+RUN ARCH="$(dpkg --print-architecture)" \
+    && case "${ARCH}" in \
+        amd64) GO_ARCH="amd64" ;; \
+        arm64) GO_ARCH="arm64" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz -o /tmp/go.tgz
+```
+
+## Version Pinning
+
+Pin all tool versions using ARG variables at the top:
+
+```dockerfile
+# ✅ GOOD
+ARG NODE_MAJOR=20
+ARG GO_VERSION=1.22.6
+ARG RUST_VERSION=1.89.0
+ARG TRIVY_VERSION=0.55.2
+```
+
+Use these versions consistently throughout the Dockerfile.
+
+## Layer Optimization
+
+Group related operations and clean up in the same layer:
+
+```dockerfile
+# ✅ GOOD
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        curl \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+```
+
+## Non-Interactive Installation
+
+Set `DEBIAN_FRONTEND=noninteractive` to avoid prompts:
+
+```dockerfile
+# ✅ GOOD
+ENV DEBIAN_FRONTEND=noninteractive
+```
+
+## Tool Installation Patterns
+
+### Node.js
+
+```dockerfile
+# ✅ GOOD
+RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends nodejs \
+    && corepack enable \
+    && corepack prepare pnpm@latest --activate \
+    && rm -rf /var/lib/apt/lists/*
+```
+
+### Go
+
+```dockerfile
+# ✅ GOOD
+RUN ARCH="$(dpkg --print-architecture)" \
+    && case "${ARCH}" in \
+        amd64) GO_ARCH="amd64" ;; \
+        arm64) GO_ARCH="arm64" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz -o /tmp/go.tgz \
+    && tar -C /usr/local -xzf /tmp/go.tgz \
+    && rm /tmp/go.tgz
+ENV PATH="/usr/local/go/bin:${PATH}"
+RUN go install golang.org/x/vuln/cmd/govulncheck@latest
+```
+
+### Rust
+
+```dockerfile
+# ✅ GOOD
+RUN ARCH="$(dpkg --print-architecture)" \
+    && case "${ARCH}" in \
+        amd64) RUST_ARCH="x86_64" ;; \
+        arm64) RUST_ARCH="aarch64" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL https://static.rust-lang.org/rustup/dist/${RUST_ARCH}-unknown-linux-gnu/rustup-init -o /tmp/rustup-init \
+    && chmod +x /tmp/rustup-init \
+    && /tmp/rustup-init -y --default-toolchain ${RUST_VERSION} \
+    && rm /tmp/rustup-init
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN cargo install cargo-audit --locked --version ${CARGO_AUDIT_VERSION}
+```
+
+### Binary Downloads
+
+For pre-built binaries, download and install directly:
+
+```dockerfile
+# ✅ GOOD
+RUN ARCH="$(dpkg --print-architecture)" \
+    && case "${ARCH}" in \
+        amd64) TRIVY_ARCH="64bit" ;; \
+        arm64) TRIVY_ARCH="ARM64" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-${TRIVY_ARCH}.tar.gz -o /tmp/trivy.tgz \
+    && tar -xzf /tmp/trivy.tgz -C /usr/local/bin trivy \
+    && rm /tmp/trivy.tgz
+```
+
+## Python Package Installation
+
+Use `--no-cache-dir` to reduce image size:
+
+```dockerfile
+# ✅ GOOD
+RUN python3 -m pip install --no-cache-dir --upgrade pip \
+    && python3 -m pip install --no-cache-dir semgrep checkov
+```
+
+## Docker CLI Installation
+
+For Docker-in-Docker scenarios (Trivy scanning), install Docker CLI:
+
+```dockerfile
+# ✅ GOOD
+RUN ARCH="$(dpkg --print-architecture)" \
+    && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
+    && echo "deb [arch=${ARCH} signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+        > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends docker-ce-cli \
+    && rm -rf /var/lib/apt/lists/*
+```
+
+## Working Directory
+
+Set WORKDIR before copying application code:
+
+```dockerfile
+# ✅ GOOD
+WORKDIR /work
+COPY sec_audit /work/sec_audit
+```
+
+## Entrypoint
+
+Use Python module execution for the entrypoint:
+
+```dockerfile
+# ✅ GOOD
+ENTRYPOINT ["python3", "-m", "sec_audit"]
+```
+
+This allows the container to accept CLI arguments directly.

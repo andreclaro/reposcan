@@ -1,0 +1,144 @@
+---
+description: Python coding standards for sec-audit-repos
+globs: **/*.py
+alwaysApply: false
+---
+
+# Python Coding Standards
+
+## Type Hints
+
+Always use type hints for function parameters and return types:
+
+```python
+from pathlib import Path
+from typing import List
+
+def clone_repo(repo: str, dest_dir: Path, branch: str, skip_lfs: bool) -> None:
+    """Clone a repository to the destination directory."""
+    pass
+
+def parse_audit_selection(selection: List[str]) -> List[str]:
+    """Parse audit selection from CLI arguments."""
+    pass
+```
+
+## Path Handling
+
+Use `pathlib.Path` for all file system operations:
+
+```python
+# ✅ GOOD
+from pathlib import Path
+
+repo_dir = Path("/path/to/repo")
+if repo_dir.exists():
+    output_file = repo_dir / "audit" / "report.txt"
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+# ❌ BAD
+import os
+repo_dir = "/path/to/repo"
+if os.path.exists(repo_dir):
+    output_file = os.path.join(repo_dir, "audit", "report.txt")
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+```
+
+## Error Handling
+
+Handle subprocess errors gracefully and write informative messages:
+
+```python
+# ✅ GOOD
+result = subprocess.run(
+    [tool_bin, "scan", str(repo_dir)],
+    cwd=repo_dir,
+    stdout=handle,
+    stderr=handle,
+)
+if result.returncode != 0:
+    handle.write(f"\nTool scan failed (exit {result.returncode}).\n")
+
+# ❌ BAD
+subprocess.run([tool_bin, "scan"], check=True)  # Raises on non-zero exit
+```
+
+For missing binaries, write skip messages to output files:
+
+```python
+# ✅ GOOD
+tool_bin = shutil.which("tool")
+if not tool_bin:
+    output_file.write_text(
+        "Skipping scan; missing binary: tool\n",
+        encoding="utf-8",
+    )
+    return
+```
+
+## File Operations
+
+Always specify encoding for text file operations:
+
+```python
+# ✅ GOOD
+with output_file.open("w", encoding="utf-8") as handle:
+    handle.write("Content\n")
+
+output_file.write_text("Content\n", encoding="utf-8")
+
+# ❌ BAD
+with open(output_file, "w") as handle:  # Encoding not specified
+    handle.write("Content\n")
+```
+
+## Module Organization
+
+Organize imports in this order:
+1. Standard library
+2. Third-party packages
+3. Local modules (relative imports)
+
+```python
+# ✅ GOOD
+import shutil
+import subprocess
+from pathlib import Path
+
+from .fs import find_dockerfiles
+from .utils import normalize_cell
+```
+
+## CLI Argument Parsing
+
+Use `argparse` with descriptive help text and sensible defaults:
+
+```python
+# ✅ GOOD
+parser = argparse.ArgumentParser(
+    description="Source Code Security Audit Tool"
+)
+parser.add_argument(
+    "list_file",
+    nargs="?",
+    default=root_dir / "repositories.csv",
+    type=Path,
+    help="Path to repositories.csv CSV (default: current working dir)",
+)
+```
+
+## Function Documentation
+
+Use docstrings for public functions:
+
+```python
+def repo_name(repo: str) -> str:
+    """Extract repository name from URL or path.
+    
+    Removes .git suffix if present.
+    """
+    name = Path(repo).name
+    if name.endswith(".git"):
+        name = name[:-4]
+    return name
+```

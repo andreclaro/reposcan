@@ -1,0 +1,67 @@
+---
+description: Project overview and architecture for sec-audit-repos
+alwaysApply: true
+---
+
+# sec-audit-repos Project Overview
+
+## Purpose
+
+`sec-audit-repos` is a Python CLI tool that automates security auditing of multiple repositories. It clones repositories from a CSV file and runs various security scanners, outputting results to structured audit directories.
+
+## Architecture
+
+### Core Modules
+
+- **`sec_audit/cli.py`**: Main CLI entry point with argument parsing
+- **`sec_audit/scanners.py`**: Security scanner integrations (Semgrep, Trivy, tfsec, checkov, tflint)
+- **`sec_audit/ecosystem.py`**: Language-specific audits (Node/npm/pnpm, Go/govulncheck, Rust/cargo-audit)
+- **`sec_audit/repos.py`**: Repository cloning and Git operations
+- **`sec_audit/fs.py`**: File system operations (language detection, Dockerfile finding)
+- **`sec_audit/utils.py`**: Utility functions (CSV normalization, audit selection parsing)
+
+### Workflow
+
+1. Read `repositories.csv` (repo URL, optional branch)
+2. Clone each repo to `target_dir/<RepoName>/`
+3. Detect languages and write `audit/<RepoName>/languages.csv`
+4. Run selected audits based on detected languages or `--audit` flags
+5. Write reports to `audit/<RepoName>/<scanner>.txt` (and `.json` for Semgrep)
+
+### Output Structure
+
+```
+audit/
+  <RepoName>/
+    languages.csv
+    semgrep.json
+    semgrep.txt
+    trivy_dockerfile_scan.txt
+    node_audit.txt
+    go_vulncheck.txt
+    rust_audit.txt
+    tfsec.txt
+    checkov.txt
+    tflint.txt
+```
+
+### Supported Audits
+
+- **SAST**: Semgrep (always runs unless filtered)
+- **Dockerfile**: Trivy (scans built Docker images)
+- **Node**: npm/pnpm audit (detects package.json, pnpm-lock.yaml, package-lock.json)
+- **Go**: govulncheck (detects go.mod)
+- **Rust**: cargo-audit (detects Cargo.toml)
+- **Terraform**: tfsec, checkov, tflint (detects .tf files)
+
+### Docker Support
+
+The tool can run in a Docker container with all scanners pre-installed. The Dockerfile supports multi-architecture builds (amd64/arm64) and pins tool versions via ARG variables.
+
+### Key Conventions
+
+- Use `pathlib.Path` for all file operations
+- Gracefully handle missing binaries (write skip messages to output files)
+- Support Git LFS with `--skip-lfs` and `--use-lfs` flags
+- Update Git submodules automatically if `.gitmodules` exists
+- CSV format: `repo_url,branch` (branch defaults to "main")

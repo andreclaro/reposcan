@@ -1,0 +1,172 @@
+---
+description: Guidelines for security scanner integration patterns
+globs: sec_audit/scanners.py,sec_audit/ecosystem.py
+alwaysApply: false
+---
+
+# Security Scanner Integration
+
+## Scanner Execution Pattern
+
+All scanner functions should follow this pattern:
+
+```python
+def run_scanner(
+    repo_dir: Path,
+    repo_slug: str,  # Optional, for multi-file reports
+    output_text: Path,
+) -> None:
+    """Run scanner and write results to output file."""
+    # 1. Check for required binaries
+    scanner_bin = shutil.which("scanner")
+    if not scanner_bin:
+        output_text.parent.mkdir(parents=True, exist_ok=True)
+        output_text.write_text(
+            "Skipping scan; missing binary: scanner\n",
+            encoding="utf-8",
+        )
+        return
+    
+    # 2. Ensure output directory exists
+    output_text.parent.mkdir(parents=True, exist_ok=True)
+    
+    # 3. Write header with context
+    with output_text.open("w", encoding="utf-8") as handle:
+        handle.write("=" * 80 + "\n")
+        handle.write(f"Tool: scanner\n")
+        handle.write(f"Repository: {repo_slug}\n")
+        handle.write("=" * 80 + "\n\n")
+        
+        # 4. Run scanner, capturing stdout/stderr
+        result = subprocess.run(
+            [scanner_bin, "args", str(repo_dir)],
+            cwd=repo_dir,
+            stdout=handle,
+            stderr=handle,
+        )
+        
+        # 5. Write exit code for debugging
+        handle.write(f"\nExit code: {result.returncode}\n")
+```
+
+## Binary Detection
+
+Always check for binaries before running scanners:
+
+```python
+# ✅ GOOD
+semgrep_bin = shutil.which("semgrep")
+if not semgrep_bin:
+    raise RuntimeError("semgrep CLI not found in PATH")
+
+# ✅ GOOD (graceful degradation)
+tool_bin = shutil.which("tool")
+if not tool_bin:
+    output_text.write_text(
+        "Skipping scan; missing binary: tool\n",
+        encoding="utf-8",
+    )
+    return
+```
+
+## Output File Naming
+
+Follow these naming conventions:
+
+- **Semgrep**: `semgrep.json` and `semgrep.txt`
+- **Trivy**: `trivy_dockerfile_scan.txt`
+- **Node**: `node_audit.txt`
+- **Go**: `go_vulncheck.txt`
+- **Rust**: `rust_audit.txt`
+- **Terraform**: `tfsec.txt`, `checkov.txt`, `tflint.txt`
+
+For multiple files (e.g., multiple Dockerfiles), use suffixes:
+
+```python
+tag_suffix = f"-df{index}" if len(dockerfiles) > 1 else ""
+image_tag = f"{repo_slug.lower()}{tag_suffix}:latest"
+```
+
+## Language Detection
+
+Use `detect_languages()` from `fs.py` and project-specific detection:
+
+```python
+# ✅ GOOD
+language_counts = detect_languages(repo_dir)
+if "JavaScript" in language_counts or "TypeScript" in language_counts:
+    # Run Node audit
+
+# ✅ GOOD
+if has_node_project(repo_dir):  # Checks for package.json
+    # Run Node audit
+```
+
+## Audit Selection Logic
+
+Use `should_run_audit()` from `utils.py`:
+
+```python
+# ✅ GOOD
+selected_audits = parse_audit_selection(args.audit)
+if should_run_audit(selected_audits, "sast"):
+    run_semgrep(dest, semgrep_json, semgrep_text)
+```
+
+## Multi-File Scans
+
+For scanners that process multiple files (e.g., Dockerfiles), iterate and write sections:
+
+```python
+# ✅ GOOD
+with output_text.open("w", encoding="utf-8") as handle:
+    for index, dockerfile in enumerate(dockerfiles, start=1):
+        handle.write("=" * 80 + "\n")
+        handle.write(f"Dockerfile: {dockerfile}\n")
+        handle.write("=" * 80 + "\n\n")
+        
+        # Run scan for this file
+        result = subprocess.run([...], stdout=handle, stderr=handle)
+        handle.write("\n")
+```
+
+## Exit Code Handling
+
+Accept both 0 and 1 as valid exit codes (many scanners return 1 when findings are detected):
+
+```python
+# ✅ GOOD
+result = subprocess.run([semgrep_bin, "scan", "--json", ...])
+if result.returncode not in (0, 1):
+    raise RuntimeError(f"semgrep failed with exit code {result.returncode}")
+
+# ✅ GOOD
+result = subprocess.run([tool_bin, "scan", ...])
+if result.returncode != 0:
+    handle.write(f"\nTool scan failed (exit {result.returncode}).\n")
+```
+
+## Package Manager Detection
+
+For Node.js projects, detect package manager from lock files:
+
+```python
+# ✅ GOOD
+def detect_node_package_manager(repo_dir: Path) -> str:
+    if (repo_dir / "pnpm-lock.yaml").is_file():
+        return "pnpm"
+    if (repo_dir / "package-lock.json").is_file():
+        return "npm"
+    return ""
+```
+
+Use appropriate install commands:
+
+```python
+# ✅ GOOD
+install_cmd = (
+    [pm_bin, "install", "--frozen-lockfile"]
+    if package_manager == "pnpm"
+    else [pm_bin, "ci"]
+)
+```

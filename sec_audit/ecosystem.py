@@ -2,6 +2,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from .version_manager import get_version_env_shell
+
 
 def has_node_project(repo_dir: Path) -> bool:
     return (repo_dir / "package.json").is_file()
@@ -48,28 +50,61 @@ def run_node_audit(
     )
     audit_cmd = [pm_bin, "audit"]
 
+    # Get version switching commands
+    version_info = get_version_env_shell(repo_dir)
+    shell_prefix = version_info.get("shell_prefix", "")
+    node_version = version_info.get("node_version")
+
     with output_text.open("w", encoding="utf-8") as handle:
         handle.write("=" * 80 + "\n")
         handle.write(f"Package manager: {package_manager}\n")
         handle.write(f"Repository: {repo_slug}\n")
+        if node_version:
+            handle.write(f"Node.js version: {node_version}\n")
         handle.write("=" * 80 + "\n\n")
 
-        install_result = subprocess.run(
-            install_cmd,
-            cwd=repo_dir,
-            stdout=handle,
-            stderr=handle,
-        )
+        # Build shell command with version switching
+        if shell_prefix:
+            install_shell_cmd = f"{shell_prefix} && cd {repo_dir} && {' '.join(install_cmd)}"
+            audit_shell_cmd = f"{shell_prefix} && cd {repo_dir} && {' '.join(audit_cmd)}"
+        else:
+            install_shell_cmd = None
+            audit_shell_cmd = None
+
+        if install_shell_cmd:
+            install_result = subprocess.run(
+                install_shell_cmd,
+                shell=True,
+                cwd=repo_dir,
+                stdout=handle,
+                stderr=handle,
+            )
+        else:
+            install_result = subprocess.run(
+                install_cmd,
+                cwd=repo_dir,
+                stdout=handle,
+                stderr=handle,
+            )
         handle.write(
             f"\nInstall exit code: {install_result.returncode}\n\n"
         )
 
-        audit_result = subprocess.run(
-            audit_cmd,
-            cwd=repo_dir,
-            stdout=handle,
-            stderr=handle,
-        )
+        if audit_shell_cmd:
+            audit_result = subprocess.run(
+                audit_shell_cmd,
+                shell=True,
+                cwd=repo_dir,
+                stdout=handle,
+                stderr=handle,
+            )
+        else:
+            audit_result = subprocess.run(
+                audit_cmd,
+                cwd=repo_dir,
+                stdout=handle,
+                stderr=handle,
+            )
         handle.write(f"\nAudit exit code: {audit_result.returncode}\n")
 
 
@@ -95,18 +130,36 @@ def run_go_vulncheck(
         )
         return
 
+    # Get version switching commands
+    version_info = get_version_env_shell(repo_dir)
+    shell_prefix = version_info.get("shell_prefix", "")
+    go_version = version_info.get("go_version")
+
     with output_text.open("w", encoding="utf-8") as handle:
         handle.write("=" * 80 + "\n")
         handle.write("Tool: govulncheck\n")
         handle.write(f"Repository: {repo_slug}\n")
+        if go_version:
+            handle.write(f"Go version: {go_version}\n")
         handle.write("=" * 80 + "\n\n")
 
-        result = subprocess.run(
-            [govulncheck_bin, "./..."],
-            cwd=repo_dir,
-            stdout=handle,
-            stderr=handle,
-        )
+        # Build shell command with version switching
+        if shell_prefix:
+            shell_cmd = f"{shell_prefix} && cd {repo_dir} && {govulncheck_bin} ./..."
+            result = subprocess.run(
+                shell_cmd,
+                shell=True,
+                cwd=repo_dir,
+                stdout=handle,
+                stderr=handle,
+            )
+        else:
+            result = subprocess.run(
+                [govulncheck_bin, "./..."],
+                cwd=repo_dir,
+                stdout=handle,
+                stderr=handle,
+            )
         handle.write(f"\nExit code: {result.returncode}\n")
 
 
@@ -123,6 +176,7 @@ def run_cargo_audit(
         return
 
     cargo_bin = shutil.which("cargo")
+    cargo_audit_bin = shutil.which("cargo-audit")
     output_text.parent.mkdir(parents=True, exist_ok=True)
 
     if not cargo_bin:
@@ -131,17 +185,41 @@ def run_cargo_audit(
             encoding="utf-8",
         )
         return
+    if not cargo_audit_bin:
+        output_text.write_text(
+            "Skipping cargo audit; missing binary: cargo-audit (install via `cargo install cargo-audit`).\n",
+            encoding="utf-8",
+        )
+        return
+
+    # Get version switching commands
+    version_info = get_version_env_shell(repo_dir)
+    shell_prefix = version_info.get("shell_prefix", "")
+    rust_version = version_info.get("rust_version")
 
     with output_text.open("w", encoding="utf-8") as handle:
         handle.write("=" * 80 + "\n")
         handle.write("Tool: cargo audit\n")
         handle.write(f"Repository: {repo_slug}\n")
+        if rust_version:
+            handle.write(f"Rust version: {rust_version}\n")
         handle.write("=" * 80 + "\n\n")
 
-        result = subprocess.run(
-            [cargo_bin, "audit"],
-            cwd=repo_dir,
-            stdout=handle,
-            stderr=handle,
-        )
+        # Build shell command with version switching
+        if shell_prefix:
+            shell_cmd = f"{shell_prefix} && cd {repo_dir} && {cargo_bin} audit"
+            result = subprocess.run(
+                shell_cmd,
+                shell=True,
+                cwd=repo_dir,
+                stdout=handle,
+                stderr=handle,
+            )
+        else:
+            result = subprocess.run(
+                [cargo_bin, "audit"],
+                cwd=repo_dir,
+                stdout=handle,
+                stderr=handle,
+            )
         handle.write(f"\nExit code: {result.returncode}\n")

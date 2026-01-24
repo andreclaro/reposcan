@@ -115,14 +115,11 @@ def main() -> int:
             print(f"Wrote language summary: {languages_csv}")
 
             if should_run_audit(selected_audits, "sast"):
-                semgrep_configs = ["p/ci", "p/security-audit", "p/secrets"]
-                for config in semgrep_configs:
-                    config_slug = config.replace("/", "-")
-                    semgrep_json = repo_audit_dir / f"semgrep-{config_slug}.json"
-                    semgrep_text = repo_audit_dir / f"semgrep-{config_slug}.txt"
-                    run_semgrep(dest, config, semgrep_json, semgrep_text)
-                    print(f"Wrote Semgrep report: {semgrep_json}")
-                    print(f"Wrote Semgrep report: {semgrep_text}")
+                semgrep_json = repo_audit_dir / "semgrep.json"
+                semgrep_text = repo_audit_dir / "semgrep.txt"
+                run_semgrep(dest, semgrep_json, semgrep_text)
+                print(f"Wrote Semgrep report: {semgrep_json}")
+                print(f"Wrote Semgrep report: {semgrep_text}")
 
             if should_run_audit(selected_audits, "dockerfile"):
                 trivy_report = repo_audit_dir / "trivy_dockerfile_scan.txt"

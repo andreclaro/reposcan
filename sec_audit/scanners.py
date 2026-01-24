@@ -7,7 +7,6 @@ from .fs import find_dockerfiles
 
 def run_semgrep(
     repo_dir: Path,
-    config: str,
     output_json: Path,
     output_text: Path,
 ) -> None:
@@ -16,11 +15,11 @@ def run_semgrep(
         raise RuntimeError("semgrep CLI not found in PATH")
 
     output_json.parent.mkdir(parents=True, exist_ok=True)
+    output_text.parent.mkdir(parents=True, exist_ok=True)
     json_result = subprocess.run(
         [
             semgrep_bin,
-            "--config",
-            config,
+            "scan",
             "--json",
             "--output",
             str(output_json),
@@ -35,8 +34,7 @@ def run_semgrep(
     text_result = subprocess.run(
         [
             semgrep_bin,
-            "--config",
-            config,
+            "scan",
             "--output",
             str(output_text),
         ],
