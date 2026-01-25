@@ -8,7 +8,7 @@ from typing import Dict, Any
 from celery import Celery
 from celery.utils.log import get_task_logger
 
-from sec_audit.repos import clone_repo, repo_name, update_submodules_if_present
+from sec_audit.repos import clone_repo, repo_name, update_submodules_if_present, get_commit_hash
 from sec_audit.fs import detect_languages, has_terraform
 from sec_audit.scanners import (
     run_semgrep,
@@ -85,6 +85,10 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             clone_repo(repo_url, repo_path, branch, skip_lfs)
             update_submodules_if_present(repo_path)
             
+            # Capture commit hash
+            commit_hash = get_commit_hash(repo_path, branch)
+            logger.info(f"Scanned commit: {commit_hash}")
+            
             self.update_state(state='PROGRESS', meta={'progress': 20, 'current_step': 'Detecting languages'})
             
             # Step 2: Detect languages
@@ -108,6 +112,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                 'scan_id': scan_id,
                 'repo_url': repo_url,
                 'branch': branch,
+                'commit_hash': commit_hash,
                 'languages': language_counts,
                 'audits': {},
             }
@@ -127,10 +132,17 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                     semgrep_json = results_dir / "semgrep.json"
                     semgrep_text = results_dir / "semgrep.txt"
                     run_semgrep(repo_path, semgrep_json, semgrep_text)
+                    
+                    # Verify files were created
+                    if not semgrep_json.exists():
+                        logger.warning(f"Semgrep JSON file not created: {semgrep_json}")
+                    if not semgrep_text.exists():
+                        logger.warning(f"Semgrep text file not created: {semgrep_text}")
+                    
                     results['audits']['sast'] = {
-                        'json_file': str(semgrep_json),
-                        'text_file': str(semgrep_text),
-                        'status': 'completed'
+                        'json_file': str(semgrep_json) if semgrep_json.exists() else None,
+                        'text_file': str(semgrep_text) if semgrep_text.exists() else None,
+                        'status': 'completed' if (semgrep_json.exists() or semgrep_text.exists()) else 'failed'
                     }
                     logger.info("SAST scan completed")
                 except Exception as e:

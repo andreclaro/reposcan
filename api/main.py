@@ -59,10 +59,12 @@ async def get_scan_status(scan_id: str):
             progress=0
         )
     elif task.state == 'PROGRESS':
+        meta = task.info if isinstance(task.info, dict) else {}
         return ScanStatusResponse(
             scan_id=scan_id,
             status="running",
-            progress=task.info.get('progress', 0)
+            progress=meta.get('progress', 0),
+            error=meta.get('current_step')  # Show current step as info
         )
     elif task.state == 'SUCCESS':
         result = task.result
@@ -71,18 +73,42 @@ async def get_scan_status(scan_id: str):
             status="completed",
             progress=100,
             results_path=result.get('results_path'),
+            commit_hash=result.get('commit_hash'),
             result=result
         )
     elif task.state == 'FAILURE':
+        error_info = task.info
+        if isinstance(error_info, Exception):
+            error_msg = str(error_info)
+        elif isinstance(error_info, dict):
+            error_msg = error_info.get('error', str(error_info))
+        else:
+            error_msg = str(error_info)
         return ScanStatusResponse(
             scan_id=scan_id,
             status="failed",
-            error=str(task.info)
+            error=error_msg
         )
-    else:
+    elif task.state == 'RETRY':
+        # Task is retrying - show the error that caused the retry
+        error_info = task.info
+        if isinstance(error_info, Exception):
+            error_msg = f"Retrying after error: {str(error_info)}"
+        elif isinstance(error_info, dict):
+            error_msg = error_info.get('error', f"Retrying: {str(error_info)}")
+        else:
+            error_msg = f"Retrying: {str(error_info)}"
         return ScanStatusResponse(
             scan_id=scan_id,
-            status=task.state.lower()
+            status="retrying",
+            error=error_msg
+        )
+    else:
+        # Handle other states (REVOKED, etc.)
+        return ScanStatusResponse(
+            scan_id=scan_id,
+            status=task.state.lower(),
+            error=str(task.info) if task.info else None
         )
 
 

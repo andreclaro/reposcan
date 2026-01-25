@@ -38,7 +38,24 @@ def clone_repo(repo: str, dest_dir: Path, branch: str, skip_lfs: bool) -> None:
     if branch:
         git_cmd.extend(["--branch", branch])
     git_cmd.extend([repo, str(dest_dir)])
-    subprocess.run(git_cmd, check=True)
+    
+    try:
+        subprocess.run(
+            git_cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        stdout_text = e.stdout.strip() if e.stdout else ""
+        stderr_text = e.stderr.strip() if e.stderr else ""
+        if stdout_text and stderr_text:
+            error_msg = f"{stdout_text}\n{stderr_text}"
+        else:
+            error_msg = stdout_text or stderr_text or str(e)
+        raise RuntimeError(
+            f"Failed to clone repository {repo} (branch: {branch}): {error_msg}"
+        ) from e
 
 
 def update_submodules_if_present(dest_dir: Path) -> None:
@@ -57,3 +74,14 @@ def update_submodules_if_present(dest_dir: Path) -> None:
         ],
         check=True,
     )
+
+
+def get_commit_hash(repo_path: Path, branch: str = "HEAD") -> str:
+    """Get the commit hash for the current HEAD or specified branch."""
+    result = subprocess.run(
+        ["git", "-C", str(repo_path), "rev-parse", branch],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()

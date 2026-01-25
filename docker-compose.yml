@@ -1,6 +1,20 @@
-version: '3.8'
-
 services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=sec_audit
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   redis:
     image: redis:7-alpine
     ports:
@@ -44,8 +58,10 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    entrypoint: []
     command: celery -A tasks.scan_worker worker --loglevel=info --concurrency=2
 
 volumes:
+  postgres_data:
   redis_data:
   results_data:

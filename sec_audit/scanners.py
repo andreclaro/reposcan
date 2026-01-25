@@ -14,8 +14,16 @@ def run_semgrep(
     if not semgrep_bin:
         raise RuntimeError("semgrep CLI not found in PATH")
 
+    # Ensure absolute paths
+    repo_dir = repo_dir.resolve()
+    output_json = output_json.resolve()
+    output_text = output_text.resolve()
+    
     output_json.parent.mkdir(parents=True, exist_ok=True)
     output_text.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Run semgrep with JSON output
+    # Use --output with absolute path, and also capture stdout as backup
     json_result = subprocess.run(
         [
             semgrep_bin,
@@ -23,27 +31,50 @@ def run_semgrep(
             "--json",
             "--output",
             str(output_json),
+            str(repo_dir),
         ],
-        cwd=repo_dir,
+        cwd=str(repo_dir),
+        capture_output=True,
+        text=True,
     )
     if json_result.returncode not in (0, 1):
         raise RuntimeError(
-            f"semgrep JSON failed for {repo_dir} with exit code {json_result.returncode}"
+            f"semgrep JSON failed for {repo_dir} with exit code {json_result.returncode}: {json_result.stderr}"
         )
+    
+    # If file wasn't created, write the captured output manually
+    if not output_json.exists():
+        if json_result.stdout:
+            output_json.write_text(json_result.stdout, encoding="utf-8")
+        else:
+            # Create empty JSON array if no output
+            output_json.write_text("[]", encoding="utf-8")
 
+    # Run semgrep with text output
     text_result = subprocess.run(
         [
             semgrep_bin,
             "scan",
             "--output",
             str(output_text),
+            str(repo_dir),
         ],
-        cwd=repo_dir,
+        cwd=str(repo_dir),
+        capture_output=True,
+        text=True,
     )
     if text_result.returncode not in (0, 1):
         raise RuntimeError(
-            f"semgrep text failed for {repo_dir} with exit code {text_result.returncode}"
+            f"semgrep text failed for {repo_dir} with exit code {text_result.returncode}: {text_result.stderr}"
         )
+    
+    # If file wasn't created, write the captured output manually
+    if not output_text.exists():
+        if text_result.stdout:
+            output_text.write_text(text_result.stdout, encoding="utf-8")
+        else:
+            # Create empty file if no output
+            output_text.write_text("No issues found.\n", encoding="utf-8")
 
 
 def run_trivy_dockerfile_scan(

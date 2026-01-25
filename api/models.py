@@ -23,6 +23,7 @@ class ScanStatusResponse(BaseModel):
     status: str
     progress: Optional[int] = None
     results_path: Optional[str] = None
+    commit_hash: Optional[str] = None
     error: Optional[str] = None
     result: Optional[dict] = None
 

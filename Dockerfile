@@ -2,9 +2,27 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Primary/default versions
 ARG NODE_MAJOR=20
 ARG GO_VERSION=1.22.6
 ARG RUST_VERSION=1.93.0
+
+# Additional Node.js versions to install
+ARG NODE_VERSION_18=18
+ARG NODE_VERSION_20=20
+ARG NODE_VERSION_22=22
+
+# Additional Go versions to install
+ARG GO_VERSION_1_21=1.21.6
+ARG GO_VERSION_1_22=1.22.6
+ARG GO_VERSION_1_23=1.23.0
+
+# Additional Rust toolchains to install
+ARG RUST_VERSION_1_75=1.75.0
+ARG RUST_VERSION_1_80=1.80.0
+ARG RUST_VERSION_1_89=1.89.0
+
+# Security scanner versions
 ARG CARGO_AUDIT_VERSION=0.22.0
 ARG TFSEC_VERSION=1.28.14
 ARG TFLINT_VERSION=0.60.0
@@ -13,6 +31,8 @@ ARG TRIVY_VERSION=0.68.2
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
+        bison \
+        bsdmainutils \
         ca-certificates \
         curl \
         git \
@@ -30,10 +50,10 @@ RUN apt-get update \
 RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash \
     && export NVM_DIR="/root/.nvm" \
     && [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" \
-    && nvm install 18 \
-    && nvm install 20 \
-    && nvm install 22 \
-    && nvm alias default 20 \
+    && nvm install ${NODE_VERSION_18} \
+    && nvm install ${NODE_VERSION_20} \
+    && nvm install ${NODE_VERSION_22} \
+    && nvm alias default ${NODE_MAJOR} \
     && nvm use default \
     && corepack enable \
     && corepack prepare pnpm@latest --activate \
@@ -48,18 +68,18 @@ RUN ARCH="$(dpkg --print-architecture)" \
         *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
     esac \
     && curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer | bash \
-    && export GVM_ROOT="/root/.gvm" \
-    && [ -s "$GVM_ROOT/scripts/gvm" ] && source "$GVM_ROOT/scripts/gvm" \
-    && gvm install go1.21.6 -B || true \
-    && gvm install go1.22.6 -B || true \
-    && gvm install go1.23.0 -B || true \
-    && gvm use go1.22.6 --default || (gvm install go1.22.6 -B && gvm use go1.22.6 --default) \
+    && bash -c "export GVM_ROOT=\"/root/.gvm\" \
+    && [ -s \"\$GVM_ROOT/scripts/gvm\" ] && source \"\$GVM_ROOT/scripts/gvm\" \
+    && gvm install go${GO_VERSION_1_21} -B || true \
+    && gvm install go${GO_VERSION_1_22} -B || true \
+    && gvm install go${GO_VERSION_1_23} -B || true \
+    && gvm use go${GO_VERSION} --default || (gvm install go${GO_VERSION} -B && gvm use go${GO_VERSION} --default)" \
     && rm -rf /var/lib/apt/lists/*
 ENV GVM_ROOT="/root/.gvm"
-ENV PATH="/root/.gvm/pkgsets/go1.22.6/global/bin:/root/.gvm/gos/go1.22.6/bin:$PATH"
-RUN export GVM_ROOT="/root/.gvm" \
-    && [ -s "$GVM_ROOT/scripts/gvm" ] && source "$GVM_ROOT/scripts/gvm" \
-    && go install golang.org/x/vuln/cmd/govulncheck@latest
+ENV PATH="/root/.gvm/pkgsets/go${GO_VERSION}/global/bin:/root/.gvm/gos/go${GO_VERSION}/bin:$PATH"
+RUN bash -c "export GVM_ROOT=\"/root/.gvm\" \
+    && [ -s \"\$GVM_ROOT/scripts/gvm\" ] && source \"\$GVM_ROOT/scripts/gvm\" \
+    && go install golang.org/x/vuln/cmd/govulncheck@latest"
 
 # Rust + cargo-audit (rustup supports multiple toolchains)
 RUN ARCH="$(dpkg --print-architecture)" \
@@ -74,9 +94,9 @@ RUN ARCH="$(dpkg --print-architecture)" \
     && rm /tmp/rustup-init
 ENV PATH="/root/.cargo/bin:${PATH}"
 # Install additional Rust toolchains for compatibility
-RUN rustup toolchain install 1.75.0 \
-    && rustup toolchain install 1.80.0 \
-    && rustup toolchain install 1.89.0 \
+RUN rustup toolchain install ${RUST_VERSION_1_75} \
+    && rustup toolchain install ${RUST_VERSION_1_80} \
+    && rustup toolchain install ${RUST_VERSION_1_89} \
     && rustup toolchain install stable \
     && rustup default ${RUST_VERSION}
 RUN cargo install cargo-audit --locked --version ${CARGO_AUDIT_VERSION}

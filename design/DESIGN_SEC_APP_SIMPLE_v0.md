@@ -321,7 +321,40 @@ curl -X POST http://localhost:8000/scan \
 
 # Check status
 curl http://localhost:8000/scan/{scan_id}/status
+
 ```
+
+### Example for https://github.com/stoic-one/ns-auth-sdk
+
+```bash
+# 1. Create a scan request
+curl -X POST http://localhost:8000/scan \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_url": "https://github.com/stoic-one/ns-auth-sdk.git",
+    "audit_types": ["sast", "dockerfile"]
+  }'
+
+# Response:
+# {
+#   "scan_id": "e7d5a8b1-c3bf-4f02-b4b6-0a24d2611234"
+# }
+
+# 2. Check the scan status with the scan_id from above
+curl http://localhost:8000/scan/e7d5a8b1-c3bf-4f02-b4b6-0a24d2611234/status
+
+# Possible responses:
+# {
+#   "status": "pending"
+# }
+# or
+# {
+#   "status": "completed",
+#   "results_path": "./results/e7d5a8b1-c3bf-4f02-b4b6-0a24d2611234/"
+# }
+```
+
+
 
 ## Environment Variables
 
