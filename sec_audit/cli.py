@@ -17,6 +17,7 @@ from .scanners import (
     run_semgrep,
     run_tfsec_checkov_tflint_scan,
     run_trivy_dockerfile_scan,
+    run_trivy_fs_scan,
 )
 from .utils import normalize_cell, parse_audit_selection, should_run_audit
 
@@ -95,13 +96,16 @@ def main() -> int:
                 continue
 
             repo = first_cell
-            branch = normalize_cell(row[1]) if len(row) > 1 else "main"
+            # Use None to auto-detect default branch if not specified
+            branch = normalize_cell(row[1]) if len(row) > 1 and normalize_cell(row[1]) else None
             if not branch:
-                branch = "main"
+                branch = None  # Auto-detect default branch
 
             name = repo_name(repo)
             dest = args.target_dir / name
-            clone_repo(repo, dest, branch, skip_lfs)
+            actual_branch = clone_repo(repo, dest, branch, skip_lfs)
+            # Use the detected branch for subsequent operations
+            branch = actual_branch
             update_submodules_if_present(dest)
             repo_audit_dir = ensure_audit_dirs(audit_root, name)
 
@@ -126,6 +130,12 @@ def main() -> int:
                 run_trivy_dockerfile_scan(dest, name, trivy_report)
                 if trivy_report.exists():
                     print(f"Wrote Trivy Dockerfile report: {trivy_report}")
+
+            # Trivy filesystem scan runs for all audits (general filesystem vulnerability scan)
+            trivy_fs_report = repo_audit_dir / "trivy_fs_scan.txt"
+            run_trivy_fs_scan(dest, trivy_fs_report)
+            if trivy_fs_report.exists():
+                print(f"Wrote Trivy filesystem scan report: {trivy_fs_report}")
 
             if should_run_audit(selected_audits, "node"):
                 if (

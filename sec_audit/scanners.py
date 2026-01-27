@@ -1,8 +1,77 @@
+import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
 
 from .fs import find_dockerfiles
+
+
+def _filter_semgrep_login_messages(text: str) -> str:
+    """Filter out login-related promotional messages from Semgrep output."""
+    if not text:
+        return text
+    
+    lines = text.splitlines()
+    filtered_lines = []
+    
+    # Patterns to filter out login-related messages (case-insensitive)
+    login_patterns = [
+        r"💎.*login",
+        r"✨.*learn more at.*sg\.run",
+        r"✘.*semgrep code.*sast",
+        r"✘.*semgrep supply chain.*sca",
+        r"💎.*missed out.*pro rules.*logged in",
+        r"⚡.*supercharge.*free account",
+        r"get started with all semgrep products via.*login",
+        r"requires login",
+        r"since you aren't logged in",
+        r"when you create a free account",
+        r"learn more at https://sg\.run",
+        r"missed out on.*pro rules",
+        r"supercharge semgrep oss",
+    ]
+    
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        line_lower = line.lower()
+        
+        # Check if line matches any login pattern
+        should_filter = False
+        for pattern in login_patterns:
+            if re.search(pattern, line_lower):
+                should_filter = True
+                break
+        
+        # Filter ASCII art banners (Semgrep CLI header)
+        if not should_filter:
+            if re.match(r"^[┌│└─○\s]+$", line) or re.match(r"^[⠙⠹⠸⠼⠴⠦⠧⠇⠏⠋⠉\s]+", line):
+                # Check if this is part of the promotional banner section
+                # Look ahead/behind for login-related content
+                context_lines = []
+                if i > 0:
+                    context_lines.append(lines[i - 1].lower())
+                if i < len(lines) - 1:
+                    context_lines.append(lines[i + 1].lower())
+                if any(any(p in ctx for p in ["semgrep cli", "login", "sg.run", "semgrep code", "semgrep supply"]) for ctx in context_lines):
+                    should_filter = True
+        
+        # Filter separator lines that are near promotional content
+        if not should_filter and re.match(r"^[\s━─]+$", line):
+            # Check surrounding context
+            context_start = max(0, i - 3)
+            context_end = min(len(lines), i + 4)
+            context = " ".join(lines[context_start:context_end]).lower()
+            if any(p in context for p in ["login", "semgrep code", "semgrep supply", "sg.run", "missed out", "supercharge"]):
+                should_filter = True
+        
+        if not should_filter:
+            filtered_lines.append(line)
+        
+        i += 1
+    
+    return "\n".join(filtered_lines)
 
 
 def run_semgrep(
@@ -22,6 +91,10 @@ def run_semgrep(
     output_json.parent.mkdir(parents=True, exist_ok=True)
     output_text.parent.mkdir(parents=True, exist_ok=True)
     
+    # Set environment to suppress color codes and reduce promotional output
+    env = os.environ.copy()
+    env["NO_COLOR"] = "1"
+    
     # Run semgrep with JSON output
     # Use --output with absolute path, and also capture stdout as backup
     json_result = subprocess.run(
@@ -36,6 +109,7 @@ def run_semgrep(
         cwd=str(repo_dir),
         capture_output=True,
         text=True,
+        env=env,
     )
     if json_result.returncode not in (0, 1):
         raise RuntimeError(
@@ -62,16 +136,23 @@ def run_semgrep(
         cwd=str(repo_dir),
         capture_output=True,
         text=True,
+        env=env,
     )
     if text_result.returncode not in (0, 1):
         raise RuntimeError(
             f"semgrep text failed for {repo_dir} with exit code {text_result.returncode}: {text_result.stderr}"
         )
     
-    # If file wasn't created, write the captured output manually
-    if not output_text.exists():
+    # Read the output file if it was created, filter it, and write back
+    if output_text.exists():
+        content = output_text.read_text(encoding="utf-8")
+        filtered_content = _filter_semgrep_login_messages(content)
+        output_text.write_text(filtered_content, encoding="utf-8")
+    else:
+        # If file wasn't created, write the captured output manually (filtered)
         if text_result.stdout:
-            output_text.write_text(text_result.stdout, encoding="utf-8")
+            filtered_stdout = _filter_semgrep_login_messages(text_result.stdout)
+            output_text.write_text(filtered_stdout, encoding="utf-8")
         else:
             # Create empty file if no output
             output_text.write_text("No issues found.\n", encoding="utf-8")
@@ -145,6 +226,45 @@ def run_trivy_dockerfile_scan(
                 )
             else:
                 handle.write("\n")
+
+
+def run_trivy_fs_scan(
+    repo_dir: Path,
+    output_text: Path,
+) -> None:
+    """Run Trivy filesystem scan on repository directory."""
+    trivy_bin = shutil.which("trivy")
+    output_text.parent.mkdir(parents=True, exist_ok=True)
+
+    if not trivy_bin:
+        output_text.write_text(
+            "Skipping Trivy filesystem scan; missing binary: trivy\n",
+            encoding="utf-8",
+        )
+        return
+
+    # Ensure absolute paths
+    repo_dir = repo_dir.resolve()
+    output_text = output_text.resolve()
+
+    with output_text.open("w", encoding="utf-8") as handle:
+        handle.write("=" * 80 + "\n")
+        handle.write(f"Tool: trivy fs\n")
+        handle.write(f"Repository: {repo_dir}\n")
+        handle.write("=" * 80 + "\n\n")
+
+        trivy_result = subprocess.run(
+            [trivy_bin, "fs", "."],
+            cwd=repo_dir,
+            stdout=handle,
+            stderr=handle,
+        )
+        if trivy_result.returncode not in (0, 1):
+            handle.write(
+                f"\nTrivy filesystem scan failed (exit {trivy_result.returncode}).\n"
+            )
+        else:
+            handle.write(f"\nExit code: {trivy_result.returncode}\n")
 
 
 def run_tfsec_checkov_tflint_scan(

@@ -3,6 +3,7 @@ import os
 import json
 import csv
 import tempfile
+import asyncio
 from pathlib import Path
 from typing import Dict, Any
 from celery import Celery
@@ -13,6 +14,7 @@ from sec_audit.fs import detect_languages, has_terraform
 from sec_audit.scanners import (
     run_semgrep,
     run_trivy_dockerfile_scan,
+    run_trivy_fs_scan,
     run_tfsec_checkov_tflint_scan,
 )
 from sec_audit.ecosystem import (
@@ -24,6 +26,16 @@ from sec_audit.ecosystem import (
     run_cargo_audit,
 )
 from sec_audit.utils import parse_audit_selection, should_run_audit
+from sec_audit.ai.normalizer import normalize_findings
+from sec_audit.ai.storage import (
+    store_findings, 
+    store_ai_analysis, 
+    create_db_pool, 
+    ensure_scan_record,
+    update_scan_status
+)
+from sec_audit.ai.summarizer import AISummarizer
+from sec_audit.ai.storage_backend import create_storage_backend
 
 logger = get_task_logger(__name__)
 
@@ -61,20 +73,122 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
     Returns:
         Dictionary with scan results and metadata
     """
+    # #region agent log
+    import json as json_lib
+    try:
+        with open('/work/debug.log', 'a') as f:
+            f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"scan_worker.py:65","message":"Task started","data":{"scan_id":scan_id,"request_data_keys":list(request_data.keys())},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+    except: pass
+    # #endregion
+    
     repo_url = request_data['repo_url']
-    branch = request_data.get('branch', 'main')
+    branch = request_data.get('branch')  # None means auto-detect default branch
     audit_types = request_data.get('audit_types', [])
     skip_lfs = request_data.get('skip_lfs', False)
     
-    logger.info(f"Starting scan {scan_id} for {repo_url} (branch: {branch})")
+    logger.info(f"Starting scan {scan_id} for {repo_url} (branch: {branch or 'auto-detect'})")
     
     # Create results directory
     results_dir = RESULTS_DIR / scan_id
     results_dir.mkdir(parents=True, exist_ok=True)
     
+    # Get database URL for status updates
+    db_url = os.getenv("DATABASE_URL")
+    
+    # #region agent log
+    try:
+        with open('/work/debug.log', 'a') as f:
+            f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"scan_worker.py:88","message":"DATABASE_URL check","data":{"db_url_set":db_url is not None,"db_url_length":len(db_url) if db_url else 0},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+    except: pass
+    # #endregion
+    
+    # Helper function to update both Celery state and database progress
+    def update_progress(progress: int, step: str):
+        """Update both Celery task state and database progress."""
+        self.update_state(state='PROGRESS', meta={'progress': progress, 'current_step': step})
+        if db_url:
+            try:
+                async def update_progress_async():
+                    pool = await create_db_pool(db_url)
+                    async with pool.acquire() as conn:
+                        await update_scan_status(conn, scan_id, "running", progress=progress)
+                asyncio.run(update_progress_async())
+            except Exception as e:
+                logger.debug(f"Failed to update database progress: {e}")
+    
+    # Update scan status to "running" in database
+    if db_url:
+        # #region agent log
+        try:
+            with open('/work/debug.log', 'a') as f:
+                f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"scan_worker.py:105","message":"About to update status to running","data":{"scan_id":scan_id},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+        except: pass
+        # #endregion
+        try:
+            async def update_status_async():
+                # #region agent log
+                try:
+                    with open('/work/debug.log', 'a') as f:
+                        f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"scan_worker.py:108","message":"Creating DB pool","data":{},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                except: pass
+                # #endregion
+                pool = await create_db_pool(db_url)
+                # #region agent log
+                try:
+                    with open('/work/debug.log', 'a') as f:
+                        f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"scan_worker.py:110","message":"DB pool created, acquiring connection","data":{},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                except: pass
+                # #endregion
+                async with pool.acquire() as conn:
+                    # #region agent log
+                    try:
+                        with open('/work/debug.log', 'a') as f:
+                            f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"scan_worker.py:112","message":"Calling ensure_scan_record","data":{"scan_id":scan_id},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                    except: pass
+                    # #endregion
+                    await ensure_scan_record(conn, scan_id, repo_url, branch, audit_types, status="running")
+                    # #region agent log
+                    try:
+                        with open('/work/debug.log', 'a') as f:
+                            f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"scan_worker.py:114","message":"ensure_scan_record completed, calling update_scan_status","data":{"scan_id":scan_id},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                    except: pass
+                    # #endregion
+                    await update_scan_status(conn, scan_id, "running", progress=0)
+                    # #region agent log
+                    try:
+                        with open('/work/debug.log', 'a') as f:
+                            f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"scan_worker.py:116","message":"update_scan_status completed","data":{"scan_id":scan_id},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                    except: pass
+                    # #endregion
+            
+            asyncio.run(update_status_async())
+            logger.info(f"Updated scan {scan_id} status to 'running' in database")
+            # #region agent log
+            try:
+                with open('/work/debug.log', 'a') as f:
+                    f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"scan_worker.py:120","message":"Status update successful","data":{"scan_id":scan_id},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+            except: pass
+            # #endregion
+        except Exception as e:
+            logger.error(f"Failed to update scan status to 'running': {e}", exc_info=True)
+            # #region agent log
+            try:
+                with open('/work/debug.log', 'a') as f:
+                    f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"scan_worker.py:173","message":"Status update failed","data":{"scan_id":scan_id,"error":str(e),"error_type":type(e).__name__},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+            except: pass
+            # #endregion
+            # Don't fail the scan, but log the error - the record will be created when storing findings
+    else:
+        # #region agent log
+        try:
+            with open('/work/debug.log', 'a') as f:
+                f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"scan_worker.py:125","message":"DATABASE_URL not set, skipping status update","data":{"scan_id":scan_id},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+        except: pass
+        # #endregion
+    
     try:
         # Update progress
-        self.update_state(state='PROGRESS', meta={'progress': 10, 'current_step': 'Cloning repository'})
+        update_progress(10, 'Cloning repository')
         
         # Create temporary directory for cloning
         with tempfile.TemporaryDirectory(prefix=f"scan_{scan_id}_") as tmpdir:
@@ -82,14 +196,50 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             
             # Step 1: Clone repository
             logger.info(f"Cloning {repo_url} to {repo_path}")
-            clone_repo(repo_url, repo_path, branch, skip_lfs)
-            update_submodules_if_present(repo_path)
+            try:
+                # Clone and capture the actual branch used (may be auto-detected)
+                actual_branch = clone_repo(repo_url, repo_path, branch, skip_lfs)
+                # Use the actual branch for subsequent operations
+                branch = actual_branch
+                logger.info(f"Using branch: {branch}")
+                
+                # Update database with the detected branch
+                if db_url:
+                    try:
+                        async def update_branch_async():
+                            pool = await create_db_pool(db_url)
+                            async with pool.acquire() as conn:
+                                await update_scan_status(conn, scan_id, "running", branch=branch)
+                        asyncio.run(update_branch_async())
+                    except Exception as e:
+                        logger.debug(f"Failed to update branch in database: {e}")
+                
+                update_submodules_if_present(repo_path)
+            except RuntimeError as e:
+                error_msg = str(e)
+                # Check for common network errors
+                if "Could not resolve host" in error_msg or "Name or service not known" in error_msg:
+                    logger.error(f"DNS resolution failed for {repo_url}. Check network connectivity and DNS configuration.")
+                    raise RuntimeError(
+                        f"Network error: Unable to resolve hostname for {repo_url}. "
+                        "This may indicate DNS configuration issues in the Docker container. "
+                        "Check docker-compose.yml DNS settings and network connectivity."
+                    ) from e
+                elif "Connection refused" in error_msg or "Connection timed out" in error_msg:
+                    logger.error(f"Connection failed for {repo_url}. Check network connectivity.")
+                    raise RuntimeError(
+                        f"Network error: Unable to connect to {repo_url}. "
+                        "This may indicate network connectivity issues or firewall restrictions."
+                    ) from e
+                else:
+                    # Re-raise other errors as-is
+                    raise
             
             # Capture commit hash
             commit_hash = get_commit_hash(repo_path, branch)
             logger.info(f"Scanned commit: {commit_hash}")
             
-            self.update_state(state='PROGRESS', meta={'progress': 20, 'current_step': 'Detecting languages'})
+            update_progress(20, 'Detecting languages')
             
             # Step 2: Detect languages
             language_counts = detect_languages(repo_path)
@@ -124,10 +274,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             
             # SAST scan
             if should_run_audit(selected_audits, 'sast'):
-                self.update_state(
-                    state='PROGRESS',
-                    meta={'progress': int(current_progress), 'current_step': 'Running SAST scan (Semgrep)'}
-                )
+                update_progress(int(current_progress), 'Running SAST scan (Semgrep)')
                 try:
                     semgrep_json = results_dir / "semgrep.json"
                     semgrep_text = results_dir / "semgrep.txt"
@@ -152,10 +299,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             
             # Dockerfile scan
             if should_run_audit(selected_audits, 'dockerfile'):
-                self.update_state(
-                    state='PROGRESS',
-                    meta={'progress': int(current_progress), 'current_step': 'Scanning Dockerfiles (Trivy)'}
-                )
+                update_progress(int(current_progress), 'Scanning Dockerfiles (Trivy)')
                 try:
                     trivy_report = results_dir / "trivy_dockerfile_scan.txt"
                     run_trivy_dockerfile_scan(repo_path, repo_name(repo_url), trivy_report)
@@ -172,12 +316,27 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                     results['audits']['dockerfile'] = {'status': 'failed', 'error': str(e)}
                 current_progress += progress_step
             
+            # Trivy filesystem scan (runs for all audits)
+            update_progress(int(current_progress), 'Running Trivy filesystem scan')
+            try:
+                trivy_fs_report = results_dir / "trivy_fs_scan.txt"
+                run_trivy_fs_scan(repo_path, trivy_fs_report)
+                if trivy_fs_report.exists():
+                    results['audits']['trivy_fs'] = {
+                        'file': str(trivy_fs_report),
+                        'status': 'completed'
+                    }
+                    logger.info("Trivy filesystem scan completed")
+                else:
+                    results['audits']['trivy_fs'] = {'status': 'skipped'}
+            except Exception as e:
+                logger.error(f"Trivy filesystem scan failed: {e}")
+                results['audits']['trivy_fs'] = {'status': 'failed', 'error': str(e)}
+            current_progress += progress_step
+            
             # Terraform scans
             if should_run_audit(selected_audits, 'terraform') and has_terraform(repo_path):
-                self.update_state(
-                    state='PROGRESS',
-                    meta={'progress': int(current_progress), 'current_step': 'Scanning Terraform (tfsec, checkov, tflint)'}
-                )
+                update_progress(int(current_progress), 'Scanning Terraform (tfsec, checkov, tflint)')
                 try:
                     tfsec_report = results_dir / "tfsec.txt"
                     checkov_report = results_dir / "checkov.txt"
@@ -198,10 +357,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             # Node.js audit
             if should_run_audit(selected_audits, 'node'):
                 if ('JavaScript' in language_counts or 'TypeScript' in language_counts or has_node_project(repo_path)):
-                    self.update_state(
-                        state='PROGRESS',
-                        meta={'progress': int(current_progress), 'current_step': 'Auditing Node.js dependencies'}
-                    )
+                    update_progress(int(current_progress), 'Auditing Node.js dependencies')
                     try:
                         node_report = results_dir / "node_audit.txt"
                         run_node_audit(repo_path, repo_name(repo_url), node_report)
@@ -221,10 +377,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             # Go audit
             if should_run_audit(selected_audits, 'go'):
                 if 'Go' in language_counts or has_go_project(repo_path):
-                    self.update_state(
-                        state='PROGRESS',
-                        meta={'progress': int(current_progress), 'current_step': 'Auditing Go dependencies (govulncheck)'}
-                    )
+                    update_progress(int(current_progress), 'Auditing Go dependencies (govulncheck)')
                     try:
                         go_report = results_dir / "go_vulncheck.txt"
                         run_go_vulncheck(repo_path, repo_name(repo_url), go_report)
@@ -244,10 +397,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             # Rust audit
             if should_run_audit(selected_audits, 'rust'):
                 if 'Rust' in language_counts or has_rust_project(repo_path):
-                    self.update_state(
-                        state='PROGRESS',
-                        meta={'progress': int(current_progress), 'current_step': 'Auditing Rust dependencies (cargo-audit)'}
-                    )
+                    update_progress(int(current_progress), 'Auditing Rust dependencies (cargo-audit)')
                     try:
                         rust_report = results_dir / "rust_audit.txt"
                         run_cargo_audit(repo_path, repo_name(repo_url), rust_report)
@@ -263,8 +413,223 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                 else:
                     results['audits']['rust'] = {'status': 'skipped', 'reason': 'No Rust project detected'}
             
-            # Step 5: Aggregate and save results
-            self.update_state(state='PROGRESS', meta={'progress': 95, 'current_step': 'Saving results'})
+            # Step 5: Normalize findings and store in database
+            update_progress(96, 'Normalizing findings')
+            
+            findings = []
+            finding_db_ids = []  # Initialize for use in AI analysis
+            # db_url already defined above
+            # #region agent log
+            logger.info(f"[DEBUG WORKER] DATABASE_URL check: {'SET' if db_url else 'NOT SET'}")
+            logger.info(f"[DEBUG WORKER] results_dir exists: {results_dir.exists()}, path: {results_dir}")
+            if results_dir.exists():
+                scanner_files = list(results_dir.glob("*.json")) + list(results_dir.glob("*.txt"))
+                logger.info(f"[DEBUG WORKER] Scanner files found: {[f.name for f in scanner_files]}")
+            # #endregion
+            if db_url:
+                try:
+                    findings = normalize_findings(results_dir, scan_id)
+                    # #region agent log
+                    logger.info(f"[DEBUG WORKER] Normalized {len(findings)} findings")
+                    if len(findings) == 0:
+                        logger.warning(f"[DEBUG WORKER] No findings normalized! Checking scanner files...")
+                        for file in results_dir.glob("*"):
+                            if file.is_file():
+                                logger.info(f"[DEBUG WORKER] File exists: {file.name}, size: {file.stat().st_size}")
+                    # #endregion
+                    
+                    # Store findings in PostgreSQL
+                    update_progress(97, 'Storing findings in database')
+                    
+                    async def store_findings_async():
+                        pool = await create_db_pool(db_url)
+                        async with pool.acquire() as conn:
+                            # #region agent log
+                            try:
+                                with open('/work/debug.log', 'a') as f:
+                                    f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"scan_worker.py:431","message":"About to ensure scan record before storing findings","data":{"scan_id":scan_id},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                            except: pass
+                            # #endregion
+                            # Ensure scan record exists before storing findings
+                            try:
+                                await ensure_scan_record(
+                                    conn,
+                                    scan_id,
+                                    repo_url,
+                                    branch,
+                                    audit_types,
+                                    status="running"
+                                )
+                                # #region agent log
+                                try:
+                                    with open('/work/debug.log', 'a') as f:
+                                        f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"scan_worker.py:442","message":"ensure_scan_record succeeded, verifying record exists","data":{"scan_id":scan_id},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                                except: pass
+                                # #endregion
+                                # Verify the record exists before storing findings
+                                verify = await conn.fetchval(
+                                    "SELECT scan_id FROM scan WHERE scan_id = $1",
+                                    scan_id
+                                )
+                                # #region agent log
+                                try:
+                                    with open('/work/debug.log', 'a') as f:
+                                        f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"scan_worker.py:450","message":"Verification before store_findings","data":{"scan_id":scan_id,"record_exists":verify is not None},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                                except: pass
+                                # #endregion
+                                if not verify:
+                                    error_msg = f"Scan record does not exist after ensure_scan_record for scan_id={scan_id}"
+                                    logger.error(error_msg)
+                                    # #region agent log
+                                    try:
+                                        with open('/work/debug.log', 'a') as f:
+                                            f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"scan_worker.py:456","message":"CRITICAL: Scan record missing after ensure_scan_record","data":{"scan_id":scan_id},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                                    except: pass
+                                    # #endregion
+                                    raise RuntimeError(error_msg)
+                                # #region agent log
+                                try:
+                                    with open('/work/debug.log', 'a') as f:
+                                        f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"scan_worker.py:463","message":"Record verified, about to store findings","data":{"scan_id":scan_id},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                                except: pass
+                                # #endregion
+                            except Exception as ensure_err:
+                                # #region agent log
+                                try:
+                                    with open('/work/debug.log', 'a') as f:
+                                        f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"scan_worker.py:467","message":"ensure_scan_record failed","data":{"scan_id":scan_id,"error":str(ensure_err),"error_type":type(ensure_err).__name__},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                                except: pass
+                                # #endregion
+                                logger.error(f"Failed to ensure scan record: {ensure_err}", exc_info=True)
+                                raise
+                            return await store_findings(conn, scan_id, findings)
+                    
+                    stats = asyncio.run(store_findings_async())
+                    # #region agent log
+                    logger.info(f"[DEBUG WORKER] Store findings result: {stats}")
+                    # #endregion
+                    finding_db_ids = stats.get('inserted_ids', [])  # Database IDs in same order as findings list
+                    results['findings'] = stats
+                    logger.info(f"Stored {stats['findings_count']} findings in database")
+                except Exception as e:
+                    # #region agent log
+                    logger.error(f"[DEBUG WORKER] Exception in normalize/store: {e}", exc_info=True)
+                    # #endregion
+                    logger.error(f"Failed to normalize/store findings: {e}", exc_info=True)
+                    # Don't fail the scan if normalization fails
+                    results['findings'] = {'error': str(e)}
+            else:
+                logger.warning("DATABASE_URL not set, skipping findings normalization")
+            
+            # Step 6: Upload raw outputs to storage (if configured)
+            storage_backend_type = os.getenv("STORAGE_BACKEND", "local").lower()
+            if storage_backend_type != "none":
+                try:
+                    update_progress(98, 'Uploading to storage')
+                    storage = create_storage_backend(storage_backend_type)
+                    
+                    # Upload raw scanner outputs
+                    raw_files = [
+                        "semgrep.json",
+                        "semgrep.txt",
+                        "trivy_dockerfile_scan.txt",
+                        "node_audit.txt",
+                        "go_vulncheck.txt",
+                        "rust_audit.txt",
+                        "tfsec.txt",
+                        "checkov.txt",
+                        "tflint.txt",
+                    ]
+                    
+                    uploaded_paths = []
+                    for filename in raw_files:
+                        file_path = results_dir / filename
+                        if file_path.exists():
+                            remote_path = f"scans/{scan_id}/raw/{filename}"
+                            storage.upload_file(file_path, remote_path)
+                            uploaded_paths.append(remote_path)
+                    
+                    if storage_backend_type == "s3":
+                        results['s3_results_path'] = f"s3://{os.getenv('S3_BUCKET')}/scans/{scan_id}/"
+                    else:
+                        results['storage_path'] = str(results_dir)
+                    
+                    logger.info(f"Uploaded {len(uploaded_paths)} files to {storage_backend_type} storage")
+                except Exception as e:
+                    logger.error(f"Failed to upload to storage: {e}", exc_info=True)
+                    # Don't fail the scan if storage upload fails
+            
+            # Step 7: AI Analysis (optional, async)
+            ai_enabled = os.getenv("AI_ANALYSIS_ENABLED", "false").lower() == "true"
+            if ai_enabled and findings and db_url:
+                try:
+                    update_progress(99, 'Generating AI analysis')
+                    
+                    ai_api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")
+                    if not ai_api_key:
+                        logger.warning("AI analysis enabled but no API key found")
+                    else:
+                        summarizer = AISummarizer()
+                        ai_summary = asyncio.run(
+                            summarizer.generate_summary(
+                                scan_id, findings, repo_url, language_counts
+                            )
+                        )
+                        
+                        # Map 1-indexed finding positions from AI to database IDs
+                        top_findings_db_ids = []
+                        if finding_db_ids and ai_summary.get('topFindings'):
+                            for idx in ai_summary['topFindings']:
+                                # AI returns 1-indexed positions, convert to 0-indexed and get DB ID
+                                if 1 <= idx <= len(finding_db_ids):
+                                    top_findings_db_ids.append(finding_db_ids[idx - 1])
+                        
+                        # Map finding IDs in recommendations too
+                        mapped_recommendations = []
+                        if ai_summary.get('recommendations') and finding_db_ids:
+                            for rec in ai_summary['recommendations']:
+                                mapped_rec = rec.copy()
+                                if 'findingIds' in mapped_rec:
+                                    # Map 1-indexed positions to database IDs
+                                    mapped_finding_ids = []
+                                    for idx in mapped_rec['findingIds']:
+                                        if 1 <= idx <= len(finding_db_ids):
+                                            mapped_finding_ids.append(finding_db_ids[idx - 1])
+                                    mapped_rec['findingIds'] = mapped_finding_ids
+                                mapped_recommendations.append(mapped_rec)
+                        else:
+                            mapped_recommendations = ai_summary.get('recommendations', [])
+                        
+                        # Store AI summary in database
+                        async def store_ai_async():
+                            pool = await create_db_pool(db_url)
+                            async with pool.acquire() as conn:
+                                return await store_ai_analysis(
+                                    conn,
+                                    scan_id,
+                                    ai_summary['summary'],
+                                    mapped_recommendations,
+                                    ai_summary['riskScore'],
+                                    top_findings_db_ids,
+                                    ai_summary.get('model', 'unknown'),
+                                    ai_summary.get('modelVersion', 'unknown'),
+                                    ai_summary['tokensUsed']
+                                )
+                        
+                        ai_analysis_id = asyncio.run(store_ai_async())
+                        results['ai_analysis'] = {
+                            'id': ai_analysis_id,
+                            'risk_score': ai_summary['riskScore'],
+                            'tokens_used': ai_summary['tokensUsed']
+                        }
+                        logger.info("AI analysis completed")
+                except Exception as e:
+                    logger.error(f"AI analysis failed: {e}", exc_info=True)
+                    # Don't fail the scan if AI analysis fails
+                    results['ai_analysis'] = {'error': str(e)}
+            
+            # Step 8: Aggregate and save results
+            update_progress(100, 'Saving results')
             
             results['status'] = 'completed'
             results['results_path'] = str(results_dir)
@@ -274,11 +639,47 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             with results_json.open("w", encoding="utf-8") as f:
                 json.dump(results, f, indent=2)
             
+            # Update scan status to "completed" in database
+            if db_url:
+                try:
+                    async def update_completed_async():
+                        pool = await create_db_pool(db_url)
+                        async with pool.acquire() as conn:
+                            await update_scan_status(
+                                conn, 
+                                scan_id, 
+                                "completed", 
+                                progress=100,
+                                commit_hash=commit_hash,
+                                results_path=str(results_dir)
+                            )
+                    
+                    asyncio.run(update_completed_async())
+                    logger.info(f"Updated scan {scan_id} status to 'completed' in database")
+                except Exception as e:
+                    logger.warning(f"Failed to update scan status to 'completed': {e}")
+            
             logger.info(f"Scan {scan_id} completed successfully. Results saved to {results_dir}")
             
             return results
             
     except Exception as exc:
         logger.error(f"Scan {scan_id} failed: {exc}", exc_info=True)
+        
+        # Update scan status to "failed" in database
+        # db_url is already defined at function start
+        if db_url:
+            try:
+                async def update_failed_async():
+                    pool = await create_db_pool(db_url)
+                    async with pool.acquire() as conn:
+                        await ensure_scan_record(conn, scan_id, repo_url, branch, audit_types, status="failed")
+                        await update_scan_status(conn, scan_id, "failed")
+                
+                asyncio.run(update_failed_async())
+                logger.info(f"Updated scan {scan_id} status to 'failed' in database")
+            except Exception as e:
+                logger.warning(f"Failed to update scan status to 'failed': {e}")
+        
         # Retry with exponential backoff
         raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))

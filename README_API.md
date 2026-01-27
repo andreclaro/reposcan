@@ -188,11 +188,20 @@ results/
 
 ## Environment Variables
 
-Create a `.env` file (optional):
+See [ENV_VARIABLES.md](../ENV_VARIABLES.md) for complete environment variable documentation.
 
+**Minimal configuration:**
 ```bash
 REDIS_URL=redis://localhost:6379/0
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sec_audit
 RESULTS_DIR=./results
+```
+
+**With AI Analysis enabled:**
+```bash
+AI_ANALYSIS_ENABLED=true
+ANTHROPIC_API_KEY=sk-ant-api03-...
+AI_MODEL=claude-3-sonnet-20240229
 ```
 
 ## Project Structure

@@ -6,7 +6,7 @@ from typing import List, Optional
 class ScanRequest(BaseModel):
     """Request model for creating a scan."""
     repo_url: str
-    branch: str = "main"
+    branch: Optional[str] = None  # None means auto-detect default branch
     audit_types: List[str]
     skip_lfs: bool = False
 

@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   CheckCircle2,
   CircleDashed,
   RefreshCcw,
   Trash2,
-  TriangleAlert
+  TriangleAlert,
+  ExternalLink
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -101,7 +103,15 @@ function formatDate(value?: string | null) {
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  return date.toLocaleString();
+  // Use consistent format to avoid hydration mismatches
+  // Format: YYYY-MM-DD HH:MM:SS
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 type ScanDashboardProps = {
@@ -122,7 +132,6 @@ export default function ScanDashboard({
   const [branchIsDirty, setBranchIsDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [expandedScanId, setExpandedScanId] = useState<string | null>(null);
   const [hasMounted, setHasMounted] = useState(false);
   const branchIsDirtyRef = useRef(branchIsDirty);
 
@@ -430,20 +439,28 @@ export default function ScanDashboard({
                       <RefreshCcw className="size-4" />
                       Refresh
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setExpandedScanId((prev) =>
-                          prev === scan.scanId ? null : scan.scanId
-                        )
-                      }
-                    >
-                      {expandedScanId === scan.scanId
-                        ? "Hide results"
-                        : "View results"}
-                    </Button>
+                    {scan.status === "running" ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled
+                      >
+                        <ExternalLink className="size-4" />
+                        View Results
+                      </Button>
+                    ) : (
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Link href={`/app/scans/${scan.scanId}`}>
+                          <ExternalLink className="size-4" />
+                          View Results
+                        </Link>
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="ghost"
@@ -455,15 +472,6 @@ export default function ScanDashboard({
                     </Button>
                   </div>
                 </div>
-                {expandedScanId === scan.scanId ? (
-                  <div className="mt-4 rounded-xl border bg-muted/40 p-4 text-xs">
-                    <pre className="whitespace-pre-wrap">
-                      {scan.result
-                        ? JSON.stringify(scan.result, null, 2)
-                        : "No results available yet."}
-                    </pre>
-                  </div>
-                ) : null}
               </div>
             ))
           )}

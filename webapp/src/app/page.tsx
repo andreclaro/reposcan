@@ -16,13 +16,13 @@ const featureItems = [
   {
     title: "SAST + secrets scanning",
     description:
-      "Static analysis powered by Semgrep rulesets to surface critical security flaws.",
+      "Static analysis to surface critical security flaws and exposed secrets in your codebase.",
     icon: ShieldCheck
   },
   {
     title: "Dockerfile + IaC checks",
     description:
-      "Trivy, tfsec, checkov, and tflint cover container and Terraform exposure.",
+      "Comprehensive checks for container images and infrastructure-as-code configurations.",
     icon: Scan
   },
   {
@@ -86,12 +86,12 @@ export default async function HomePage() {
                 Scan GitHub repositories in minutes
               </div>
               <h1 className="max-w-none text-balance text-4xl font-semibold tracking-tight md:text-5xl">
-                Automated security scans for every repository you ship.
+                Automated security scans for every service you ship.
               </h1>
               <p className="mx-auto max-w-3xl text-balance text-base text-muted-foreground md:text-lg">
-                Point AuditKit at any GitHub repo and get a unified report across
-                SAST, dependencies, Dockerfiles, and infrastructure. Built on the
-                existing sec-audit pipeline.
+                Connect any GitHub repository and receive comprehensive security
+                analysis covering code quality, dependencies, container images, and
+                infrastructure configurations—all in one unified report.
               </p>
 
               <form

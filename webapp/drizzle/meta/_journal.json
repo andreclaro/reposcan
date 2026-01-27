@@ -8,6 +8,13 @@
       "when": 1769307099635,
       "tag": "0000_nappy_vulcan",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1737820800000,
+      "tag": "0001_add_findings_and_ai_analysis",
+      "breakpoints": true
     }
   ]
 }

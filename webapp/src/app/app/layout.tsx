@@ -14,9 +14,19 @@ export default async function AppLayout({
     <div className="min-h-screen bg-muted/20">
       <header className="border-b bg-background">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <Link href="/" className="text-sm font-semibold">
-            AuditKit
-          </Link>
+          <div className="flex items-center gap-6">
+            <Link href="/" className="text-sm font-semibold">
+              AuditKit
+            </Link>
+            <nav className="flex items-center gap-4 text-sm">
+              <Link
+                href="/app"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Dashboard
+              </Link>
+            </nav>
+          </div>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <span>{session?.user?.email}</span>
             <SignOutButton />

@@ -1,0 +1,94 @@
+---
+description: Conventional commits format for git commit messages
+alwaysApply: true
+---
+
+# Git Commit Message Standards
+
+## Conventional Commits Format
+
+When generating or suggesting git commit messages, always follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
+
+### Format
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Types
+
+Use these commit types:
+
+- **feat**: A new feature
+- **fix**: A bug fix
+- **docs**: Documentation only changes
+- **style**: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc.)
+- **refactor**: A code change that neither fixes a bug nor adds a feature
+- **perf**: A code change that improves performance
+- **test**: Adding missing tests or correcting existing tests
+- **build**: Changes that affect the build system or external dependencies (example scopes: gulp, broccoli, npm)
+- **ci**: Changes to CI configuration files and scripts
+- **chore**: Other changes that don't modify src or test files
+- **revert**: Reverts a previous commit
+
+### Scope (Optional)
+
+The scope should be the name of the package affected. Examples:
+- `sec_audit`: Core scanning logic
+- `api`: API endpoints
+- `webapp`: Frontend application
+- `docker`: Docker configuration
+- `scripts`: Utility scripts
+
+### Description
+
+- Use the imperative, present tense: "change" not "changed" nor "changes"
+- Don't capitalize the first letter
+- No dot (.) at the end
+- Maximum 72 characters
+
+### Examples
+
+```
+feat(sec_audit): add AI-powered commit message generation
+
+fix(api): handle missing API keys gracefully
+
+docs: update README with new environment variables
+
+refactor(scanners): simplify Semgrep integration
+
+test(ecosystem): add tests for Node.js audit detection
+
+chore: update dependencies in requirements.txt
+```
+
+### Breaking Changes
+
+If the commit introduces a breaking change, add `!` after the type/scope and include `BREAKING CHANGE:` in the footer:
+
+```
+feat(api)!: change authentication endpoint format
+
+BREAKING CHANGE: The /auth endpoint now requires Bearer token instead of API key in query string.
+```
+
+### When User Asks for Git Operations
+
+When the user asks to:
+- "commit these changes"
+- "write a commit message"
+- "git commit"
+- "stage and commit"
+
+1. First, show the git diff to understand what changed
+2. Analyze the changes to determine the appropriate type and scope
+3. Generate a commit message following conventional commits format
+4. Stage the changes (`git add`)
+5. Commit with the generated message
+
+Always analyze the actual code changes before generating the commit message to ensure accuracy.

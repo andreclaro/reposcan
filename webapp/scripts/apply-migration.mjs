@@ -1,0 +1,78 @@
+#!/usr/bin/env node
+/**
+ * Apply database migration manually
+ * Usage: DATABASE_URL=postgresql://... node scripts/apply-migration.mjs
+ */
+import postgres from "postgres";
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const databaseUrl = process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  console.error("Error: DATABASE_URL environment variable is required");
+  process.exit(1);
+}
+
+const migrationFile = join(__dirname, "../drizzle/0001_add_findings_and_ai_analysis.sql");
+const sql = readFileSync(migrationFile, "utf-8");
+
+// Split by statement breakpoints and execute each statement
+// Remove comment-only lines but keep SQL statements that may have inline comments
+const statements = sql
+  .split("--> statement-breakpoint")
+  .map((s) => {
+    // Remove lines that are only comments (starting with --)
+    const lines = s.split("\n");
+    const sqlLines = lines.filter((line) => {
+      const trimmed = line.trim();
+      return trimmed && !trimmed.startsWith("--");
+    });
+    return sqlLines.join("\n").trim();
+  })
+  .filter((s) => s && s.length > 0);
+
+async function applyMigration() {
+  const client = postgres(databaseUrl, { max: 1 });
+
+  try {
+    console.log("Applying migration: 0001_add_findings_and_ai_analysis");
+    console.log(`Found ${statements.length} statements to execute\n`);
+    
+    for (let i = 0; i < statements.length; i++) {
+      const statement = statements[i];
+      if (statement.trim()) {
+        try {
+          await client.unsafe(statement);
+          console.log(`✓ [${i + 1}/${statements.length}] Executed statement`);
+        } catch (error) {
+          // Ignore "already exists" errors
+          const errorMsg = error.message || String(error);
+          if (
+            errorMsg.includes("already exists") ||
+            errorMsg.includes("duplicate") ||
+            errorMsg.includes("column") && errorMsg.includes("already exists")
+          ) {
+            console.log(`⚠ [${i + 1}/${statements.length}] Skipped (already exists)`);
+          } else {
+            console.error(`✗ [${i + 1}/${statements.length}] Failed:`, errorMsg);
+            throw error;
+          }
+        }
+      }
+    }
+
+    console.log("\n✓ Migration applied successfully");
+  } catch (error) {
+    console.error("\n✗ Migration failed:", error.message || error);
+    process.exit(1);
+  } finally {
+    await client.end();
+  }
+}
+
+applyMigration();

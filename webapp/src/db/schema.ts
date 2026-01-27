@@ -1,4 +1,5 @@
 import {
+  index,
   integer,
   jsonb,
   pgTable,
@@ -66,6 +67,30 @@ export const verificationTokens = pgTable(
   ]
 );
 
+// AI Analysis table (defined before scans to avoid circular reference)
+// Foreign key to scans.scanId is defined in the migration SQL
+export const aiAnalysis = pgTable("ai_analysis", {
+  id: serial("id").primaryKey(),
+  scanId: text("scan_id")
+    .unique()
+    .notNull(),
+  summary: text("summary").notNull(), // Executive summary (markdown)
+  recommendations: jsonb("recommendations").$type<
+    Array<{
+      priority: "critical" | "high" | "medium" | "low";
+      action: string;
+      findingIds: number[];
+      estimatedEffort: "low" | "medium" | "high";
+    }>
+  >(),
+  riskScore: integer("risk_score"), // 0-100 overall risk score
+  topFindings: jsonb("top_findings").$type<number[]>(), // Finding IDs for top 10 critical issues
+  model: text("model"), // 'claude-3-opus', 'gpt-4', 'claude-3-sonnet', etc.
+  modelVersion: text("model_version"), // API version used
+  tokensUsed: integer("tokens_used"), // For cost tracking
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow()
+});
+
 export const scans = pgTable("scan", {
   id: serial("id").primaryKey(),
   scanId: text("scan_id").unique().notNull(),
@@ -79,7 +104,54 @@ export const scans = pgTable("scan", {
   status: text("status").notNull().default("queued"),
   progress: integer("progress").default(0),
   resultsPath: text("results_path"),
+  s3ResultsPath: text("s3_results_path"),
   result: jsonb("result").$type<Record<string, unknown> | null>().default(null),
+  
+  // Findings summary counts
+  findingsCount: integer("findings_count").default(0),
+  criticalCount: integer("critical_count").default(0),
+  highCount: integer("high_count").default(0),
+  mediumCount: integer("medium_count").default(0),
+  lowCount: integer("low_count").default(0),
+  infoCount: integer("info_count").default(0),
+  
+  // AI analysis reference
+  aiAnalysisId: integer("ai_analysis_id").references(() => aiAnalysis.id),
+  
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow()
 });
+
+// Findings table - normalized, queryable
+export const findings = pgTable(
+  "finding",
+  {
+    id: serial("id").primaryKey(),
+    scanId: text("scan_id")
+      .notNull()
+      .references(() => scans.scanId, { onDelete: "cascade" }),
+    scanner: text("scanner").notNull(), // 'semgrep', 'trivy', 'npm', 'govulncheck', 'cargo-audit', 'tfsec', 'checkov', 'tflint'
+    severity: text("severity").notNull(), // 'critical', 'high', 'medium', 'low', 'info'
+    category: text("category"), // 'injection', 'xss', 'auth', 'crypto', 'dependency', 'config', 'secrets', 'rce', 'ssrf', 'idor'
+    title: text("title").notNull(),
+    description: text("description"),
+    filePath: text("file_path"),
+    lineStart: integer("line_start"),
+    lineEnd: integer("line_end"),
+    codeSnippet: text("code_snippet"), // First 500 chars only (full code in S3/local storage if needed)
+    cwe: text("cwe"), // CWE-79
+    cve: text("cve"), // CVE-2024-1234
+    remediation: text("remediation"),
+    confidence: text("confidence"), // 'high', 'medium', 'low'
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(), // Tool-specific data (rule_id, package_name, etc.)
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow()
+  },
+  (table) => ({
+    scanIdIdx: index("idx_findings_scan_id").on(table.scanId),
+    severityIdx: index("idx_findings_severity").on(table.severity),
+    categoryIdx: index("idx_findings_category").on(table.category),
+    scannerIdx: index("idx_findings_scanner").on(table.scanner),
+    cweIdx: index("idx_findings_cwe").on(table.cwe),
+    cveIdx: index("idx_findings_cve").on(table.cve)
+  })
+);
