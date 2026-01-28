@@ -1,13 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import { eq, and } from "drizzle-orm";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 
 import ScanResults from "@/components/scan-results";
 import { db } from "@/db";
 import { scans } from "@/db/schema";
 import { getServerAuth } from "@/lib/server-auth";
-import { Button } from "@/components/ui/button";
 
 type PageProps = {
   params: Promise<{ scanId: string }>;
@@ -33,24 +30,14 @@ export default async function ScanResultsPage({ params }: PageProps) {
   }
 
   const scan = scanRecords[0];
+  const repoPath =
+    scan.repoUrl?.split("github.com/")[1]?.replace(/\.git$/, "") ??
+    scan.repoUrl;
+  const shortCommitHash = scan.commitHash ? scan.commitHash.slice(0, 7) : null;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button asChild variant="ghost" size="sm">
-          <Link href="/app">
-            <ArrowLeft className="size-4" />
-            Back to Dashboard
-          </Link>
-        </Button>
-      </div>
-
-      <div>
-        <h1 className="text-2xl font-semibold">Scan Results</h1>
-        <p className="text-sm text-muted-foreground">
-          {scan.repoUrl} {scan.branch ? `(${scan.branch})` : ""}
-        </p>
-      </div>
+      <h1 className="text-2xl font-semibold">Scan Results</h1>
 
       <ScanResults
         scanId={scanId}

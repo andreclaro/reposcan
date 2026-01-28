@@ -67,8 +67,8 @@ export default function ScanResults({ scanId, scan }: ScanResultsProps) {
   return (
     <div className="space-y-4">
       {/* Tabs */}
-      <div className="border-b">
-        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+      <div className="border-b border-border/70">
+        <nav className="-mb-px flex flex-wrap gap-4" aria-label="Tabs">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -76,10 +76,10 @@ export default function ScanResults({ scanId, scan }: ScanResultsProps) {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "inline-flex items-center gap-2 border-b-2 px-1 py-4 text-sm font-medium transition-colors",
+                  "inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors",
                   activeTab === tab.id
                     ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
+                    : "border-transparent text-muted-foreground hover:border-border/70 hover:text-foreground"
                 )}
               >
                 <Icon className="size-4" />

@@ -6,8 +6,8 @@ import { getServerAuth } from "@/lib/server-auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AuditKit",
-  description: "Security scan automation for GitHub repositories."
+  title: "SecurityKit",
+  description: "Security Scan Automation for GitHub Repositories."
 };
 
 export default async function RootLayout({

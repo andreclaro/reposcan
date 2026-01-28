@@ -41,12 +41,68 @@ const severityColors: Record<string, string> = {
   info: "bg-gray-500/10 text-gray-600 border-gray-500/20",
 };
 
+function getCweId(cwe: string | null): string | null {
+  if (!cwe) return null;
+
+  // Handle formats like:
+  // - "CWE-78"
+  // - "CWE-78: Improper Neutralization..."
+  // - "78"
+  const cweIdMatch =
+    cwe.match(/CWE-(\d+)/i)?.[1] ??
+    cwe.match(/(\d+)/)?.[1] ??
+    null;
+
+  return cweIdMatch;
+}
+
+function getCweLabel(cwe: string | null): string | null {
+  if (!cwe) return null;
+
+  // Normalize duplicated prefixes like:
+  // "CWE-CWE-78: Improper Neutralization..." -> "CWE-78: Improper Neutralization..."
+  const duplicateMatch = cwe.match(/^CWE-CWE-(\d+)(:.*)?/i);
+  if (duplicateMatch) {
+    const id = duplicateMatch[1];
+    const suffix = duplicateMatch[2] ?? "";
+    return `CWE-${id}${suffix}`;
+  }
+
+  return cwe;
+}
+
+function getDisplayFilePath(filePath: string | null): string | null {
+  if (!filePath) return null;
+
+  const tmpScanPrefix = "/tmp/scan_";
+
+  // Normalize paths coming from the temporary scan directory, e.g.:
+  // /tmp/scan_<scanId>_<suffix>/scrcpy/server/src/... -> scrcpy/server/src/...
+  if (filePath.startsWith(tmpScanPrefix)) {
+    const parts = filePath.split("/");
+    if (parts.length > 3) {
+      return parts.slice(3).join("/");
+    }
+  }
+
+  return filePath;
+}
+
 export default function FindingsList({ scanId }: FindingsListProps) {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedFinding, setExpandedFinding] = useState<number | null>(null);
+  const [availableFilters, setAvailableFilters] = useState<{
+    severities: string[];
+    categories: string[];
+    scanners: string[];
+  }>({
+    severities: [],
+    categories: [],
+    scanners: [],
+  });
   const [filters, setFilters] = useState({
     severity: "",
     category: "",
@@ -92,7 +148,50 @@ export default function FindingsList({ scanId }: FindingsListProps) {
       console.log('[DEBUG] fetchFindings DATA received', {hasFindings: !!data.findings, findingsLength: data.findings?.length || 0, hasSummary: !!data.summary, dataKeys: Object.keys(data), data});
       fetch('http://127.0.0.1:7250/ingest/c11ddcde-3020-4ad3-907a-65bf86ca8a32',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'findings-list.tsx:79',message:'fetchFindings DATA received',data:{hasFindings:!!data.findings,findingsLength:data.findings?.length||0,hasSummary:!!data.summary,dataKeys:Object.keys(data)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
       // #endregion
-      setFindings(data.findings || []);
+
+      const currentFindings: Finding[] = data.findings || [];
+      const currentSeverities = Array.from(
+        new Set(currentFindings.map((f) => f.severity))
+      );
+      const currentCategories = Array.from(
+        new Set(
+          currentFindings
+            .map((f) => f.category)
+            .filter((c): c is string => !!c)
+        )
+      );
+      const currentScanners = Array.from(
+        new Set(currentFindings.map((f) => f.scanner))
+      );
+
+      // Preserve full filter options even when a filter is active.
+      // We update the "availableFilters" list only when there is no
+      // active filter (initial load), so that selecting a category
+      // like "crypto" doesn't hide other categories from the dropdown.
+      const hasActiveFilters =
+        !!filters.severity || !!filters.category || !!filters.scanner;
+
+      if (!hasActiveFilters) {
+        setAvailableFilters({
+          severities: currentSeverities,
+          categories: currentCategories,
+          scanners: currentScanners,
+        });
+      } else if (
+        availableFilters.severities.length === 0 &&
+        availableFilters.categories.length === 0 &&
+        availableFilters.scanners.length === 0
+      ) {
+        // Fallback: if for some reason we didn't capture the unfiltered set,
+        // initialize from the current response so the dropdowns still work.
+        setAvailableFilters({
+          severities: currentSeverities,
+          categories: currentCategories,
+          scanners: currentScanners,
+        });
+      }
+
+      setFindings(currentFindings);
       setSummary(data.summary || null);
       // #region agent log
       console.log('[DEBUG] fetchFindings SUCCESS', {findingsSet: data.findings?.length || 0, summarySet: !!data.summary});
@@ -155,16 +254,29 @@ export default function FindingsList({ scanId }: FindingsListProps) {
   }
 
   // Get unique values for filters
-  const severities = Array.from(new Set(findings.map((f) => f.severity)));
-  const categories = Array.from(
-    new Set(findings.map((f) => f.category).filter(Boolean))
-  );
-  const scanners = Array.from(new Set(findings.map((f) => f.scanner)));
+  const severities =
+    availableFilters.severities.length > 0
+      ? availableFilters.severities
+      : Array.from(new Set(findings.map((f) => f.severity)));
+  const categories =
+    availableFilters.categories.length > 0
+      ? availableFilters.categories
+      : Array.from(
+          new Set(
+            findings
+              .map((f) => f.category)
+              .filter((c): c is string => !!c)
+          )
+        );
+  const scanners =
+    availableFilters.scanners.length > 0
+      ? availableFilters.scanners
+      : Array.from(new Set(findings.map((f) => f.scanner)));
 
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="rounded-2xl border bg-background p-4 shadow-sm">
+      <div className="rounded-2xl border bg-muted/40 p-3">
         <div className="grid gap-4 md:grid-cols-3">
           <div>
             <label className="text-xs text-muted-foreground">Severity</label>
@@ -221,11 +333,11 @@ export default function FindingsList({ scanId }: FindingsListProps) {
       </div>
 
       {/* Findings List */}
-      <div className="space-y-2">
+      <div className="space-y-3">
         {findings.map((finding) => (
           <div
             key={finding.id}
-            className="rounded-xl border bg-background p-4 shadow-sm"
+            className="rounded-xl border bg-background/80 p-4"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 space-y-2">
@@ -255,11 +367,11 @@ export default function FindingsList({ scanId }: FindingsListProps) {
                     {finding.description}
                   </p>
                 )}
-                {finding.filePath && (
+                {getDisplayFilePath(finding.filePath) && (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <FileCode className="size-3" />
                     <span>
-                      {finding.filePath}
+                      {getDisplayFilePath(finding.filePath)}
                       {finding.lineStart && `:${finding.lineStart}`}
                     </span>
                   </div>
@@ -267,15 +379,27 @@ export default function FindingsList({ scanId }: FindingsListProps) {
                 {(finding.cwe || finding.cve) && (
                   <div className="flex items-center gap-4 text-xs">
                     {finding.cwe && (
+                      (() => {
+                        const cweId = getCweId(finding.cwe);
+                        const cweLabel = getCweLabel(finding.cwe);
+                        if (!cweId) return (
+                          <span className="text-xs text-muted-foreground">
+                            {cweLabel}
+                          </span>
+                        );
+                        return (
                       <a
-                        href={`https://cwe.mitre.org/data/definitions/${finding.cwe.replace("CWE-", "")}.html`}
+                        href={`https://cwe.mitre.org/data/definitions/${cweId}.html`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-primary hover:underline flex items-center gap-1"
                       >
-                        {finding.cwe}
+                        <AlertTriangle className="size-3" />
+                        <span>{cweLabel}</span>
                         <ExternalLink className="size-3" />
                       </a>
+                        );
+                      })()
                     )}
                     {finding.cve && (
                       <a

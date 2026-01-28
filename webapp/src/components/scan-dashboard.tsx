@@ -28,6 +28,12 @@ type ScanRecord = {
   progress: number | null;
   resultsPath: string | null;
   result: Record<string, unknown> | null;
+  findingsCount?: number | null;
+  criticalCount?: number | null;
+  highCount?: number | null;
+  mediumCount?: number | null;
+  lowCount?: number | null;
+  infoCount?: number | null;
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -75,22 +81,73 @@ function parseGitHubRepo(input: string): ParsedGitHubRepo | null {
   }
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({
+  status,
+  scan
+}: {
+  status: string;
+  scan?: Pick<
+    ScanRecord,
+    | "findingsCount"
+    | "criticalCount"
+    | "highCount"
+    | "mediumCount"
+    | "lowCount"
+    | "infoCount"
+  >;
+}) {
+  const showCounts =
+    status === "completed" && typeof scan?.findingsCount === "number";
+
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium",
-        statusStyles[status] ?? "bg-muted text-muted-foreground"
-      )}
-    >
-      {status === "running" || status === "queued" || status === "retrying" ? (
-        <CircleDashed className="size-3" />
-      ) : status === "completed" ? (
-        <CheckCircle2 className="size-3" />
-      ) : status === "failed" ? (
-        <TriangleAlert className="size-3" />
+    <span className="inline-flex items-center gap-1 text-xs font-medium">
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full px-2.5 py-1",
+          statusStyles[status] ?? "bg-muted text-muted-foreground"
+        )}
+      >
+        {status === "running" || status === "queued" || status === "retrying" ? (
+          <CircleDashed className="size-3" />
+        ) : status === "completed" ? (
+          <CheckCircle2 className="size-3" />
+        ) : status === "failed" ? (
+          <TriangleAlert className="size-3" />
+        ) : null}
+        {status}
+      </span>
+      {showCounts ? (
+        <span className="inline-flex items-center gap-1">
+          {Boolean(scan?.criticalCount) && (
+            <span className="text-[10px] font-semibold text-red-600">
+              {scan?.criticalCount}
+            </span>
+          )}
+          {Boolean(scan?.highCount) && (
+            <span className="text-[10px] font-semibold text-orange-600">
+              {scan?.highCount}
+            </span>
+          )}
+          {Boolean(scan?.mediumCount) && (
+            <span className="text-[10px] font-semibold text-yellow-600">
+              {scan?.mediumCount}
+            </span>
+          )}
+          {Boolean(scan?.lowCount) && (
+            <span className="text-[10px] font-semibold text-blue-600">
+              {scan?.lowCount}
+            </span>
+          )}
+          {Boolean(scan?.infoCount) && (
+            <span className="text-[10px] font-semibold text-gray-600">
+              {scan?.infoCount}
+            </span>
+          )}
+          {!scan?.findingsCount && (
+            <span className="text-[10px] font-semibold text-emerald-600">0</span>
+          )}
+        </span>
       ) : null}
-      {status}
     </span>
   );
 }
@@ -130,6 +187,12 @@ export default function ScanDashboard({
   const [branches, setBranches] = useState<string[]>([]);
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
   const [branchIsDirty, setBranchIsDirty] = useState(false);
+  const [refreshingScanIds, setRefreshingScanIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [scanToDelete, setScanToDelete] = useState<ScanRecord | null>(null);
+  const [deleteConfirmValue, setDeleteConfirmValue] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
@@ -162,6 +225,25 @@ export default function ScanDashboard({
     () => scans.filter((scan) => activeStatuses.has(scan.status)),
     [scans]
   );
+
+  const startRefreshing = (scanId: string) => {
+    setRefreshingScanIds((prev) => {
+      const next = new Set(prev);
+      next.add(scanId);
+      return next;
+    });
+  };
+
+  const stopRefreshing = (scanId: string) => {
+    setRefreshingScanIds((prev) => {
+      if (!prev.has(scanId)) {
+        return prev;
+      }
+      const next = new Set(prev);
+      next.delete(scanId);
+      return next;
+    });
+  };
 
   useEffect(() => {
     branchIsDirtyRef.current = branchIsDirty;
@@ -274,28 +356,40 @@ export default function ScanDashboard({
   }, [activeScanIds]);
 
   const refreshScan = async (scanId: string) => {
+    // Ensure the refresh icon animates for at least a short, visible duration
+    const minSpinDurationMs = 600;
+    const startTime = Date.now();
+
+    startRefreshing(scanId);
     try {
       const response = await fetch(`/api/scan/${scanId}/status`, {
         method: "GET",
         cache: "no-store"
       });
 
-      if (!response.ok) {
-        return;
+      if (response.ok) {
+        const data = await response.json();
+        const updated = data.scan as ScanRecord | undefined;
+
+        if (updated) {
+          setScans((prev) =>
+            prev.map((scan) => (scan.scanId === scanId ? updated : scan))
+          );
+        }
       }
-
-      const data = await response.json();
-      const updated = data.scan as ScanRecord | undefined;
-
-      if (!updated) {
-        return;
-      }
-
-      setScans((prev) =>
-        prev.map((scan) => (scan.scanId === scanId ? updated : scan))
-      );
     } catch (error) {
       // Silent refresh failures
+    } finally {
+      const elapsed = Date.now() - startTime;
+      const remaining = minSpinDurationMs - elapsed;
+
+      if (remaining > 0) {
+        window.setTimeout(() => {
+          stopRefreshing(scanId);
+        }, remaining);
+      } else {
+        stopRefreshing(scanId);
+      }
     }
   };
 
@@ -336,6 +430,7 @@ export default function ScanDashboard({
   };
 
   const handleDelete = async (scanId: string) => {
+    setIsDeleting(true);
     const response = await fetch(`/api/scan/${scanId}`, {
       method: "DELETE"
     });
@@ -343,6 +438,10 @@ export default function ScanDashboard({
     if (response.ok) {
       setScans((prev) => prev.filter((scan) => scan.scanId !== scanId));
     }
+
+    setIsDeleting(false);
+    setScanToDelete(null);
+    setDeleteConfirmValue("");
   };
 
   return (
@@ -402,81 +501,181 @@ export default function ScanDashboard({
               No scans yet. Start one above to see results here.
             </div>
           ) : (
-            scans.map((scan) => (
-              <div key={scan.scanId} className="px-6 py-5">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">{scan.repoUrl}</p>
-                      <StatusBadge status={scan.status} />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Scan ID: {scan.scanId}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Branch: {scan.branch ?? "main"} · Created{" "}
-                      {hasMounted
-                        ? formatDate(scan.createdAt)
-                        : scan.createdAt ?? "—"}
-                    </p>
-                    {scan.commitHash ? (
+            scans.map((scan) => {
+              const isRefreshing = refreshingScanIds.has(scan.scanId);
+              const displayProgress =
+                scan.status === "completed"
+                  ? 100
+                  : Math.max(0, Math.min(100, scan.progress ?? 0));
+
+              return (
+                <div
+                  key={scan.scanId}
+                  className={cn(
+                    "px-6 py-5 transition-opacity",
+                    isRefreshing && "opacity-80"
+                  )}
+                >
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">{scan.repoUrl}</p>
+                        <StatusBadge status={scan.status} scan={scan} />
+                      </div>
                       <p className="text-xs text-muted-foreground">
-                        Commit: <code className="text-xs">{scan.commitHash.substring(0, 7)}</code>
+                        Scan ID: {scan.scanId}
                       </p>
-                    ) : null}
-                    <p className="text-xs text-muted-foreground">
-                      Progress: {scan.progress ?? 0}%
-                      {scan.resultsPath ? ` · ${scan.resultsPath}` : ""}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => refreshScan(scan.scanId)}
-                    >
-                      <RefreshCcw className="size-4" />
-                      Refresh
-                    </Button>
-                    {scan.status === "running" ? (
+                      <p className="text-xs text-muted-foreground">
+                        Branch: {scan.branch ?? "main"}
+                        {scan.commitHash ? (
+                          <>
+                            {" "}
+                            · Commit:{" "}
+                            <code className="text-xs">
+                              {scan.commitHash.substring(0, 7)}
+                            </code>
+                          </>
+                        ) : null}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Progress: {displayProgress}%
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Created{" "}
+                        {hasMounted
+                          ? formatDate(scan.createdAt)
+                          : scan.createdAt ?? "—"}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        disabled
+                        onClick={() => refreshScan(scan.scanId)}
+                        disabled={isRefreshing}
                       >
-                        <ExternalLink className="size-4" />
-                        View Results
+                        <RefreshCcw
+                          className={cn(
+                            "size-4",
+                            isRefreshing && "animate-spin"
+                          )}
+                        />
+                        Refresh
                       </Button>
-                    ) : (
-                      <Button
-                        asChild
-                        variant="outline"
-                        size="sm"
-                      >
-                        <Link href={`/app/scans/${scan.scanId}`}>
+                      {scan.status === "completed" ? (
+                        <Button asChild variant="outline" size="sm">
+                          <Link href={`/app/scans/${scan.scanId}`}>
+                            <ExternalLink className="size-4" />
+                            View Results
+                          </Link>
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled
+                        >
                           <ExternalLink className="size-4" />
                           View Results
-                        </Link>
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setScanToDelete(scan)}
+                      >
+                        <Trash2 className="size-4" />
+                        Delete
                       </Button>
-                    )}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(scan.scanId)}
-                    >
-                      <Trash2 className="size-4" />
-                      Delete
-                    </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
+      {scanToDelete ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-2xl border bg-background p-6 shadow-lg">
+            <h3 className="text-lg font-semibold">Delete scan?</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              This will permanently remove the scan record and its results from your
+              dashboard. This action cannot be undone.
+            </p>
+            <div className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+              <div className="truncate">
+                <span className="font-medium">Repository:</span>{" "}
+                {scanToDelete.repoUrl}
+              </div>
+              <div className="truncate">
+                <span className="font-medium">Branch:</span>{" "}
+                {scanToDelete.branch ?? "main"}
+              </div>
+              {scanToDelete.commitHash ? (
+                <div className="truncate">
+                  <span className="font-medium">Commit:</span>{" "}
+                  <code className="text-[0.7rem]">
+                    {scanToDelete.commitHash.substring(0, 7)}
+                  </code>
+                </div>
+              ) : null}
+              <div className="truncate">
+                <span className="font-medium">Scan ID:</span> {scanToDelete.scanId}
+              </div>
+            </div>
+            {scanToDelete.commitHash ? (
+              <div className="mt-4 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  To confirm, type the first{" "}
+                  <span className="font-semibold">
+                    7 characters
+                  </span>{" "}
+                  of the commit hash:
+                </p>
+                <Input
+                  value={deleteConfirmValue}
+                  onChange={(event) => setDeleteConfirmValue(event.target.value)}
+                  placeholder={scanToDelete.commitHash.substring(0, 7)}
+                  className="h-8 text-xs"
+                  spellCheck={false}
+                />
+              </div>
+            ) : null}
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setScanToDelete(null);
+                  setDeleteConfirmValue("");
+                }}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => handleDelete(scanToDelete.scanId)}
+                disabled={
+                  isDeleting ||
+                  (Boolean(scanToDelete.commitHash) &&
+                    deleteConfirmValue.trim() !==
+                      scanToDelete.commitHash.substring(0, 7))
+                }
+              >
+                {isDeleting ? "Deleting..." : "Delete scan"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -54,9 +54,9 @@ export default async function HomePage() {
       <header className="relative mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
         <Link href="/" className="flex items-center gap-2 text-sm font-semibold">
           <span className="rounded-full bg-primary/10 px-3 py-1 text-xs uppercase tracking-wide text-primary">
-            AuditKit
+            SecurityKit
           </span>
-          <span className="text-muted-foreground">Security scan automation</span>
+          <span className="text-muted-foreground">Automated Security Scans</span>
         </Link>
         <div className="flex items-center gap-3">
           {isDevBypass ? (
@@ -83,15 +83,14 @@ export default async function HomePage() {
             <div className="space-y-6 text-center">
               <div className="inline-flex items-center gap-2 rounded-full border bg-background px-4 py-1 text-xs text-muted-foreground shadow-sm">
                 <ShieldCheck className="size-3 text-primary" />
-                Scan GitHub repositories in minutes
+                Scan GitHub Repositories in Minutes
               </div>
               <h1 className="max-w-none text-balance text-4xl font-semibold tracking-tight md:text-5xl">
                 Automated security scans for every service you ship.
               </h1>
               <p className="mx-auto max-w-3xl text-balance text-base text-muted-foreground md:text-lg">
-                Connect any GitHub repository and receive comprehensive security
-                analysis covering code quality, dependencies, container images, and
-                infrastructure configurations—all in one unified report.
+                Comprehensive security analysis covering code quality, dependencies, container images, and
+                infrastructure configurations — all in one unified report.
               </p>
 
               <form

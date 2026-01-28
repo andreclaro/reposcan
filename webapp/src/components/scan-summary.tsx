@@ -68,6 +68,16 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function getDisplayProgress(status: string, progress: number | null): number | null {
+  if (status === "completed") {
+    return 100;
+  }
+  if (progress === null || Number.isNaN(progress)) {
+    return null;
+  }
+  return Math.max(0, Math.min(100, progress));
+}
+
 function getGitHubUrl(repoUrl: string, branch: string | null): string | null {
   try {
     const url = new URL(repoUrl);
@@ -103,28 +113,30 @@ export default function ScanSummary({ scan }: ScanSummaryProps) {
   ];
 
   const githubUrl = getGitHubUrl(scan.repoUrl, scan.branch);
+  const displayProgress = getDisplayProgress(scan.status, scan.progress);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 lg:space-y-6">
       {/* Scan Metadata */}
-      <div className="rounded-2xl border bg-background p-6 shadow-sm">
-        <h2 className="text-lg font-semibold mb-4">Scan Information</h2>
-        <div className="grid gap-4 md:grid-cols-2">
+      <div className="rounded-2xl border bg-background/80 p-5 shadow-sm lg:p-6">
+        <div className="grid gap-6 md:grid-cols-2">
           <div className="space-y-3">
             <div>
-              <p className="text-xs text-muted-foreground">Repository</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Repository
+              </p>
               {githubUrl ? (
                 <a
                   href={githubUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm font-medium text-primary hover:underline inline-flex items-center gap-1"
+                  className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
                 >
                   {scan.repoUrl}
                   <ExternalLink className="size-3" />
                 </a>
               ) : (
-                <p className="text-sm font-medium">{scan.repoUrl}</p>
+                <p className="mt-1 text-sm font-medium">{scan.repoUrl}</p>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -150,28 +162,28 @@ export default function ScanSummary({ scan }: ScanSummaryProps) {
               <code className="text-xs font-mono">{scan.scanId}</code>
             </div>
           </div>
-          <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <p className="text-xs text-muted-foreground">Status</p>
               <div className="mt-1">
                 <StatusBadge status={scan.status} />
               </div>
             </div>
-            {scan.progress !== null && (
+            {displayProgress !== null && (
               <div>
                 <p className="text-xs text-muted-foreground">Progress</p>
-                <p className="text-sm font-medium">{scan.progress}%</p>
+                <p className="mt-1 text-sm font-medium">{displayProgress}%</p>
               </div>
             )}
             <div>
               <p className="text-xs text-muted-foreground">Created</p>
-              <p className="text-sm font-medium">
+              <p className="mt-1 text-sm font-medium">
                 {formatDate(scan.createdAt)}
               </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Last Updated</p>
-              <p className="text-sm font-medium">
+              <p className="mt-1 text-sm font-medium">
                 {formatDate(scan.updatedAt)}
               </p>
             </div>
@@ -180,19 +192,30 @@ export default function ScanSummary({ scan }: ScanSummaryProps) {
       </div>
 
       {/* Findings Summary */}
-      <div className="rounded-2xl border bg-background p-6 shadow-sm">
-        <h2 className="text-lg font-semibold mb-4">Findings Summary</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
-          <div className="rounded-xl border bg-muted/40 p-4">
-            <p className="text-xs text-muted-foreground">Total Findings</p>
-            <p className="text-2xl font-semibold mt-1">{scan.findingsCount}</p>
+      <div className="rounded-2xl border bg-background/80 p-5 shadow-sm lg:p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Findings summary
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Snapshot of security findings by severity.
+            </p>
           </div>
+          <div className="rounded-xl border bg-muted/40 px-4 py-3 text-right">
+            <p className="text-xs text-muted-foreground">Total Findings</p>
+            <p className="mt-1 text-2xl font-semibold">{scan.findingsCount}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {severityCounts.map(({ label, count, color }) => (
-            <div key={label} className="rounded-xl border bg-muted/40 p-4">
+            <div
+              key={label}
+              className="rounded-lg border bg-muted/30 px-3 py-3"
+            >
               <p className="text-xs text-muted-foreground">{label}</p>
-              <p className={cn("text-2xl font-semibold mt-1", color)}>
-                {count}
-              </p>
+              <p className={cn("mt-1 text-xl font-semibold", color)}>{count}</p>
             </div>
           ))}
         </div>
