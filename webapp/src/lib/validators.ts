@@ -20,7 +20,18 @@ const githubUrlSchema = z.string().url().refine((value) => {
 
 export const scanRequestSchema = z.object({
   repoUrl: githubUrlSchema,
-  branch: z.string().trim().min(1).max(120).optional().default("main"),
+  // Branch is optional: when omitted or empty, the backend will
+  // auto-detect the repository's default branch (e.g. master/main).
+  branch: z.preprocess(
+    (value) => {
+      if (typeof value !== "string") {
+        return value;
+      }
+      const trimmed = value.trim();
+      return trimmed === "" ? undefined : trimmed;
+    },
+    z.string().max(120).optional()
+  ),
   auditTypes: z.array(z.enum(DEFAULT_AUDIT_TYPES)).optional()
 });
 

@@ -133,7 +133,7 @@ export async function GET(
     return NextResponse.json(responseData);
   } catch (error) {
     // #region agent log
-    console.error('[DEBUG API] API ERROR', {error: error instanceof Error ? error.message : String(error), error});
+    console.error('[DEBUG API] API ERROR', {errorMsg: error instanceof Error ? error.message : String(error), error});
     await fetch('http://127.0.0.1:7250/ingest/c11ddcde-3020-4ad3-907a-65bf86ca8a32',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'findings/route.ts:105',message:'API ERROR',data:{error:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
     // #endregion
     console.error("Error fetching findings:", error);

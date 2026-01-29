@@ -39,12 +39,18 @@ RUN apt-get update \
         git-lfs \
         gnupg \
         lsb-release \
+        openssh-client \
         python3 \
         python3-pip \
         python3-venv \
         unzip \
         xz-utils \
     && rm -rf /var/lib/apt/lists/*
+
+# Configure git to rewrite SSH URLs to HTTPS for GitHub (works for public repos)
+# This allows submodules with git@github.com URLs to be cloned via HTTPS
+RUN git config --global url."https://github.com/".insteadOf "git@github.com:" \
+    && git config --global url."https://".insteadOf "ssh://"
 
 # Install nvm (Node Version Manager) and multiple Node.js versions
 RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash \

@@ -85,6 +85,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
     branch = request_data.get('branch')  # None means auto-detect default branch
     audit_types = request_data.get('audit_types', [])
     skip_lfs = request_data.get('skip_lfs', False)
+    force_rescan = request_data.get('force_rescan', False)
     
     logger.info(f"Starting scan {scan_id} for {repo_url} (branch: {branch or 'auto-detect'})")
     
@@ -214,7 +215,16 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                     except Exception as e:
                         logger.debug(f"Failed to update branch in database: {e}")
                 
-                update_submodules_if_present(repo_path)
+                # Best-effort submodule update; do not fail the scan if this step breaks,
+                # since many environments (like containers without SSH configured) cannot
+                # clone SSH-based submodules.
+                try:
+                    update_submodules_if_present(repo_path)
+                except Exception as sub_e:
+                    logger.warning(
+                        f"Failed to update git submodules for {repo_url}; "
+                        f"continuing scan without submodules. Error: {sub_e}"
+                    )
             except RuntimeError as e:
                 error_msg = str(e)
                 # Check for common network errors
@@ -238,7 +248,82 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             # Capture commit hash
             commit_hash = get_commit_hash(repo_path, branch)
             logger.info(f"Scanned commit: {commit_hash}")
-            
+
+            # Check for cached scan with same repo_url + commit_hash
+            if db_url and commit_hash and not force_rescan:
+                try:
+                    async def check_cache_async():
+                        pool = await create_db_pool(db_url)
+                        async with pool.acquire() as conn:
+                            # Look for a completed scan with same repo + commit
+                            cached = await conn.fetchrow(
+                                """
+                                SELECT scan_id, results_path, findings_count,
+                                       critical_count, high_count, medium_count, low_count, info_count
+                                FROM scan
+                                WHERE repo_url = $1
+                                  AND commit_hash = $2
+                                  AND status = 'completed'
+                                ORDER BY created_at DESC
+                                LIMIT 1
+                                """,
+                                repo_url,
+                                commit_hash
+                            )
+                            return cached
+
+                    cached_scan = asyncio.run(check_cache_async())
+
+                    if cached_scan:
+                        logger.info(f"Found cached scan {cached_scan['scan_id']} for {repo_url}@{commit_hash}")
+
+                        # Update current scan to reference cached results
+                        async def update_to_cached_async():
+                            pool = await create_db_pool(db_url)
+                            async with pool.acquire() as conn:
+                                await ensure_scan_record(conn, scan_id, repo_url, branch, audit_types, status="completed")
+                                await conn.execute(
+                                    """
+                                    UPDATE scan SET
+                                        status = 'completed',
+                                        progress = 100,
+                                        commit_hash = $2,
+                                        results_path = $3,
+                                        findings_count = $4,
+                                        critical_count = $5,
+                                        high_count = $6,
+                                        medium_count = $7,
+                                        low_count = $8,
+                                        info_count = $9,
+                                        updated_at = NOW()
+                                    WHERE scan_id = $1
+                                    """,
+                                    scan_id,
+                                    commit_hash,
+                                    cached_scan['results_path'],
+                                    cached_scan['findings_count'],
+                                    cached_scan['critical_count'],
+                                    cached_scan['high_count'],
+                                    cached_scan['medium_count'],
+                                    cached_scan['low_count'],
+                                    cached_scan['info_count']
+                                )
+
+                        asyncio.run(update_to_cached_async())
+
+                        return {
+                            'scan_id': scan_id,
+                            'repo_url': repo_url,
+                            'branch': branch,
+                            'commit_hash': commit_hash,
+                            'status': 'completed',
+                            'cached': True,
+                            'cached_from': cached_scan['scan_id'],
+                            'results_path': cached_scan['results_path']
+                        }
+                except Exception as e:
+                    logger.warning(f"Cache check failed, proceeding with full scan: {e}")
+
             update_progress(20, 'Detecting languages')
             
             # Step 2: Detect languages

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import SignOutButton from "@/components/sign-out-button";
 import { getServerAuth } from "@/lib/server-auth";
+import { isAdmin } from "@/lib/admin-auth";
 
 export default async function AppLayout({
   children
@@ -9,6 +10,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const session = await getServerAuth();
+  const userIsAdmin = isAdmin(session?.user?.email);
 
   return (
     <div className="min-h-screen bg-muted/20">
@@ -25,6 +27,14 @@ export default async function AppLayout({
               >
                 Dashboard
               </Link>
+              {userIsAdmin && (
+                <Link
+                  href="/app/admin"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Admin
+                </Link>
+              )}
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">

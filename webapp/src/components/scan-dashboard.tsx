@@ -182,7 +182,9 @@ export default function ScanDashboard({
 }: ScanDashboardProps) {
   const [scans, setScans] = useState<ScanRecord[]>(initialScans);
   const [repoUrl, setRepoUrl] = useState(defaultRepoUrl ?? "");
-  const [branch, setBranch] = useState("main");
+  // Empty string means "let the backend auto-detect the default branch"
+  // until we successfully detect it from GitHub.
+  const [branch, setBranch] = useState("");
   const [defaultBranch, setDefaultBranch] = useState<string | null>(null);
   const [branches, setBranches] = useState<string[]>([]);
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
@@ -258,7 +260,9 @@ export default function ScanDashboard({
     setBranches([]);
     setIsLoadingBranches(false);
     setBranchIsDirty(false);
-    setBranch("main");
+    // Reset to "auto-detect" when the repo changes; a later GitHub
+    // lookup will populate the actual default branch (e.g. master).
+    setBranch("");
   }, [repoSlug]);
 
   useEffect(() => {
@@ -421,7 +425,9 @@ export default function ScanDashboard({
 
       setScans((prev) => [newScan, ...prev]);
       setRepoUrl("");
-      setBranch("main");
+      // After a successful scan, reset branch to "auto-detect" so
+      // the next repo can pick up its own default branch.
+      setBranch("");
     } catch (error) {
       setError("Failed to start scan.");
     } finally {
@@ -667,7 +673,7 @@ export default function ScanDashboard({
                   isDeleting ||
                   (Boolean(scanToDelete.commitHash) &&
                     deleteConfirmValue.trim() !==
-                      scanToDelete.commitHash.substring(0, 7))
+                      scanToDelete.commitHash?.substring(0, 7))
                 }
               >
                 {isDeleting ? "Deleting..." : "Delete scan"}

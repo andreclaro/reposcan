@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { and, eq, isNotNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { scans } from "@/db/schema";
@@ -23,10 +24,15 @@ export async function POST(request: Request) {
   }
 
   const { repoUrl, branch, auditTypes } = parsed.data;
+
+  // Check for force_rescan flag (admin re-scan feature)
+  const forceRescan = body?.forceRescan === true;
+
   const payload = {
     repo_url: repoUrl,
     branch,
-    audit_types: auditTypes ?? Array.from(DEFAULT_AUDIT_TYPES)
+    audit_types: auditTypes ?? Array.from(DEFAULT_AUDIT_TYPES),
+    force_rescan: forceRescan
   };
 
   const fastApiBase = process.env.FASTAPI_BASE_URL ?? "http://localhost:8000";
@@ -60,7 +66,26 @@ export async function POST(request: Request) {
     scan_id?: string;
     scanId?: string;
     status?: string;
+    cached?: boolean;
+    cached_scan_id?: string;
   };
+
+  // If we got a cached result, return the existing scan
+  if (scanData.cached && scanData.cached_scan_id) {
+    const [cachedScan] = await db
+      .select()
+      .from(scans)
+      .where(eq(scans.scanId, scanData.cached_scan_id))
+      .limit(1);
+
+    if (cachedScan) {
+      return NextResponse.json({
+        scan: cachedScan,
+        cached: true,
+        service: scanData
+      }, { status: 200 });
+    }
+  }
 
   const scanId = scanData.scan_id ?? scanData.scanId;
 

@@ -9,12 +9,15 @@ class ScanRequest(BaseModel):
     branch: Optional[str] = None  # None means auto-detect default branch
     audit_types: List[str]
     skip_lfs: bool = False
+    force_rescan: bool = False  # Bypass scan caching
 
 
 class ScanResponse(BaseModel):
     """Response model for scan creation."""
     scan_id: str
     status: str
+    cached: bool = False
+    cached_scan_id: Optional[str] = None
 
 
 class ScanStatusResponse(BaseModel):

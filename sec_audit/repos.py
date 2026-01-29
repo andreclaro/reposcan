@@ -229,18 +229,30 @@ def update_submodules_if_present(dest_dir: Path) -> None:
     if not (dest_dir / ".gitmodules").is_file():
         return
     print(f"Updating submodules in: {dest_dir}")
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(dest_dir),
-            "submodule",
-            "update",
-            "--init",
-            "--recursive",
-        ],
-        check=True,
-    )
+    try:
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(dest_dir),
+                "submodule",
+                "update",
+                "--init",
+                "--recursive",
+            ],
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        # Submodule updates are best-effort. In many environments (like containers
+        # without SSH configured), submodules that use SSH URLs (git@github.com:...)
+        # cannot be fetched. This should not cause the entire scan to fail.
+        error_msg = getattr(e, "stderr", None)
+        error_text = error_msg.decode("utf-8", errors="replace") if isinstance(error_msg, (bytes, bytearray)) else (error_msg or str(e))
+        print(
+            "Warning: failed to update git submodules. "
+            "Continuing scan without submodules. "
+            f"Error: {error_text}"
+        )
 
 
 def get_commit_hash(repo_path: Path, branch: str = "HEAD") -> str:
