@@ -2,6 +2,27 @@ import os
 from pathlib import Path
 from typing import Dict, Iterable, List
 
+# Shared ignore list for language detection, Dockerfile search, and Terraform detection
+DEFAULT_IGNORE_DIRS = frozenset({
+    ".git",
+    ".hg",
+    ".svn",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "node_modules",
+    "dist",
+    "build",
+    "vendor",
+    "target",
+    "coverage",
+    "out",
+    ".next",
+    ".cache",
+    ".idea",
+    ".vscode",
+})
+
 
 def iter_repo_files(repo_dir: Path, ignore_dirs: Iterable[str]) -> Iterable[Path]:
     ignore_set = set(ignore_dirs)
@@ -54,28 +75,8 @@ def detect_languages(repo_dir: Path) -> Dict[str, int]:
         ".groovy": "Groovy",
     }
 
-    ignore_dirs = {
-        ".git",
-        ".hg",
-        ".svn",
-        "__pycache__",
-        ".venv",
-        "venv",
-        "node_modules",
-        "dist",
-        "build",
-        "vendor",
-        "target",
-        "coverage",
-        "out",
-        ".next",
-        ".cache",
-        ".idea",
-        ".vscode",
-    }
-
     counts: Dict[str, int] = {}
-    for file_path in iter_repo_files(repo_dir, ignore_dirs):
+    for file_path in iter_repo_files(repo_dir, DEFAULT_IGNORE_DIRS):
         name_lower = file_path.name.lower()
         suffix = file_path.suffix.lower()
         if name_lower == "dockerfile":
@@ -89,54 +90,15 @@ def detect_languages(repo_dir: Path) -> Dict[str, int]:
 
 
 def find_dockerfiles(repo_dir: Path) -> List[Path]:
-    ignore_dirs = {
-        ".git",
-        ".hg",
-        ".svn",
-        "__pycache__",
-        ".venv",
-        "venv",
-        "node_modules",
-        "dist",
-        "build",
-        "vendor",
-        "target",
-        "coverage",
-        "out",
-        ".next",
-        ".cache",
-        ".idea",
-        ".vscode",
-    }
-
     dockerfiles = []
-    for file_path in iter_repo_files(repo_dir, ignore_dirs):
+    for file_path in iter_repo_files(repo_dir, DEFAULT_IGNORE_DIRS):
         if file_path.name.lower() == "dockerfile":
             dockerfiles.append(file_path)
     return dockerfiles
 
 
 def has_terraform(repo_dir: Path) -> bool:
-    ignore_dirs = {
-        ".git",
-        ".hg",
-        ".svn",
-        "__pycache__",
-        ".venv",
-        "venv",
-        "node_modules",
-        "dist",
-        "build",
-        "vendor",
-        "target",
-        "coverage",
-        "out",
-        ".next",
-        ".cache",
-        ".idea",
-        ".vscode",
-    }
-    for file_path in iter_repo_files(repo_dir, ignore_dirs):
+    for file_path in iter_repo_files(repo_dir, DEFAULT_IGNORE_DIRS):
         if file_path.suffix.lower() == ".tf":
             return True
     return False

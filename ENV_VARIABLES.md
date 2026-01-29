@@ -162,6 +162,42 @@ These variables are only required when `STORAGE_BACKEND=s3`.
 - **Default**: `false`
 - **Description**: Bypass authentication in development mode (for testing).
 
+### Version Manager Paths (sec_audit CLI / worker)
+
+Used when running Node/Go/Rust audits with version switching (e.g. nvm, gvm, rustup). Defaults assume Docker paths; set these when running outside Docker or with custom install locations.
+
+#### `NVM_DIR`
+- **Type**: String (directory path)
+- **Required**: No
+- **Default**: `/root/.nvm`
+- **Description**: Directory where nvm is installed (Node version manager). Set to your nvm root when not using Docker default.
+
+#### `GVM_ROOT`
+- **Type**: String (directory path)
+- **Required**: No
+- **Default**: `/root/.gvm`
+- **Description**: Directory where gvm is installed (Go version manager). Set when gvm is installed elsewhere.
+
+#### `CARGO_HOME`
+- **Type**: String (directory path)
+- **Required**: No
+- **Default**: `/root/.cargo`
+- **Description**: Cargo/Rustup home directory. Used to locate `rustup` and set PATH for Rust toolchain. Set when Rust is installed elsewhere.
+
+### Scan Timeouts (sec_audit)
+
+Optional timeouts (seconds) for clone and scanner subprocesses. Override if scans hit limits in your environment.
+
+- `SEC_AUDIT_CLONE_TIMEOUT` - Git clone timeout (default: 600)
+- `SEC_AUDIT_SUBMODULES_TIMEOUT` - Submodule update timeout (default: 300)
+- `SEC_AUDIT_GIT_REV_PARSE_TIMEOUT` - Git rev-parse timeout (default: 10)
+- `SEC_AUDIT_SEMGREP_TIMEOUT` - Semgrep scan timeout (default: 600)
+- `SEC_AUDIT_TRIVY_TIMEOUT` - Trivy scan timeout (default: 300)
+- `SEC_AUDIT_DOCKER_BUILD_TIMEOUT` - Docker build timeout per image (default: 600)
+- `SEC_AUDIT_TERRAFORM_SCAN_TIMEOUT` - tfsec/checkov/tflint timeout (default: 300)
+- `SEC_AUDIT_ECOSYSTEM_INSTALL_TIMEOUT` - Node install timeout (default: 300)
+- `SEC_AUDIT_ECOSYSTEM_AUDIT_TIMEOUT` - Node/Go/Rust audit timeout (default: 300)
+
 ## Configuration Examples
 
 ### Minimal Configuration (Local Development)

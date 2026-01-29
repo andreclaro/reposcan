@@ -1,8 +1,13 @@
+import os
 import shutil
 import subprocess
 from pathlib import Path
 
-from .version_manager import get_version_env_shell
+from .version_manager import get_version_env_shell, ensure_rust_toolchain
+
+# Timeouts (seconds); override via env if needed
+ECOSYSTEM_INSTALL_TIMEOUT = int(os.getenv("SEC_AUDIT_ECOSYSTEM_INSTALL_TIMEOUT", "300"))
+ECOSYSTEM_AUDIT_TIMEOUT = int(os.getenv("SEC_AUDIT_ECOSYSTEM_AUDIT_TIMEOUT", "300"))
 
 
 def has_node_project(repo_dir: Path) -> bool:
@@ -50,10 +55,10 @@ def run_node_audit(
     )
     audit_cmd = [pm_bin, "audit"]
 
-    # Get version switching commands
+    # Version info for report only; run without shell (no version switching for Node)
     version_info = get_version_env_shell(repo_dir)
-    shell_prefix = version_info.get("shell_prefix", "")
     node_version = version_info.get("node_version")
+    env = os.environ.copy()
 
     with output_text.open("w", encoding="utf-8") as handle:
         handle.write("=" * 80 + "\n")
@@ -63,49 +68,35 @@ def run_node_audit(
             handle.write(f"Node.js version: {node_version}\n")
         handle.write("=" * 80 + "\n\n")
 
-        # Build shell command with version switching
-        if shell_prefix:
-            install_shell_cmd = f"{shell_prefix} && cd {repo_dir} && {' '.join(install_cmd)}"
-            audit_shell_cmd = f"{shell_prefix} && cd {repo_dir} && {' '.join(audit_cmd)}"
-        else:
-            install_shell_cmd = None
-            audit_shell_cmd = None
-
-        if install_shell_cmd:
-            install_result = subprocess.run(
-                install_shell_cmd,
-                shell=True,
-                cwd=repo_dir,
-                stdout=handle,
-                stderr=handle,
-            )
-        else:
+        try:
             install_result = subprocess.run(
                 install_cmd,
                 cwd=repo_dir,
                 stdout=handle,
                 stderr=handle,
+                env=env,
+                timeout=ECOSYSTEM_INSTALL_TIMEOUT,
             )
+        except subprocess.TimeoutExpired:
+            install_result = None
+            handle.write("\nInstall timed out.\n\n")
         handle.write(
-            f"\nInstall exit code: {install_result.returncode}\n\n"
+            f"\nInstall exit code: {install_result.returncode if install_result is not None else -1}\n\n"
         )
 
-        if audit_shell_cmd:
-            audit_result = subprocess.run(
-                audit_shell_cmd,
-                shell=True,
-                cwd=repo_dir,
-                stdout=handle,
-                stderr=handle,
-            )
-        else:
+        try:
             audit_result = subprocess.run(
                 audit_cmd,
                 cwd=repo_dir,
                 stdout=handle,
                 stderr=handle,
+                env=env,
+                timeout=ECOSYSTEM_AUDIT_TIMEOUT,
             )
-        handle.write(f"\nAudit exit code: {audit_result.returncode}\n")
+        except subprocess.TimeoutExpired:
+            audit_result = None
+            handle.write("\nAudit timed out.\n")
+        handle.write(f"\nAudit exit code: {audit_result.returncode if audit_result is not None else -1}\n")
 
 
 def has_go_project(repo_dir: Path) -> bool:
@@ -130,10 +121,10 @@ def run_go_vulncheck(
         )
         return
 
-    # Get version switching commands
+    # Version info for report only; run without shell (no version switching for Go)
     version_info = get_version_env_shell(repo_dir)
-    shell_prefix = version_info.get("shell_prefix", "")
     go_version = version_info.get("go_version")
+    env = os.environ.copy()
 
     with output_text.open("w", encoding="utf-8") as handle:
         handle.write("=" * 80 + "\n")
@@ -143,24 +134,19 @@ def run_go_vulncheck(
             handle.write(f"Go version: {go_version}\n")
         handle.write("=" * 80 + "\n\n")
 
-        # Build shell command with version switching
-        if shell_prefix:
-            shell_cmd = f"{shell_prefix} && cd {repo_dir} && {govulncheck_bin} ./..."
-            result = subprocess.run(
-                shell_cmd,
-                shell=True,
-                cwd=repo_dir,
-                stdout=handle,
-                stderr=handle,
-            )
-        else:
+        try:
             result = subprocess.run(
                 [govulncheck_bin, "./..."],
                 cwd=repo_dir,
                 stdout=handle,
                 stderr=handle,
+                env=env,
+                timeout=ECOSYSTEM_AUDIT_TIMEOUT,
             )
-        handle.write(f"\nExit code: {result.returncode}\n")
+        except subprocess.TimeoutExpired:
+            result = None
+            handle.write("\nGovulncheck timed out.\n")
+        handle.write(f"\nExit code: {result.returncode if result is not None else -1}\n")
 
 
 def has_rust_project(repo_dir: Path) -> bool:
@@ -192,10 +178,11 @@ def run_cargo_audit(
         )
         return
 
-    # Get version switching commands
+    # Set Rust toolchain without shell, then run cargo audit
+    ensure_rust_toolchain(repo_dir)
     version_info = get_version_env_shell(repo_dir)
-    shell_prefix = version_info.get("shell_prefix", "")
     rust_version = version_info.get("rust_version")
+    env = os.environ.copy()
 
     with output_text.open("w", encoding="utf-8") as handle:
         handle.write("=" * 80 + "\n")
@@ -205,21 +192,16 @@ def run_cargo_audit(
             handle.write(f"Rust version: {rust_version}\n")
         handle.write("=" * 80 + "\n\n")
 
-        # Build shell command with version switching
-        if shell_prefix:
-            shell_cmd = f"{shell_prefix} && cd {repo_dir} && {cargo_bin} audit"
-            result = subprocess.run(
-                shell_cmd,
-                shell=True,
-                cwd=repo_dir,
-                stdout=handle,
-                stderr=handle,
-            )
-        else:
+        try:
             result = subprocess.run(
                 [cargo_bin, "audit"],
                 cwd=repo_dir,
                 stdout=handle,
                 stderr=handle,
+                env=env,
+                timeout=ECOSYSTEM_AUDIT_TIMEOUT,
             )
-        handle.write(f"\nExit code: {result.returncode}\n")
+        except subprocess.TimeoutExpired:
+            result = None
+            handle.write("\nCargo audit timed out.\n")
+        handle.write(f"\nExit code: {result.returncode if result is not None else -1}\n")

@@ -6,6 +6,12 @@ from pathlib import Path
 
 from .fs import find_dockerfiles
 
+# Timeouts (seconds); override via env if needed
+SEMGREP_TIMEOUT = int(os.getenv("SEC_AUDIT_SEMGREP_TIMEOUT", "600"))
+TRIVY_TIMEOUT = int(os.getenv("SEC_AUDIT_TRIVY_TIMEOUT", "300"))
+DOCKER_BUILD_TIMEOUT = int(os.getenv("SEC_AUDIT_DOCKER_BUILD_TIMEOUT", "600"))
+TERRAFORM_SCAN_TIMEOUT = int(os.getenv("SEC_AUDIT_TERRAFORM_SCAN_TIMEOUT", "300"))
+
 
 def _filter_semgrep_login_messages(text: str) -> str:
     """Filter out login-related promotional messages from Semgrep output."""
@@ -97,27 +103,33 @@ def run_semgrep(
     
     # Run semgrep with JSON output
     # Use --output with absolute path, and also capture stdout as backup
-    json_result = subprocess.run(
-        [
-            semgrep_bin,
-            "scan",
-            "--json",
-            "--output",
-            str(output_json),
-            str(repo_dir),
-        ],
-        cwd=str(repo_dir),
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    if json_result.returncode not in (0, 1):
+    try:
+        json_result = subprocess.run(
+            [
+                semgrep_bin,
+                "scan",
+                "--json",
+                "--output",
+                str(output_json),
+                str(repo_dir),
+            ],
+            cwd=str(repo_dir),
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=SEMGREP_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        output_json.parent.mkdir(parents=True, exist_ok=True)
+        output_json.write_text('{"results": [], "errors": [{"message": "Semgrep timed out"}]}', encoding="utf-8")
+        json_result = None
+    if json_result is not None and json_result.returncode not in (0, 1):
         raise RuntimeError(
             f"semgrep JSON failed for {repo_dir} with exit code {json_result.returncode}: {json_result.stderr}"
         )
     
     # If file wasn't created, write the captured output manually
-    if not output_json.exists():
+    if not output_json.exists() and json_result is not None:
         if json_result.stdout:
             output_json.write_text(json_result.stdout, encoding="utf-8")
         else:
@@ -125,20 +137,27 @@ def run_semgrep(
             output_json.write_text("[]", encoding="utf-8")
 
     # Run semgrep with text output
-    text_result = subprocess.run(
-        [
-            semgrep_bin,
-            "scan",
-            "--output",
-            str(output_text),
-            str(repo_dir),
-        ],
-        cwd=str(repo_dir),
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    if text_result.returncode not in (0, 1):
+    try:
+        text_result = subprocess.run(
+            [
+                semgrep_bin,
+                "scan",
+                "--output",
+                str(output_text),
+                str(repo_dir),
+            ],
+            cwd=str(repo_dir),
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=SEMGREP_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        text_result = None
+        if not output_text.exists():
+            output_text.parent.mkdir(parents=True, exist_ok=True)
+            output_text.write_text("Semgrep timed out.\n", encoding="utf-8")
+    if text_result is not None and text_result.returncode not in (0, 1):
         raise RuntimeError(
             f"semgrep text failed for {repo_dir} with exit code {text_result.returncode}: {text_result.stderr}"
         )
@@ -148,7 +167,7 @@ def run_semgrep(
         content = output_text.read_text(encoding="utf-8")
         filtered_content = _filter_semgrep_login_messages(content)
         output_text.write_text(filtered_content, encoding="utf-8")
-    else:
+    elif text_result is not None:
         # If file wasn't created, write the captured output manually (filtered)
         if text_result.stdout:
             filtered_stdout = _filter_semgrep_login_messages(text_result.stdout)
@@ -194,32 +213,42 @@ def run_trivy_dockerfile_scan(
             handle.write(f"Image tag: {image_tag}\n")
             handle.write("=" * 80 + "\n\n")
 
-            build_result = subprocess.run(
-                [
-                    docker_bin,
-                    "build",
-                    "-f",
-                    str(dockerfile),
-                    "-t",
-                    image_tag,
-                    str(context_dir),
-                ],
-                cwd=repo_dir,
-                stdout=handle,
-                stderr=handle,
-            )
+            try:
+                build_result = subprocess.run(
+                    [
+                        docker_bin,
+                        "build",
+                        "-f",
+                        str(dockerfile),
+                        "-t",
+                        image_tag,
+                        str(context_dir),
+                    ],
+                    cwd=repo_dir,
+                    stdout=handle,
+                    stderr=handle,
+                    timeout=DOCKER_BUILD_TIMEOUT,
+                )
+            except subprocess.TimeoutExpired:
+                handle.write("\nDocker build timed out; skipping trivy.\n\n")
+                continue
             if build_result.returncode != 0:
                 handle.write(
                     f"\nDocker build failed (exit {build_result.returncode}); skipping trivy.\n\n"
                 )
                 continue
 
-            trivy_result = subprocess.run(
-                [trivy_bin, "image", image_tag],
-                cwd=repo_dir,
-                stdout=handle,
-                stderr=handle,
-            )
+            try:
+                trivy_result = subprocess.run(
+                    [trivy_bin, "image", image_tag],
+                    cwd=repo_dir,
+                    stdout=handle,
+                    stderr=handle,
+                    timeout=TRIVY_TIMEOUT,
+                )
+            except subprocess.TimeoutExpired:
+                handle.write("\nTrivy scan timed out.\n\n")
+                continue
             if trivy_result.returncode != 0:
                 handle.write(
                     f"\nTrivy scan failed (exit {trivy_result.returncode}).\n\n"
@@ -253,17 +282,22 @@ def run_trivy_fs_scan(
         handle.write(f"Repository: {repo_dir}\n")
         handle.write("=" * 80 + "\n\n")
 
-        trivy_result = subprocess.run(
-            [trivy_bin, "fs", "."],
-            cwd=repo_dir,
-            stdout=handle,
-            stderr=handle,
-        )
-        if trivy_result.returncode not in (0, 1):
+        try:
+            trivy_result = subprocess.run(
+                [trivy_bin, "fs", "."],
+                cwd=repo_dir,
+                stdout=handle,
+                stderr=handle,
+                timeout=TRIVY_TIMEOUT,
+            )
+        except subprocess.TimeoutExpired:
+            handle.write("\nTrivy filesystem scan timed out.\n")
+            trivy_result = None
+        if trivy_result is not None and trivy_result.returncode not in (0, 1):
             handle.write(
                 f"\nTrivy filesystem scan failed (exit {trivy_result.returncode}).\n"
             )
-        else:
+        elif trivy_result is not None:
             handle.write(f"\nExit code: {trivy_result.returncode}\n")
 
 
@@ -285,13 +319,18 @@ def run_tfsec_checkov_tflint_scan(
         )
     else:
         with tfsec_output.open("w", encoding="utf-8") as handle:
-            result = subprocess.run(
-                [tfsec_bin, str(repo_dir)],
-                cwd=repo_dir,
-                stdout=handle,
-                stderr=handle,
-            )
-            if result.returncode != 0:
+            try:
+                result = subprocess.run(
+                    [tfsec_bin, str(repo_dir)],
+                    cwd=repo_dir,
+                    stdout=handle,
+                    stderr=handle,
+                    timeout=TERRAFORM_SCAN_TIMEOUT,
+                )
+            except subprocess.TimeoutExpired:
+                handle.write("\ntfsec scan timed out.\n")
+                result = None
+            if result is not None and result.returncode != 0:
                 handle.write(
                     f"\ntfsec scan failed (exit {result.returncode}).\n"
                 )
@@ -303,13 +342,18 @@ def run_tfsec_checkov_tflint_scan(
         )
     else:
         with checkov_output.open("w", encoding="utf-8") as handle:
-            result = subprocess.run(
-                [checkov_bin, "-d", str(repo_dir)],
-                cwd=repo_dir,
-                stdout=handle,
-                stderr=handle,
-            )
-            if result.returncode != 0:
+            try:
+                result = subprocess.run(
+                    [checkov_bin, "-d", str(repo_dir)],
+                    cwd=repo_dir,
+                    stdout=handle,
+                    stderr=handle,
+                    timeout=TERRAFORM_SCAN_TIMEOUT,
+                )
+            except subprocess.TimeoutExpired:
+                handle.write("\ncheckov scan timed out.\n")
+                result = None
+            if result is not None and result.returncode != 0:
                 handle.write(
                     f"\ncheckov scan failed (exit {result.returncode}).\n"
                 )
@@ -321,13 +365,18 @@ def run_tfsec_checkov_tflint_scan(
         )
     else:
         with tflint_output.open("w", encoding="utf-8") as handle:
-            result = subprocess.run(
-                [tflint_bin],
-                cwd=repo_dir,
-                stdout=handle,
-                stderr=handle,
-            )
-            if result.returncode != 0:
+            try:
+                result = subprocess.run(
+                    [tflint_bin],
+                    cwd=repo_dir,
+                    stdout=handle,
+                    stderr=handle,
+                    timeout=TERRAFORM_SCAN_TIMEOUT,
+                )
+            except subprocess.TimeoutExpired:
+                handle.write("\ntflint scan timed out.\n")
+                result = None
+            if result is not None and result.returncode != 0:
                 handle.write(
                     f"\ntflint scan failed (exit {result.returncode}).\n"
                 )

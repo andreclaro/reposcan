@@ -1,6 +1,9 @@
 """Version manager for detecting and switching runtime versions per repository."""
 
+import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -139,6 +142,33 @@ def detect_rust_version(repo_dir: Path) -> Optional[str]:
     return None
 
 
+def ensure_rust_toolchain(repo_dir: Path) -> None:
+    """
+    Set Rust toolchain for the given directory via rustup (no shell).
+    Runs `rustup override set VERSION` so subsequent cargo commands use the right version.
+    """
+    version = detect_rust_version(repo_dir)
+    if not version:
+        return
+    rustup_bin = shutil.which("rustup")
+    if not rustup_bin:
+        cargo_home = os.environ.get("CARGO_HOME", "/root/.cargo")
+        rustup_path = os.path.join(cargo_home, "bin", "rustup")
+        if os.path.isfile(rustup_path):
+            rustup_bin = rustup_path
+    if not rustup_bin:
+        return
+    try:
+        subprocess.run(
+            [rustup_bin, "override", "set", version],
+            cwd=repo_dir,
+            capture_output=True,
+            timeout=60,
+        )
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError, OSError):
+        pass  # Best-effort; continue with default toolchain
+
+
 def get_node_version_shell(repo_dir: Path) -> str:
     """
     Get shell commands to switch to the correct Node.js version using nvm.
@@ -151,12 +181,11 @@ def get_node_version_shell(repo_dir: Path) -> str:
         # Use default Node.js if no version specified
         return ""
 
-    # nvm is installed at /root/.nvm
-    # We need to source nvm.sh and then use the version
-    # Handle version aliases like "lts/*", "node", etc.
+    # Prefer NVM_DIR from environment (e.g. Docker /root/.nvm); fallback for compatibility
+    nvm_dir = os.environ.get("NVM_DIR", "/root/.nvm")
     version_escaped = version.replace('"', '\\"').replace("'", "\\'")
     return f"""
-export NVM_DIR="/root/.nvm"
+export NVM_DIR="{nvm_dir}"
 [ -s "$NVM_DIR/nvm.sh" ] && \\. "$NVM_DIR/nvm.sh"
 nvm use "{version_escaped}" 2>/dev/null || (nvm install "{version_escaped}" && nvm use "{version_escaped}") || echo "Node {version_escaped} not available, using default"
 """
@@ -180,10 +209,10 @@ def get_go_version_shell(repo_dir: Path) -> str:
         version = f"{version}.0"
     go_version_str = f"go{version}"
 
-    # gvm is installed at /root/.gvm
-    # We need to source gvm and then use the version
+    # Prefer GVM_ROOT from environment; fallback for compatibility
+    gvm_root = os.environ.get("GVM_ROOT", "/root/.gvm")
     return f"""
-export GVM_ROOT="/root/.gvm"
+export GVM_ROOT="{gvm_root}"
 [ -s "$GVM_ROOT/scripts/gvm" ] && source "$GVM_ROOT/scripts/gvm"
 gvm use {go_version_str} --default 2>/dev/null || (gvm install {go_version_str} -B && gvm use {go_version_str} --default) || echo "Go {go_version_str} not available, using default"
 """
@@ -201,9 +230,12 @@ def get_rust_version_shell(repo_dir: Path) -> str:
         # Use default Rust if no version specified
         return ""
 
-    # rustup is already in PATH, just need to override toolchain
+    # Prefer CARGO_HOME / PATH from environment; fallback for compatibility
+    cargo_bin = os.environ.get("CARGO_HOME", "/root/.cargo")
+    if not cargo_bin.endswith("/bin"):
+        cargo_bin = f"{cargo_bin}/bin"
     return f"""
-export PATH="/root/.cargo/bin:$PATH"
+export PATH="{cargo_bin}:$PATH"
 rustup override set {version} 2>/dev/null || rustup toolchain install {version} && rustup override set {version}
 """
 
@@ -213,13 +245,14 @@ def get_version_env_shell(repo_dir: Path) -> dict[str, str]:
     Get environment variables and shell commands needed for version switching.
 
     Returns:
-        Dictionary with 'shell_prefix' containing commands to run before executing tools
+        Dictionary with 'shell_prefix' (legacy, avoid using with shell=True),
+        'node_version', 'go_version', 'rust_version', and 'env' for safe env-based use.
     """
     node_cmd = get_node_version_shell(repo_dir)
     go_cmd = get_go_version_shell(repo_dir)
     rust_cmd = get_rust_version_shell(repo_dir)
 
-    # Combine all commands
+    # Combine all commands (legacy; prefer env-based execution without shell)
     commands = []
     if node_cmd.strip():
         commands.append(node_cmd.strip())
@@ -235,4 +268,5 @@ def get_version_env_shell(repo_dir: Path) -> dict[str, str]:
         "node_version": detect_node_version(repo_dir),
         "go_version": detect_go_version(repo_dir),
         "rust_version": detect_rust_version(repo_dir),
+        "env": {},  # Env-based switching without shell; use ensure_rust_toolchain for Rust
     }
