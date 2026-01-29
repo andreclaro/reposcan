@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import AppNav from "@/components/app-nav";
 import SignOutButton from "@/components/sign-out-button";
 import { getServerAuth } from "@/lib/server-auth";
 import { isAdmin } from "@/lib/admin-auth";
@@ -20,22 +21,7 @@ export default async function AppLayout({
             <Link href="/" className="text-sm font-semibold">
               SecurityKit
             </Link>
-            <nav className="flex items-center gap-4 text-sm">
-              <Link
-                href="/app"
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Dashboard
-              </Link>
-              {userIsAdmin && (
-                <Link
-                  href="/app/admin"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Admin
-                </Link>
-              )}
-            </nav>
+            <AppNav isAdmin={userIsAdmin} />
           </div>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <span>{session?.user?.email}</span>
