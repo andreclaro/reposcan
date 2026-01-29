@@ -47,6 +47,25 @@ async def create_scan(request: ScanRequest):
     return ScanResponse(scan_id=scan_id, status="queued")
 
 
+@app.post("/scan/{scan_id}/retry", response_model=ScanResponse)
+async def retry_scan(scan_id: str, request: ScanRequest):
+    """Queue a retry for an existing scan, reusing the same scan_id."""
+    # Validate scan_id is a valid UUID to prevent abuse
+    try:
+        scan_uuid = uuid.UUID(scan_id)
+        scan_id_str = str(scan_uuid)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid scan_id")
+
+    # Send task to Celery using the existing scan_id as task_id
+    celery_app.send_task(
+        "tasks.scan_worker.run_scan",
+        args=[scan_id_str, request.dict()],
+        task_id=scan_id_str,
+    )
+
+    return ScanResponse(scan_id=scan_id_str, status="queued")
+
 @app.get("/scan/{scan_id}/status", response_model=ScanStatusResponse)
 async def get_scan_status(scan_id: str):
     """Get the status of a scan job."""

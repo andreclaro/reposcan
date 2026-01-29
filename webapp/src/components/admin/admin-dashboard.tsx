@@ -57,6 +57,8 @@ const statusStyles: Record<string, string> = {
   retrying: "bg-secondary/60 text-secondary-foreground"
 };
 
+const RETRYABLE_STATUSES = new Set(["failed"]);
+
 function StatusBadge({ status }: { status: string }) {
   return (
     <span
@@ -153,6 +155,9 @@ export default function AdminDashboard({
   const [scans, setScans] = useState<ScanWithUser[]>(initialScans);
   const [expandedScanId, setExpandedScanId] = useState<string | null>(null);
   const [rescanningScanIds, setRescanningScanIds] = useState<Set<string>>(() => new Set());
+  const [retryingScanIds, setRetryingScanIds] = useState<Set<string>>(
+    () => new Set()
+  );
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -193,6 +198,36 @@ export default function AdminDashboard({
     });
     return counts;
   }, [statusCounts]);
+
+  const handleRetry = async (scanId: string) => {
+    setRetryingScanIds((prev) => {
+      const next = new Set(prev);
+      next.add(scanId);
+      return next;
+    });
+    try {
+      const response = await fetch(`/api/admin/scans/${scanId}/retry`, {
+        method: "POST"
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.scan) {
+          setScans((prev) =>
+            prev.map((scan) =>
+              scan.scanId === scanId ? { ...scan, ...data.scan } : scan
+            )
+          );
+        }
+      }
+    } finally {
+      setRetryingScanIds((prev) => {
+        const next = new Set(prev);
+        next.delete(scanId);
+        return next;
+      });
+    }
+  };
 
   const handleRescan = async (scanId: string) => {
     setRescanningScanIds((prev) => new Set(prev).add(scanId));
@@ -373,20 +408,32 @@ export default function AdminDashboard({
                         className="flex items-center gap-2"
                         onClick={(e) => e.stopPropagation()}
                       >
+                        {RETRYABLE_STATUSES.has(scan.status) && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRetry(scan.scanId)}
+                            disabled={retryingScanIds.has(scan.scanId)}
+                            aria-label="Retry scan"
+                            title="Retry this failed scan"
+                          >
+                            <RefreshCcw
+                              className={cn(
+                                "size-4",
+                                retryingScanIds.has(scan.scanId) && "animate-spin"
+                              )}
+                            />
+                          </Button>
+                        )}
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
                           onClick={() => handleRescan(scan.scanId)}
                           disabled={isRescanning}
-                          aria-label={
-                            scan.status === "failed" ? "Retry scan" : "Re-scan"
-                          }
-                          title={
-                            scan.status === "failed"
-                              ? "Retry this failed scan"
-                              : "Re-scan (bypass cache)"
-                          }
+                          aria-label="Re-scan"
+                          title="Re-scan (bypass cache)"
                         >
                           <RefreshCcw
                             className={cn(
