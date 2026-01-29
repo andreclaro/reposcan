@@ -12,59 +12,17 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { parseGitHubUrl } from "@/lib/github-url";
 import { DEFAULT_AUDIT_TYPES } from "@/lib/validators";
 import { cn } from "@/lib/utils";
-
-type ScanResult = {
-  repoUrl: string;
-  scanId: string | null;
-  status: "success" | "error";
-  error?: string;
-};
+import type { BatchScanResult } from "@/types/scans";
 
 type BatchScanFormProps = {};
-
-function parseGitHubUrl(url: string): { valid: boolean; normalized?: string } {
-  const trimmed = url.trim();
-  if (!trimmed) {
-    return { valid: false };
-  }
-
-  try {
-    // Handle shorthand format: owner/repo
-    if (/^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/.test(trimmed)) {
-      const normalized = `https://github.com/${trimmed}`;
-      return { valid: true, normalized };
-    }
-
-    // Handle URLs without protocol
-    let urlToParse = trimmed;
-    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
-      urlToParse = `https://${trimmed}`;
-    }
-
-    const urlObj = new URL(urlToParse);
-    if (!["github.com", "www.github.com"].includes(urlObj.hostname.toLowerCase())) {
-      return { valid: false };
-    }
-
-    const parts = urlObj.pathname.replace(/\.git$/, "").split("/").filter(Boolean);
-    if (parts.length < 2) {
-      return { valid: false };
-    }
-
-    // Normalize to https://github.com/owner/repo format
-    const normalized = `https://github.com/${parts[0]}/${parts[1]}`;
-    return { valid: true, normalized };
-  } catch {
-    return { valid: false };
-  }
-}
 
 export default function BatchScanForm({}: BatchScanFormProps) {
   const [repoUrls, setRepoUrls] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [results, setResults] = useState<ScanResult[]>([]);
+  const [results, setResults] = useState<BatchScanResult[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const parseUrls = (text: string): string[] => {
@@ -98,7 +56,7 @@ export default function BatchScanForm({}: BatchScanFormProps) {
       return;
     }
 
-    const newResults: ScanResult[] = [];
+    const newResults: BatchScanResult[] = [];
     let successCount = 0;
     let errorCount = 0;
 

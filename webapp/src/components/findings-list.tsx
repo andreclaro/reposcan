@@ -9,25 +9,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-type Finding = {
-  id: number;
-  scanId: string;
-  scanner: string;
-  severity: string;
-  category: string | null;
-  title: string;
-  description: string | null;
-  filePath: string | null;
-  lineStart: number | null;
-  lineEnd: number | null;
-  codeSnippet: string | null;
-  cwe: string | null;
-  cve: string | null;
-  remediation: string | null;
-  confidence: string | null;
-  metadata: Record<string, unknown> | null | string;
-};
+import { logger } from "@/lib/logger";
+import type { Finding, FindingsSummary } from "@/types/findings";
 
 type FindingsListProps = {
   scanId: string;
@@ -90,7 +73,7 @@ function getDisplayFilePath(filePath: string | null): string | null {
 
 export default function FindingsList({ scanId }: FindingsListProps) {
   const [findings, setFindings] = useState<Finding[]>([]);
-  const [summary, setSummary] = useState<any>(null);
+  const [summary, setSummary] = useState<FindingsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedFinding, setExpandedFinding] = useState<number | null>(null);
@@ -116,10 +99,7 @@ export default function FindingsList({ scanId }: FindingsListProps) {
   const fetchFindings = async () => {
     setLoading(true);
     setError(null);
-    // #region agent log
-    console.log('[DEBUG] fetchFindings START', {scanId, filters});
-    fetch('http://127.0.0.1:7250/ingest/c11ddcde-3020-4ad3-907a-65bf86ca8a32',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'findings-list.tsx:60',message:'fetchFindings START',data:{scanId,filters},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
+    logger.debug("[findings-list] fetchFindings start", { scanId, filters });
     try {
       const params = new URLSearchParams();
       if (filters.severity) params.append("severity", filters.severity);
@@ -127,27 +107,26 @@ export default function FindingsList({ scanId }: FindingsListProps) {
       if (filters.scanner) params.append("scanner", filters.scanner);
 
       const url = `/api/scans/${scanId}/findings?${params.toString()}`;
-      // #region agent log
-      console.log('[DEBUG] fetchFindings BEFORE fetch', {url, scanId});
-      fetch('http://127.0.0.1:7250/ingest/c11ddcde-3020-4ad3-907a-65bf86ca8a32',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'findings-list.tsx:69',message:'fetchFindings BEFORE fetch',data:{url,scanId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
+      logger.debug("[findings-list] fetch", { url, scanId });
       const response = await fetch(url);
-      // #region agent log
-      console.log('[DEBUG] fetchFindings AFTER fetch', {status: response.status, statusText: response.statusText, ok: response.ok});
-      fetch('http://127.0.0.1:7250/ingest/c11ddcde-3020-4ad3-907a-65bf86ca8a32',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'findings-list.tsx:72',message:'fetchFindings AFTER fetch',data:{status:response.status,statusText:response.statusText,ok:response.ok},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
+      logger.debug("[findings-list] response", {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+      });
       if (!response.ok) {
-        // #region agent log
-        console.error('[DEBUG] fetchFindings ERROR response', {status: response.status, statusText: response.statusText});
-        fetch('http://127.0.0.1:7250/ingest/c11ddcde-3020-4ad3-907a-65bf86ca8a32',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'findings-list.tsx:74',message:'fetchFindings ERROR response',data:{status:response.status,statusText:response.statusText},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
+        logger.warn("[findings-list] error response", {
+          status: response.status,
+          statusText: response.statusText,
+        });
         throw new Error("Failed to fetch findings");
       }
       const data = await response.json();
-      // #region agent log
-      console.log('[DEBUG] fetchFindings DATA received', {hasFindings: !!data.findings, findingsLength: data.findings?.length || 0, hasSummary: !!data.summary, dataKeys: Object.keys(data), data});
-      fetch('http://127.0.0.1:7250/ingest/c11ddcde-3020-4ad3-907a-65bf86ca8a32',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'findings-list.tsx:79',message:'fetchFindings DATA received',data:{hasFindings:!!data.findings,findingsLength:data.findings?.length||0,hasSummary:!!data.summary,dataKeys:Object.keys(data)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
+      logger.debug("[findings-list] data received", {
+        hasFindings: !!data.findings,
+        findingsLength: data.findings?.length ?? 0,
+        hasSummary: !!data.summary,
+      });
 
       const currentFindings: Finding[] = data.findings || [];
       const currentSeverities = Array.from(
@@ -193,31 +172,17 @@ export default function FindingsList({ scanId }: FindingsListProps) {
 
       setFindings(currentFindings);
       setSummary(data.summary || null);
-      // #region agent log
-      console.log('[DEBUG] fetchFindings SUCCESS', {findingsSet: data.findings?.length || 0, summarySet: !!data.summary});
-      fetch('http://127.0.0.1:7250/ingest/c11ddcde-3020-4ad3-907a-65bf86ca8a32',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'findings-list.tsx:82',message:'fetchFindings SUCCESS',data:{findingsSet:data.findings?.length||0,summarySet:!!data.summary},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
+      logger.debug("[findings-list] fetchFindings success", {
+        findingsSet: data.findings?.length ?? 0,
+        summarySet: !!data.summary,
+      });
     } catch (err) {
-      // #region agent log
-      console.error('[DEBUG] fetchFindings CATCH', {error: err instanceof Error ? err.message : String(err), err});
-      fetch('http://127.0.0.1:7250/ingest/c11ddcde-3020-4ad3-907a-65bf86ca8a32',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'findings-list.tsx:84',message:'fetchFindings CATCH',data:{error:err instanceof Error?err.message:String(err)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
+      logger.error("[findings-list] fetchFindings error", err);
       setError(err instanceof Error ? err.message : "Failed to load findings");
     } finally {
       setLoading(false);
-      // #region agent log
-      console.log('[DEBUG] fetchFindings FINALLY', {loading: false});
-      fetch('http://127.0.0.1:7250/ingest/c11ddcde-3020-4ad3-907a-65bf86ca8a32',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'findings-list.tsx:88',message:'fetchFindings FINALLY',data:{loading:false},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
     }
   };
-
-  // #region agent log
-  useEffect(() => {
-    console.log('[DEBUG] RENDER STATE', {loading, error, findingsLength: findings.length, hasSummary: !!summary, findings});
-    fetch('http://127.0.0.1:7250/ingest/c11ddcde-3020-4ad3-907a-65bf86ca8a32',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'findings-list.tsx:85',message:'RENDER STATE',data:{loading,error,findingsLength:findings.length,hasSummary:!!summary},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-  }, [loading, error, findings.length, summary]);
-  // #endregion
 
   if (loading) {
     return (

@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 
 import ScanDashboard from "@/components/scan-dashboard";
@@ -18,7 +19,7 @@ export default async function AppPage({
   const session = await getServerAuth();
 
   if (!session?.user?.id) {
-    return null;
+    redirect("/api/auth/signin");
   }
 
   const records = await db

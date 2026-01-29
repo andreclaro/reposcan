@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq, isNotNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { scans } from "@/db/schema";
@@ -23,10 +23,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { repoUrl, branch, auditTypes } = parsed.data;
-
-  // Check for force_rescan flag (admin re-scan feature)
-  const forceRescan = body?.forceRescan === true;
+  const { repoUrl, branch, auditTypes, forceRescan = false } = parsed.data;
 
   const payload = {
     repo_url: repoUrl,

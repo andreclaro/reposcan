@@ -2,24 +2,7 @@
 
 import { CheckCircle2, XCircle, Clock, GitBranch, Hash, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-type ScanData = {
-  id: number;
-  scanId: string;
-  repoUrl: string;
-  branch: string | null;
-  commitHash: string | null;
-  status: string;
-  progress: number | null;
-  findingsCount: number;
-  criticalCount: number;
-  highCount: number;
-  mediumCount: number;
-  lowCount: number;
-  infoCount: number;
-  createdAt: string | null;
-  updatedAt: string | null;
-};
+import type { ScanData } from "@/types/scans";
 
 type ScanSummaryProps = {
   scan: ScanData;

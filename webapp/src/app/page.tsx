@@ -111,44 +111,6 @@ export default async function HomePage() {
                 </Button>
               </form>
             </div>
-
-            {/* <div className="rounded-3xl border bg-card/70 p-6 shadow-sm">
-              <div className="space-y-5">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-xl border bg-background p-2">
-                    <Scan className="size-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Live scan pipeline</p>
-                    <p className="text-xs text-muted-foreground">
-                      One worker per repository, end-to-end
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-3 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <GitBranch className="size-4 text-primary" />
-                    Clone repo and detect languages
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="size-4 text-primary" />
-                    Run SAST, Docker, Terraform, deps
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <LineChart className="size-4 text-primary" />
-                    Aggregate and store results
-                  </div>
-                </div>
-                <div className="rounded-2xl border bg-background/80 p-4 text-xs text-muted-foreground">
-                  <p className="font-medium text-foreground">
-                    Example output
-                  </p>
-                  <p className="mt-2">Status: running (60%)</p>
-                  <p>Findings: Semgrep, tfsec, npm audit</p>
-                  <p>Artifacts: results/scan-id/</p>
-                </div>
-              </div>
-            </div> */}
           </div>
         </section>
 
@@ -172,53 +134,6 @@ export default async function HomePage() {
             )})}
           </div>
         </section>
-
-        {/* <section className="mx-auto max-w-6xl px-6 pb-20">
-          <div className="rounded-3xl border bg-card p-8 shadow-sm">
-            <div className="grid gap-6 md:grid-cols-3">
-              <div>
-                <p className="text-sm font-semibold">1. Submit a repo</p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Provide a GitHub URL and pick a branch to scan.
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold">2. Run full pipeline</p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  We clone, detect languages, then launch all applicable scans.
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold">3. Review results</p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Track status in your dashboard and download findings.
-                </p>
-              </div>
-            </div>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Button asChild size="lg">
-                <Link
-                  href={
-                    isDevBypass
-                      ? "/app"
-                      : isAuthed
-                        ? "/app"
-                        : "/api/auth/signin/github"
-                  }
-                >
-                  {isDevBypass
-                    ? "Continue in dev mode"
-                    : isAuthed
-                      ? "Go to dashboard"
-                      : "Get started"}
-                </Link>
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Uses the existing sec-audit worker pipeline.
-              </span>
-            </div>
-          </div>
-        </section> */}
       </main>
     </div>
   );

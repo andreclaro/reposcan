@@ -17,8 +17,14 @@ export async function GET(request: Request) {
   const status = searchParams.get("status");
   const userId = searchParams.get("userId");
   const search = searchParams.get("search");
-  const limit = parseInt(searchParams.get("limit") ?? "100", 10);
-  const offset = parseInt(searchParams.get("offset") ?? "0", 10);
+  const limit = Math.min(
+    500,
+    Math.max(1, parseInt(searchParams.get("limit") ?? "100", 10) || 100)
+  );
+  const offset = Math.max(
+    0,
+    parseInt(searchParams.get("offset") ?? "0", 10) || 0
+  );
 
   // Build conditions
   const conditions = [];

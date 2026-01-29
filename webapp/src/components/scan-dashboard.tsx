@@ -13,30 +13,10 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { parseGitHubRepo } from "@/lib/github-url";
 import { DEFAULT_AUDIT_TYPES } from "@/lib/validators";
 import { cn } from "@/lib/utils";
-
-type ScanRecord = {
-  id: number;
-  scanId: string;
-  userId: string;
-  repoUrl: string;
-  branch: string | null;
-  commitHash: string | null;
-  auditTypes: string[] | null;
-  status: string;
-  progress: number | null;
-  resultsPath: string | null;
-  result: Record<string, unknown> | null;
-  findingsCount?: number | null;
-  criticalCount?: number | null;
-  highCount?: number | null;
-  mediumCount?: number | null;
-  lowCount?: number | null;
-  infoCount?: number | null;
-  createdAt: string | null;
-  updatedAt: string | null;
-};
+import type { ScanRecord } from "@/types/scans";
 
 const activeStatuses = new Set(["queued", "running", "retrying"]);
 
@@ -47,39 +27,6 @@ const statusStyles: Record<string, string> = {
   failed: "bg-destructive/10 text-destructive",
   retrying: "bg-secondary/60 text-secondary-foreground"
 };
-
-type ParsedGitHubRepo = {
-  owner: string;
-  repo: string;
-};
-
-function parseGitHubRepo(input: string): ParsedGitHubRepo | null {
-  if (!input) {
-    return null;
-  }
-
-  try {
-    const url = new URL(input);
-    if (url.hostname.toLowerCase() !== "github.com") {
-      return null;
-    }
-
-    const parts = url.pathname.split("/").filter(Boolean);
-    if (parts.length < 2) {
-      return null;
-    }
-
-    const owner = parts[0];
-    const repo = parts[1].replace(/\.git$/i, "");
-    if (!owner || !repo) {
-      return null;
-    }
-
-    return { owner, repo };
-  } catch {
-    return null;
-  }
-}
 
 function StatusBadge({
   status,

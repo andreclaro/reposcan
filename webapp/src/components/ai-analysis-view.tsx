@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Brain, AlertTriangle, TrendingUp, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import type { TopFinding } from "@/types/findings";
 
 type AIAnalysisViewProps = {
   scanId: string;
@@ -14,14 +15,6 @@ type Recommendation = {
   action: string;
   findingIds: number[];
   estimatedEffort: "low" | "medium" | "high";
-};
-
-type TopFinding = {
-  id: number;
-  title: string;
-  severity: string;
-  category?: string | null;
-  scanner?: string;
 };
 
 type AIAnalysis = {

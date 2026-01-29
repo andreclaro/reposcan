@@ -32,7 +32,8 @@ export const scanRequestSchema = z.object({
     },
     z.string().max(120).optional()
   ),
-  auditTypes: z.array(z.enum(DEFAULT_AUDIT_TYPES)).optional()
+  auditTypes: z.array(z.enum(DEFAULT_AUDIT_TYPES)).optional(),
+  forceRescan: z.boolean().optional(),
 });
 
 export type ScanRequestInput = z.infer<typeof scanRequestSchema>;
