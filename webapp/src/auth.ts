@@ -3,14 +3,15 @@ import Credentials from "next-auth/providers/credentials";
 import GitHub from "next-auth/providers/github";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 
-import { db } from "@/db";
+import { getDb } from "@/db";
 import { accounts, sessions, users, verificationTokens } from "@/db/schema";
 import { DEV_BYPASS_AUTH, DEV_USER } from "@/lib/dev-auth";
 
 const githubClientId = process.env.GITHUB_CLIENT_ID;
 const githubClientSecret = process.env.GITHUB_CLIENT_SECRET;
+const isBuild = process.env.NEXT_PHASE === "phase-production-build";
 
-if ((!githubClientId || !githubClientSecret) && !DEV_BYPASS_AUTH) {
+if ((!githubClientId || !githubClientSecret) && !DEV_BYPASS_AUTH && !isBuild) {
   throw new Error("GitHub OAuth credentials are not set");
 }
 
@@ -21,6 +22,14 @@ if (githubClientId && githubClientSecret) {
     GitHub({
       clientId: githubClientId,
       clientSecret: githubClientSecret
+    })
+  );
+} else if (isBuild) {
+  // Placeholder so NextAuth can be instantiated during build (e.g. CI).
+  providers.push(
+    GitHub({
+      clientId: "build-placeholder",
+      clientSecret: "build-placeholder"
     })
   );
 }
@@ -36,7 +45,7 @@ if (DEV_BYPASS_AUTH) {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: DrizzleAdapter(db, {
+  adapter: DrizzleAdapter(getDb(), {
     usersTable: users,
     accountsTable: accounts,
     sessionsTable: sessions,
