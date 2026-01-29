@@ -13,6 +13,7 @@ This document describes all environment variables used by the Security Audit app
 
 - `AI_ANALYSIS_ENABLED` - Enable AI-powered analysis (default: `false`)
 - `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` - AI provider API key (required if AI enabled)
+- `GITHUB_TOKEN` - GitHub API token for resolving branch to commit (webapp; enables existing-scan reuse)
 - `STORAGE_BACKEND` - Storage backend type (default: `local`)
 
 ## Detailed Configuration
@@ -139,6 +140,12 @@ These variables are only required when `STORAGE_BACKEND=s3`.
 - **Required**: No
 - **Default**: `http://localhost:8000`
 - **Description**: Base URL for the FastAPI backend service.
+
+#### `GITHUB_TOKEN`
+- **Type**: String (GitHub personal access token or fine-grained token)
+- **Required**: No
+- **Description**: Used by the Next.js scan API to resolve a repository branch to a commit SHA via the GitHub API. When set, the webapp can detect that a repo/commit was already scanned and return existing results without queuing a new scan or cloning. If unset, branch-to-commit resolution is skipped and each scan request queues a worker (which may still use its own cache after cloning). Higher GitHub API rate limits when set; required for private repos if you want existing-scan reuse.
+- **Get it**: GitHub → Settings → Developer settings → Personal access tokens (classic or fine-grained). For public repos, no scopes are required; for private repos, grant `repo` (classic) or repository access (fine-grained).
 
 #### `GITHUB_CLIENT_ID`
 - **Type**: String

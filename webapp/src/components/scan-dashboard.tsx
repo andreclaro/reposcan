@@ -143,6 +143,7 @@ export default function ScanDashboard({
   const [deleteConfirmValue, setDeleteConfirmValue] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cachedMessage, setCachedMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
   const branchIsDirtyRef = useRef(branchIsDirty);
@@ -348,6 +349,7 @@ export default function ScanDashboard({
     event.preventDefault();
     setIsSubmitting(true);
     setError(null);
+    setCachedMessage(null);
 
     try {
       const response = await fetch("/api/scan", {
@@ -369,13 +371,23 @@ export default function ScanDashboard({
 
       const payload = await response.json();
       const newScan = payload.scan as ScanRecord;
+      const isCached = payload.cached === true;
 
-      setScans((prev) => [newScan, ...prev]);
+      if (isCached) {
+        setCachedMessage(
+          "This repository/commit was already scanned. Showing existing results."
+        );
+        setScans((prev) => [
+          newScan,
+          ...prev.filter((s) => s.scanId !== newScan.scanId)
+        ]);
+      } else {
+        setScans((prev) => [newScan, ...prev]);
+      }
+
       setRepoUrl("");
-      // After a successful scan, reset branch to "auto-detect" so
-      // the next repo can pick up its own default branch.
       setBranch("");
-    } catch (error) {
+    } catch {
       setError("Failed to start scan.");
     } finally {
       setIsSubmitting(false);
@@ -441,6 +453,9 @@ export default function ScanDashboard({
         </form>
         {error ? (
           <p className="mt-3 text-sm text-destructive">{error}</p>
+        ) : null}
+        {cachedMessage ? (
+          <p className="mt-3 text-sm text-muted-foreground">{cachedMessage}</p>
         ) : null}
       </div>
 

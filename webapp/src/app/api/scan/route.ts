@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, like, or } from "drizzle-orm";
 
 import { db } from "@/db";
 import { scans } from "@/db/schema";
+import {
+  getCommitShaForBranch,
+  normalizeRepoUrl
+} from "@/lib/github";
+import { parseGitHubRepo } from "@/lib/github-url";
 import { DEFAULT_AUDIT_TYPES, scanRequestSchema } from "@/lib/validators";
 import { getServerAuth } from "@/lib/server-auth";
 
@@ -23,7 +28,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const { repoUrl, branch, auditTypes, forceRescan = false } = parsed.data;
+  const {
+    repoUrl,
+    branch,
+    auditTypes,
+    forceRescan = false,
+    commitHash: requestCommitHash
+  } = parsed.data;
 
   const payload = {
     repo_url: repoUrl,
@@ -31,6 +42,64 @@ export async function POST(request: Request) {
     audit_types: auditTypes ?? Array.from(DEFAULT_AUDIT_TYPES),
     force_rescan: forceRescan
   };
+
+  // Before queuing: check for existing completed scan (same repo + commit)
+  if (!forceRescan) {
+    const normalizedUrl = normalizeRepoUrl(repoUrl);
+    if (normalizedUrl) {
+      const commitHash =
+        requestCommitHash &&
+        /^[0-9a-fA-F]{7,40}$/.test(requestCommitHash.trim())
+          ? requestCommitHash.trim()
+          : null;
+
+      const resolvedCommit =
+        commitHash ??
+        (await (async () => {
+          const repo = parseGitHubRepo(repoUrl);
+          if (!repo) return null;
+          return getCommitShaForBranch(repo.owner, repo.repo, branch);
+        })());
+
+      if (resolvedCommit) {
+        const repoUrlVariants = [
+          normalizedUrl,
+          `${normalizedUrl}.git`
+        ] as const;
+        // Match exact commit or short SHA prefix (worker stores full 40-char SHA)
+        const commitMatch =
+          resolvedCommit.length >= 40
+            ? eq(scans.commitHash, resolvedCommit)
+            : or(
+                eq(scans.commitHash, resolvedCommit),
+                like(scans.commitHash, `${resolvedCommit}%`)
+              );
+        const [existingScan] = await db
+          .select()
+          .from(scans)
+          .where(
+            and(
+              eq(scans.status, "completed"),
+              commitMatch,
+              eq(scans.userId, session.user.id),
+              or(
+                eq(scans.repoUrl, repoUrlVariants[0]),
+                eq(scans.repoUrl, repoUrlVariants[1])
+              )
+            )
+          )
+          .orderBy(desc(scans.createdAt))
+          .limit(1);
+
+        if (existingScan) {
+          return NextResponse.json(
+            { scan: existingScan, cached: true },
+            { status: 200 }
+          );
+        }
+      }
+    }
+  }
 
   const fastApiBase = process.env.FASTAPI_BASE_URL ?? "http://localhost:8000";
 
