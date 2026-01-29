@@ -311,7 +311,9 @@ export default function AdminScanDetail({
             </div>
           ) : logs.length === 0 ? (
             <div className="rounded-lg border bg-background p-4 text-sm text-muted-foreground">
-              No log files found for this scan.
+              {scan.status === "failed"
+                ? "No log files found for this scan yet. The scan may have failed before writing scanner output. Check the worker.log file or worker service logs for more details."
+                : "No log files found for this scan."}
             </div>
           ) : (
             <>

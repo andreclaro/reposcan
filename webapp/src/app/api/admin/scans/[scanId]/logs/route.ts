@@ -14,6 +14,7 @@ const RESULTS_DIR = process.env.RESULTS_DIR ?? "./results";
 
 // Files to look for in the scan results directory
 const LOG_FILES = [
+  "worker.log",
   "semgrep.txt",
   "semgrep.json",
   "trivy_dockerfile_scan.txt",

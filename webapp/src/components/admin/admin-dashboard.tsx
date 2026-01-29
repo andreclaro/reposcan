@@ -152,9 +152,7 @@ export default function AdminDashboard({
 }: AdminDashboardProps) {
   const [scans, setScans] = useState<ScanWithUser[]>(initialScans);
   const [expandedScanId, setExpandedScanId] = useState<string | null>(null);
-  const [refreshingScanIds, setRefreshingScanIds] = useState<Set<string>>(
-    () => new Set()
-  );
+  const [rescanningScanIds, setRescanningScanIds] = useState<Set<string>>(() => new Set());
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -196,43 +194,25 @@ export default function AdminDashboard({
     return counts;
   }, [statusCounts]);
 
-  const refreshScan = async (scanId: string) => {
-    setRefreshingScanIds((prev) => new Set(prev).add(scanId));
+  const handleRescan = async (scanId: string) => {
+    setRescanningScanIds((prev) => new Set(prev).add(scanId));
     try {
-      const response = await fetch(`/api/admin/scans/${scanId}`, {
-        method: "GET",
-        cache: "no-store"
+      const response = await fetch(`/api/admin/scans/${scanId}/rescan`, {
+        method: "POST"
       });
 
       if (response.ok) {
         const data = await response.json();
-        const updated = data.scan as ScanWithUser | undefined;
-
-        if (updated) {
-          setScans((prev) =>
-            prev.map((scan) => (scan.scanId === scanId ? updated : scan))
-          );
+        if (data.scan) {
+          setScans((prev) => [data.scan, ...prev]);
         }
       }
     } finally {
-      setRefreshingScanIds((prev) => {
+      setRescanningScanIds((prev) => {
         const next = new Set(prev);
         next.delete(scanId);
         return next;
       });
-    }
-  };
-
-  const handleRescan = async (scanId: string) => {
-    const response = await fetch(`/api/admin/scans/${scanId}/rescan`, {
-      method: "POST"
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      if (data.scan) {
-        setScans((prev) => [data.scan, ...prev]);
-      }
     }
   };
 
@@ -336,7 +316,7 @@ export default function AdminDashboard({
           ) : (
             filteredScans.map((scan) => {
               const isExpanded = expandedScanId === scan.scanId;
-              const isRefreshing = refreshingScanIds.has(scan.scanId);
+              const isRescanning = rescanningScanIds.has(scan.scanId);
 
               return (
                 <div key={scan.scanId}>
@@ -352,7 +332,7 @@ export default function AdminDashboard({
                     <div className="flex items-center gap-4">
                       <button
                         type="button"
-                        className="flex-shrink-0 text-muted-foreground hover:text-foreground"
+                        className="shrink-0 text-muted-foreground hover:text-foreground"
                       >
                         {isExpanded ? (
                           <ChevronDown className="size-4" />
@@ -382,7 +362,7 @@ export default function AdminDashboard({
                         </div>
                       </div>
 
-                      <div className="flex-shrink-0 text-right">
+                      <div className="shrink-0 text-right">
                         <FindingsCounts scan={scan} />
                         <div className="mt-1 text-xs text-muted-foreground">
                           {scan.progress ?? 0}%
@@ -397,13 +377,21 @@ export default function AdminDashboard({
                           type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => refreshScan(scan.scanId)}
-                          disabled={isRefreshing}
+                          onClick={() => handleRescan(scan.scanId)}
+                          disabled={isRescanning}
+                          aria-label={
+                            scan.status === "failed" ? "Retry scan" : "Re-scan"
+                          }
+                          title={
+                            scan.status === "failed"
+                              ? "Retry this failed scan"
+                              : "Re-scan (bypass cache)"
+                          }
                         >
                           <RefreshCcw
                             className={cn(
                               "size-4",
-                              isRefreshing && "animate-spin"
+                              isRescanning && "animate-spin"
                             )}
                           />
                         </Button>

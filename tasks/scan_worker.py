@@ -4,8 +4,11 @@ import json
 import csv
 import tempfile
 import asyncio
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any
+import traceback
+
 from celery import Celery
 from celery.utils.log import get_task_logger
 
@@ -88,14 +91,34 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
     # Create results directory
     results_dir = RESULTS_DIR / scan_id
     results_dir.mkdir(parents=True, exist_ok=True)
+
+    worker_log_path = results_dir / "worker.log"
+
+    def log_step(message: str) -> None:
+        """Append a timestamped log line to the per-scan worker log."""
+        try:
+            timestamp = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+            worker_log_path.parent.mkdir(parents=True, exist_ok=True)
+            with worker_log_path.open("a", encoding="utf-8") as log_file:
+                log_file.write(f"{timestamp} {message}\n")
+        except Exception:
+            # Never let logging failures break the scan
+            logger.debug("Failed to write to worker.log", exc_info=True)
     
     # Get database URL for status updates
     db_url = os.getenv("DATABASE_URL")
+
+    log_step(
+        f"Starting scan {scan_id} for {repo_url} "
+        f"(branch={branch or 'auto-detect'}, force_rescan={force_rescan}, "
+        f"audit_types={audit_types or 'default'})"
+    )
     
     # Helper function to update both Celery state and database progress
     def update_progress(progress: int, step: str):
         """Update both Celery task state and database progress."""
         self.update_state(state='PROGRESS', meta={'progress': progress, 'current_step': step})
+        log_step(f"{progress}% - {step}")
         if db_url:
             try:
                 async def update_progress_async():
@@ -182,9 +205,12 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                     # Re-raise other errors as-is
                     raise
             
+            log_step(f"Repository cloned successfully to {repo_path}")
+
             # Capture commit hash
             commit_hash = get_commit_hash(repo_path, branch)
             logger.info(f"Scanned commit: {commit_hash}")
+            log_step(f"Scanned commit {commit_hash}")
 
             # Check for cached scan with same repo_url + commit_hash
             if db_url and commit_hash and not force_rescan:
@@ -262,7 +288,8 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                     logger.warning(f"Cache check failed, proceeding with full scan: {e}")
 
             update_progress(20, 'Detecting languages')
-            
+            log_step("Detecting languages in repository")
+
             # Step 2: Detect languages
             language_counts = detect_languages(repo_path)
             
@@ -275,6 +302,9 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                     writer.writerow([language, files_count])
             
             logger.info(f"Detected languages: {list(language_counts.keys())}")
+            log_step(
+                f"Detected languages: {', '.join(sorted(language_counts.keys())) or 'none detected'}"
+            )
             
             # Step 3: Determine which scans to run
             selected_audits = parse_audit_selection(audit_types)
@@ -297,6 +327,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             # SAST scan
             if should_run_audit(selected_audits, 'sast'):
                 update_progress(int(current_progress), 'Running SAST scan (Semgrep)')
+                log_step("Running SAST scan (Semgrep)")
                 try:
                     semgrep_json = results_dir / "semgrep.json"
                     semgrep_text = results_dir / "semgrep.txt"
@@ -322,6 +353,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             # Dockerfile scan
             if should_run_audit(selected_audits, 'dockerfile'):
                 update_progress(int(current_progress), 'Scanning Dockerfiles (Trivy)')
+                log_step("Scanning Dockerfiles with Trivy")
                 try:
                     trivy_report = results_dir / "trivy_dockerfile_scan.txt"
                     run_trivy_dockerfile_scan(repo_path, repo_name(repo_url), trivy_report)
@@ -340,6 +372,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             
             # Trivy filesystem scan (runs for all audits)
             update_progress(int(current_progress), 'Running Trivy filesystem scan')
+            log_step("Running Trivy filesystem scan")
             try:
                 trivy_fs_report = results_dir / "trivy_fs_scan.txt"
                 run_trivy_fs_scan(repo_path, trivy_fs_report)
@@ -359,6 +392,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             # Terraform scans
             if should_run_audit(selected_audits, 'terraform') and has_terraform(repo_path):
                 update_progress(int(current_progress), 'Scanning Terraform (tfsec, checkov, tflint)')
+                log_step("Scanning Terraform with tfsec, checkov, and tflint")
                 try:
                     tfsec_report = results_dir / "tfsec.txt"
                     checkov_report = results_dir / "checkov.txt"
@@ -380,6 +414,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             if should_run_audit(selected_audits, 'node'):
                 if ('JavaScript' in language_counts or 'TypeScript' in language_counts or has_node_project(repo_path)):
                     update_progress(int(current_progress), 'Auditing Node.js dependencies')
+                    log_step("Auditing Node.js dependencies")
                     try:
                         node_report = results_dir / "node_audit.txt"
                         run_node_audit(repo_path, repo_name(repo_url), node_report)
@@ -400,6 +435,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             if should_run_audit(selected_audits, 'go'):
                 if 'Go' in language_counts or has_go_project(repo_path):
                     update_progress(int(current_progress), 'Auditing Go dependencies (govulncheck)')
+                    log_step("Auditing Go dependencies with govulncheck")
                     try:
                         go_report = results_dir / "go_vulncheck.txt"
                         run_go_vulncheck(repo_path, repo_name(repo_url), go_report)
@@ -420,6 +456,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             if should_run_audit(selected_audits, 'rust'):
                 if 'Rust' in language_counts or has_rust_project(repo_path):
                     update_progress(int(current_progress), 'Auditing Rust dependencies (cargo-audit)')
+                    log_step("Auditing Rust dependencies with cargo-audit")
                     try:
                         rust_report = results_dir / "rust_audit.txt"
                         run_cargo_audit(repo_path, repo_name(repo_url), rust_report)
@@ -437,6 +474,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             
             # Step 5: Normalize findings and store in database
             update_progress(96, 'Normalizing findings')
+            log_step("Normalizing findings")
             
             findings = []
             finding_db_ids = []  # Initialize for use in AI analysis
@@ -487,6 +525,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             if storage_backend_type != "none":
                 try:
                     update_progress(98, 'Uploading to storage')
+                    log_step(f"Uploading results to storage backend '{storage_backend_type}'")
                     storage = create_storage_backend(storage_backend_type)
                     
                     # Upload raw scanner outputs
@@ -525,6 +564,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             if ai_enabled and findings and db_url:
                 try:
                     update_progress(99, 'Generating AI analysis')
+                    log_step("Generating AI analysis")
                     
                     ai_api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")
                     if not ai_api_key:
@@ -591,6 +631,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             
             # Step 8: Aggregate and save results
             update_progress(100, 'Saving results')
+            log_step("Saving aggregated results and updating scan status to 'completed'")
             
             results['status'] = 'completed'
             results['results_path'] = str(results_dir)
@@ -621,11 +662,17 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                     logger.warning(f"Failed to update scan status to 'completed': {e}")
             
             logger.info(f"Scan {scan_id} completed successfully. Results saved to {results_dir}")
+            log_step("Scan completed successfully")
             
             return results
             
     except Exception as exc:
         logger.error(f"Scan {scan_id} failed: {exc}", exc_info=True)
+        log_step(f"Scan {scan_id} failed with exception: {exc!r}")
+        try:
+            log_step(traceback.format_exc())
+        except Exception:
+            logger.debug("Failed to write traceback to worker.log", exc_info=True)
         
         # Update scan status to "failed" in database
         # db_url is already defined at function start
