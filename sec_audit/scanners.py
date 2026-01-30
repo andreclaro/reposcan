@@ -367,7 +367,7 @@ def run_tfsec_checkov_tflint_scan(
         with tflint_output.open("w", encoding="utf-8") as handle:
             try:
                 result = subprocess.run(
-                    [tflint_bin],
+                    [tflint_bin, "--recursive"],
                     cwd=repo_dir,
                     stdout=handle,
                     stderr=handle,

@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -6,9 +7,29 @@ import {
   primaryKey,
   serial,
   text,
-  timestamp
+  timestamp,
+  unique
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
+
+// Plan quotas (e.g. scans_per_month). -1 or high number = unlimited.
+export type PlanQuotas = { scans_per_month?: number };
+
+export const plans = pgTable("plan", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  codename: text("codename").unique().notNull(),
+  default: boolean("default").default(false),
+  monthlyPrice: integer("monthly_price"),
+  yearlyPrice: integer("yearly_price"),
+  monthlyStripePriceId: text("monthly_stripe_price_id"),
+  yearlyStripePriceId: text("yearly_stripe_price_id"),
+  trialDays: integer("trial_days"),
+  quotas: jsonb("quotas").$type<PlanQuotas>(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow()
+});
 
 export const users = pgTable("app_user", {
   id: text("id")
@@ -18,7 +39,11 @@ export const users = pgTable("app_user", {
   email: text("email").unique().notNull(),
   emailVerified: timestamp("email_verified", { mode: "date" }),
   image: text("image"),
-  createdAt: timestamp("created_at", { mode: "date" }).defaultNow()
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
+  planId: text("plan_id").references(() => plans.id),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  trialEndsAt: timestamp("trial_ends_at", { mode: "date" })
 });
 
 export const accounts = pgTable(
@@ -155,3 +180,30 @@ export const findings = pgTable(
     cveIdx: index("idx_findings_cve").on(table.cve)
   })
 );
+
+// Usage: one row per user per billing period (calendar month). Only new scan creations count.
+export const usageRecords = pgTable(
+  "usage_record",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    periodStart: timestamp("period_start", { mode: "date" }).notNull(),
+    periodEnd: timestamp("period_end", { mode: "date" }).notNull(),
+    scansUsed: integer("scans_used").notNull().default(0),
+    scansLimit: integer("scans_limit").notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow()
+  },
+  (table) => [
+    unique("usage_record_user_period").on(table.userId, table.periodStart)
+  ]
+);
+
+// Stripe webhook idempotency: skip duplicate events.
+export const stripeEvents = pgTable("stripe_event", {
+  id: serial("id").primaryKey(),
+  stripeEventId: text("stripe_event_id").unique().notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow()
+});

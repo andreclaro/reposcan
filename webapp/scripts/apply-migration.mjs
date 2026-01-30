@@ -1,15 +1,36 @@
 #!/usr/bin/env node
 /**
  * Apply database migration manually
- * Usage: DATABASE_URL=postgresql://... node scripts/apply-migration.mjs
+ * Usage: DATABASE_URL=postgresql://... node scripts/apply-migration.mjs [migration_name]
+ * Example: node scripts/apply-migration.mjs 0003_add_billing
+ * Loads .env.local or .env from webapp root if DATABASE_URL is not set.
+ * Default migration: 0003_add_billing (billing schema)
  */
 import postgres from "postgres";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Load .env.local or .env from webapp root so DATABASE_URL is available
+if (!process.env.DATABASE_URL) {
+  const webappRoot = join(__dirname, "..");
+  for (const file of [".env.local", ".env"]) {
+    const path = join(webappRoot, file);
+    if (existsSync(path)) {
+      const content = readFileSync(path, "utf-8");
+      for (const line of content.split("\n")) {
+        const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+        if (match && !process.env[match[1]]) {
+          process.env[match[1]] = match[2].replace(/^["']|["']$/g, "").trim();
+        }
+      }
+      break;
+    }
+  }
+}
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -18,7 +39,14 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
-const migrationFile = join(__dirname, "../drizzle/0001_add_findings_and_ai_analysis.sql");
+const migrationName = process.argv[2] || "0003_add_billing";
+const migrationFile = join(__dirname, "../drizzle", `${migrationName}.sql`);
+
+if (!existsSync(migrationFile)) {
+  console.error(`Error: Migration file not found: ${migrationFile}`);
+  process.exit(1);
+}
+
 const sql = readFileSync(migrationFile, "utf-8");
 
 // Split by statement breakpoints and execute each statement
@@ -40,7 +68,7 @@ async function applyMigration() {
   const client = postgres(databaseUrl, { max: 1 });
 
   try {
-    console.log("Applying migration: 0001_add_findings_and_ai_analysis");
+    console.log(`Applying migration: ${migrationName}`);
     console.log(`Found ${statements.length} statements to execute\n`);
     
     for (let i = 0; i < statements.length; i++) {

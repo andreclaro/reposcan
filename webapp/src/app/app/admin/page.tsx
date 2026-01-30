@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { desc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { scans, users, aiAnalysis } from "@/db/schema";
+import { scans, users } from "@/db/schema";
 import { getServerAuth } from "@/lib/server-auth";
 import { isAdmin } from "@/lib/admin-auth";
 import AdminDashboard from "@/components/admin/admin-dashboard";
@@ -95,7 +95,7 @@ export default async function AdminPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+        <h1 className="text-2xl font-bold">Scans Dashboard</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           View and manage all scans across all users.
         </p>

@@ -8,6 +8,7 @@ import {
   normalizeRepoUrl
 } from "@/lib/github";
 import { parseGitHubRepo } from "@/lib/github-url";
+import { canUserStartScan, getUsageForCurrentPeriod } from "@/lib/usage";
 import { DEFAULT_AUDIT_TYPES, scanRequestSchema } from "@/lib/validators";
 import { getServerAuth } from "@/lib/server-auth";
 
@@ -99,6 +100,22 @@ export async function POST(request: Request) {
         }
       }
     }
+  }
+
+  // Enforce monthly scan limit (only new scan creations count)
+  const allowed = await canUserStartScan(session.user.id);
+  if (!allowed) {
+    const usage = await getUsageForCurrentPeriod(session.user.id);
+    return NextResponse.json(
+      {
+        error: "Monthly scan limit reached",
+        code: "SCAN_LIMIT_REACHED",
+        limit: usage.scansLimit,
+        used: usage.scansUsed,
+        periodEnd: usage.periodEnd?.toISOString()
+      },
+      { status: 403 }
+    );
   }
 
   const fastApiBase = process.env.FASTAPI_BASE_URL ?? "http://localhost:8000";

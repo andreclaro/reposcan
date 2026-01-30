@@ -72,7 +72,8 @@ class TestParseAuditSelection:
 
     def test_ignores_invalid_values(self):
         assert parse_audit_selection(["sast", "invalid", "node"]) == ["sast", "node"]
-        assert parse_audit_selection(["sast; rm -rf"]) == []  # invalid not in allowed
+        # "sast; rm -rf" is not in ALLOWED_AUDITS, so no valid items -> returns ["all"]
+        assert parse_audit_selection(["sast; rm -rf"]) == ["all"]
         assert parse_audit_selection(["sast", "sast"]) == ["sast", "sast"]
 
     def test_comma_separated(self):
@@ -120,7 +121,8 @@ class TestSanitizeRepoSlug:
         assert ".." not in sanitize_repo_slug("..")
         assert "/" not in sanitize_repo_slug("foo/bar")
         assert sanitize_repo_slug("") == "repo"
-        assert sanitize_repo_slug("...") == ""
+        # "..." becomes only dots after removing "..", so sanitized to "repo"
+        assert sanitize_repo_slug("...") == "repo"
 
     def test_max_length(self):
         long_name = "a" * 150

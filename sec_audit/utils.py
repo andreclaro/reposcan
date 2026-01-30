@@ -44,6 +44,14 @@ def validate_repo_url(url: str) -> bool:
         parsed = urlparse(url)
     except Exception:
         return False
+    # Allow SSH clone URLs (e.g. git@github.com:user/repo.git)
+    if url.strip().startswith("git@"):
+        parts = url.split(":", 1)
+        if len(parts) != 2 or not parts[1] or parts[1].startswith("/"):
+            return False
+        if ".." in parts[1]:
+            return False
+        return True
     allowed_schemes = {"http", "https", "git", "ssh"}
     if not parsed.scheme or parsed.scheme.lower() not in allowed_schemes:
         return False
@@ -104,9 +112,11 @@ def safe_repo_slug(repo: str) -> str:
     """
     Derive a safe directory name from a repository URL/path.
     Uses repo_name() then sanitizes: only alphanumeric, dot, underscore, hyphen; max length.
+    If the URL path contains "..", returns "repo" to avoid path-traversal-style names.
     """
-    from pathlib import Path
-
+    parsed = urlparse(repo)
+    if ".." in (parsed.path or ""):
+        return "repo"
     name = Path(repo).name
     if name.endswith(".git"):
         name = name[:-4]
@@ -136,10 +146,14 @@ def read_csv_safely(csv_path: Path) -> List[List[str]]:
 def sanitize_repo_slug(repo_slug: str) -> str:
     """
     Sanitize a repo slug for use in paths (prevent path traversal).
-    Only allows alphanumeric, dot, underscore, hyphen; max length 100.
+    Only allows alphanumeric, dot, underscore, hyphen; removes ".."; max length 100.
     """
     if not repo_slug or not isinstance(repo_slug, str):
         return "repo"
     safe = "".join(c for c in repo_slug if c.isalnum() or c in "._-")
+    safe = safe.replace("..", "")  # prevent path traversal
     safe = safe[:REPO_SLUG_MAX_LEN] if len(safe) > REPO_SLUG_MAX_LEN else safe
-    return safe if safe else "repo"
+    # Treat slug that is only dots/underscores/hyphens as unsafe (e.g. "...")
+    if not safe or not any(c.isalnum() for c in safe):
+        return "repo"
+    return safe
