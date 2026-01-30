@@ -1,0 +1,8 @@
+# Smoke-test repositories: one per ecosystem (Go, Rust, Node, Terraform, Dockerfile).
+# Format: repo_url,branch (branch optional; default branch used if omitted).
+# Use with: sec-audit scripts/repositories_smoke_test.csv repos_dir audit_dir --audit all
+repository url,branch
+https://github.com/golang/go.git,main
+https://github.com/rust-lang/cargo.git,main
+https://github.com/facebook/react.git,main
+https://github.com/thecodesmith/terraform-hello-world.git,main
