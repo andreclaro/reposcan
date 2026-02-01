@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { parseGitHubUrl } from "./github-url";
+
 export const DEFAULT_AUDIT_TYPES = [
   "sast",
   "dockerfile",
@@ -9,14 +11,14 @@ export const DEFAULT_AUDIT_TYPES = [
   "rust"
 ] as const;
 
-const githubUrlSchema = z.string().url().refine((value) => {
-  const url = new URL(value);
-  if (!["github.com", "www.github.com"].includes(url.hostname)) {
-    return false;
-  }
-  const parts = url.pathname.replace(/\.git$/, "").split("/").filter(Boolean);
-  return parts.length >= 2;
-}, "Enter a valid GitHub repository URL");
+/** Accepts full GitHub URL or owner/repo (e.g. awesome-selfhosted/awesome-selfhosted). */
+const githubUrlSchema = z
+  .string()
+  .min(1, "Repository URL or owner/repo is required")
+  .refine(
+    (value) => parseGitHubUrl(value.trim()).valid,
+    "Enter a valid GitHub URL or owner/repo (e.g. org/repo)"
+  );
 
 export const scanRequestSchema = z.object({
   repoUrl: githubUrlSchema,
