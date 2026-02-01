@@ -47,6 +47,8 @@ type AdminDashboardProps = {
   initialScans: ScanWithUser[];
   users: { userId: string; email: string }[];
   statusCounts: { status: string; count: number }[];
+  /** When false, AI Analysis card (View/Regenerate) is hidden in scan detail. */
+  aiAnalysisEnabled?: boolean;
 };
 
 const statusStyles: Record<string, string> = {
@@ -150,7 +152,8 @@ function formatDate(value?: string | null) {
 export default function AdminDashboard({
   initialScans,
   users,
-  statusCounts
+  statusCounts,
+  aiAnalysisEnabled = false,
 }: AdminDashboardProps) {
   const [scans, setScans] = useState<ScanWithUser[]>(initialScans);
   const [expandedScanId, setExpandedScanId] = useState<string | null>(null);
@@ -261,6 +264,19 @@ export default function AdminDashboard({
       if (expandedScanId === scanId) {
         setExpandedScanId(null);
       }
+    }
+  };
+
+  const refetchScan = async (scanId: string) => {
+    const response = await fetch(`/api/admin/scans/${scanId}`);
+    if (!response.ok) return;
+    const data = await response.json();
+    if (data.scan) {
+      setScans((prev) =>
+        prev.map((scan) =>
+          scan.scanId === scanId ? { ...scan, ...data.scan } : scan
+        )
+      );
     }
   };
 
@@ -458,6 +474,8 @@ export default function AdminDashboard({
                       scan={scan}
                       onRescan={() => handleRescan(scan.scanId)}
                       onDelete={() => handleDelete(scan.scanId)}
+                      onRefreshScan={() => refetchScan(scan.scanId)}
+                      aiAnalysisEnabled={aiAnalysisEnabled}
                     />
                   )}
                 </div>

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Brain, AlertTriangle, TrendingUp, ExternalLink } from "lucide-react";
+import { Brain, AlertTriangle, TrendingUp, ExternalLink, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import type { TopFinding } from "@/types/findings";
 
 type AIAnalysisViewProps = {
@@ -80,6 +81,8 @@ export default function AIAnalysisView({ scanId }: AIAnalysisViewProps) {
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenerateMessage, setRegenerateMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAnalysis();
@@ -108,6 +111,30 @@ export default function AIAnalysisView({ scanId }: AIAnalysisViewProps) {
       setError(err instanceof Error ? err.message : "Failed to load AI analysis");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    setRegenerateMessage(null);
+    try {
+      const response = await fetch(`/api/scans/${scanId}/generate-ai`, {
+        method: "POST",
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setRegenerateMessage(data.error ?? "Failed to queue regeneration");
+        return;
+      }
+      setRegenerateMessage(
+        data.message ?? "Regeneration queued. Refresh in a minute to see the new analysis."
+      );
+      // Refetch after a short delay so user can refresh manually
+      setTimeout(() => fetchAnalysis(), 2000);
+    } catch {
+      setRegenerateMessage("Failed to queue regeneration");
+    } finally {
+      setRegenerating(false);
     }
   };
 
@@ -143,6 +170,30 @@ export default function AIAnalysisView({ scanId }: AIAnalysisViewProps) {
 
   return (
     <div className="space-y-6">
+      {/* Regenerate AI analysis */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-background p-4 shadow-sm">
+        <p className="text-sm text-muted-foreground">
+          Re-run AI analysis with the current findings (worker must have AI enabled).
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleRegenerate}
+          disabled={regenerating}
+        >
+          {regenerating ? (
+            <RefreshCw className="size-4 animate-spin" />
+          ) : (
+            <RefreshCw className="size-4" />
+          )}
+          Regenerate AI analysis
+        </Button>
+        {regenerateMessage && (
+          <p className="w-full text-xs text-muted-foreground">{regenerateMessage}</p>
+        )}
+      </div>
+
       {/* Risk Score */}
       {analysis.riskScore !== null && (
         <div className="rounded-2xl border bg-background p-6 shadow-sm">

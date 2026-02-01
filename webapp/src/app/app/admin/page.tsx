@@ -92,6 +92,9 @@ export default async function AdminPage() {
     updatedAt: scan.updatedAt?.toISOString() ?? null
   }));
 
+  const aiAnalysisEnabled =
+    process.env.AI_ANALYSIS_ENABLED?.toLowerCase() === "true";
+
   return (
     <div className="space-y-6">
       <div>
@@ -105,6 +108,7 @@ export default async function AdminPage() {
         initialScans={formattedScans}
         users={uniqueUsers.filter((u) => u.email !== null) as { userId: string; email: string }[]}
         statusCounts={statusCounts as { status: string; count: number }[]}
+        aiAnalysisEnabled={aiAnalysisEnabled}
       />
     </div>
   );

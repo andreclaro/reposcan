@@ -35,6 +35,9 @@ export default async function ScanResultsPage({ params }: PageProps) {
     scan.repoUrl;
   const shortCommitHash = scan.commitHash ? scan.commitHash.slice(0, 7) : null;
 
+  const aiAnalysisEnabled =
+    process.env.AI_ANALYSIS_ENABLED?.toLowerCase() === "true";
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Scan Results</h1>
@@ -59,6 +62,7 @@ export default async function ScanResultsPage({ params }: PageProps) {
           createdAt: scan.createdAt?.toISOString() ?? null,
           updatedAt: scan.updatedAt?.toISOString() ?? null,
         }}
+        aiAnalysisEnabled={aiAnalysisEnabled}
       />
     </div>
   );

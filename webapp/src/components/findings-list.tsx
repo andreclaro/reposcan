@@ -129,49 +129,36 @@ export default function FindingsList({ scanId }: FindingsListProps) {
       });
 
       const currentFindings: Finding[] = data.findings || [];
-      const currentSeverities = Array.from(
-        new Set(currentFindings.map((f) => f.severity))
-      );
-      const currentCategories = Array.from(
-        new Set(
-          currentFindings
-            .map((f) => f.category)
-            .filter((c): c is string => !!c)
-        )
-      );
-      const currentScanners = Array.from(
-        new Set(currentFindings.map((f) => f.scanner))
-      );
+      const summ = data.summary || null;
 
-      // Preserve full filter options even when a filter is active.
-      // We update the "availableFilters" list only when there is no
-      // active filter (initial load), so that selecting a category
-      // like "crypto" doesn't hide other categories from the dropdown.
-      const hasActiveFilters =
-        !!filters.severity || !!filters.category || !!filters.scanner;
-
-      if (!hasActiveFilters) {
+      // Derive filter options from summary (unfiltered counts) so options
+      // are available even when the current list is empty (no findings or
+      // filters return 0 results).
+      if (summ?.by_severity || summ?.by_category || summ?.by_scanner) {
+        const severities = summ.by_severity
+          ? (Object.entries(summ.by_severity) as [string, number][])
+              .filter(([, count]) => count > 0)
+              .map(([s]) => s)
+          : [];
+        const categories = summ.by_category
+          ? Object.keys(summ.by_category).filter(
+              (c) => (summ!.by_category as Record<string, number>)[c] > 0
+            )
+          : [];
+        const scanners = summ.by_scanner
+          ? Object.keys(summ.by_scanner).filter(
+              (s) => (summ!.by_scanner as Record<string, number>)[s] > 0
+            )
+          : [];
         setAvailableFilters({
-          severities: currentSeverities,
-          categories: currentCategories,
-          scanners: currentScanners,
-        });
-      } else if (
-        availableFilters.severities.length === 0 &&
-        availableFilters.categories.length === 0 &&
-        availableFilters.scanners.length === 0
-      ) {
-        // Fallback: if for some reason we didn't capture the unfiltered set,
-        // initialize from the current response so the dropdowns still work.
-        setAvailableFilters({
-          severities: currentSeverities,
-          categories: currentCategories,
-          scanners: currentScanners,
+          severities,
+          categories,
+          scanners,
         });
       }
 
       setFindings(currentFindings);
-      setSummary(data.summary || null);
+      setSummary(summ);
       logger.debug("[findings-list] fetchFindings success", {
         findingsSet: data.findings?.length ?? 0,
         summarySet: !!data.summary,
@@ -206,19 +193,7 @@ export default function FindingsList({ scanId }: FindingsListProps) {
     );
   }
 
-  if (findings.length === 0) {
-    return (
-      <div className="rounded-2xl border bg-background p-8 text-center">
-        <AlertTriangle className="mx-auto size-12 text-muted-foreground/50" />
-        <p className="mt-4 text-sm font-medium">No findings</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          This scan did not detect any security issues.
-        </p>
-      </div>
-    );
-  }
-
-  // Get unique values for filters
+  // Filter options from summary (or fallback to current findings when no summary)
   const severities =
     availableFilters.severities.length > 0
       ? availableFilters.severities
@@ -240,7 +215,7 @@ export default function FindingsList({ scanId }: FindingsListProps) {
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
+      {/* Filters — always visible so users can change filters when result set is empty */}
       <div className="rounded-2xl border bg-muted/40 p-3">
         <div className="grid gap-4 md:grid-cols-3">
           <div>
@@ -297,7 +272,18 @@ export default function FindingsList({ scanId }: FindingsListProps) {
         </div>
       </div>
 
-      {/* Findings List */}
+      {/* Findings List or empty state */}
+      {findings.length === 0 ? (
+        <div className="rounded-2xl border bg-background p-8 text-center">
+          <AlertTriangle className="mx-auto size-12 text-muted-foreground/50" />
+          <p className="mt-4 text-sm font-medium">No findings</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {summary?.total === 0
+              ? "This scan did not detect any security issues."
+              : "No findings match the current filters. Try changing severity, category, or scanner."}
+          </p>
+        </div>
+      ) : (
       <div className="space-y-3">
         {findings.map((finding) => (
           <div
@@ -447,6 +433,7 @@ export default function FindingsList({ scanId }: FindingsListProps) {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }

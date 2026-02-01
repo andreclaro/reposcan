@@ -12,15 +12,22 @@ import ScanSummary from "./scan-summary";
 type ScanResultsProps = {
   scanId: string;
   scan: ScanData;
+  /** When false, AI Analysis tab and content are hidden. */
+  aiAnalysisEnabled?: boolean;
 };
 
 type Tab = "summary" | "findings" | "ai-analysis";
 
-export default function ScanResults({ scanId, scan }: ScanResultsProps) {
+export default function ScanResults({
+  scanId,
+  scan,
+  aiAnalysisEnabled = false,
+}: ScanResultsProps) {
   const [activeTab, setActiveTab] = useState<Tab>("summary");
   const [hasAIAnalysis, setHasAIAnalysis] = useState<boolean>(false);
 
   useEffect(() => {
+    if (!aiAnalysisEnabled) return;
     // Check if AI analysis is available
     if (scan.aiAnalysisId) {
       setHasAIAnalysis(true);
@@ -36,12 +43,14 @@ export default function ScanResults({ scanId, scan }: ScanResultsProps) {
           // Ignore errors
         });
     }
-  }, [scanId, scan.aiAnalysisId]);
+  }, [scanId, scan.aiAnalysisId, aiAnalysisEnabled]);
+
+  const showAIAnalysis = aiAnalysisEnabled && hasAIAnalysis;
 
   const tabs: Array<{ id: Tab; label: string; icon: typeof FileText }> = [
     { id: "summary", label: "Summary", icon: BarChart3 },
     { id: "findings", label: "Findings", icon: AlertTriangle },
-    ...(hasAIAnalysis
+    ...(showAIAnalysis
       ? [{ id: "ai-analysis" as Tab, label: "AI Analysis", icon: Brain }]
       : []),
   ];
@@ -112,7 +121,7 @@ export default function ScanResults({ scanId, scan }: ScanResultsProps) {
             <FindingsList scanId={scanId} />
           </div>
         )}
-        {activeTab === "ai-analysis" && hasAIAnalysis && (
+        {activeTab === "ai-analysis" && showAIAnalysis && (
           <div
             id={panelId("ai-analysis")}
             role="tabpanel"

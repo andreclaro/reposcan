@@ -41,6 +41,10 @@ type AdminScanDetailProps = {
   scan: ScanWithUser;
   onRescan: () => void;
   onDelete: () => void;
+  /** Call after queuing "Generate AI analysis" so parent can refetch scan (e.g. to show aiAnalysisId when ready). */
+  onRefreshScan?: () => Promise<void>;
+  /** When false, AI Analysis card (View/Regenerate/Generate) is hidden. */
+  aiAnalysisEnabled?: boolean;
 };
 
 type LogFile = {
@@ -52,7 +56,9 @@ type LogFile = {
 export default function AdminScanDetail({
   scan,
   onRescan,
-  onDelete
+  onDelete,
+  onRefreshScan,
+  aiAnalysisEnabled = false,
 }: AdminScanDetailProps) {
   const [logs, setLogs] = useState<LogFile[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
@@ -60,6 +66,8 @@ export default function AdminScanDetail({
   const [selectedLog, setSelectedLog] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRescanning, setIsRescanning] = useState(false);
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [generateAiMessage, setGenerateAiMessage] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
@@ -107,7 +115,37 @@ export default function AdminScanDetail({
     }
   };
 
+  const handleGenerateAi = async () => {
+    setIsGeneratingAi(true);
+    setGenerateAiMessage(null);
+    try {
+      const response = await fetch(
+        `/api/admin/scans/${scan.scanId}/generate-ai`,
+        { method: "POST" }
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        setGenerateAiMessage(data.error ?? "Failed to queue AI analysis");
+        return;
+      }
+      setGenerateAiMessage(
+        data.message ?? "AI analysis generation queued. Refresh in a minute to see results."
+      );
+      if (onRefreshScan) {
+        setTimeout(() => onRefreshScan(), 3000);
+      }
+    } catch {
+      setGenerateAiMessage("Failed to queue AI analysis");
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
+
   const selectedLogContent = logs.find((l) => l.filename === selectedLog);
+  const canGenerateAi =
+    scan.status === "completed" &&
+    (scan.findingsCount ?? 0) > 0 &&
+    !scan.aiAnalysisId;
 
   return (
     <div className="border-t bg-muted/10 px-6 py-6">
@@ -221,23 +259,69 @@ export default function AdminScanDetail({
             </div>
           </div>
 
-          {/* AI Analysis Link */}
-          {scan.aiAnalysisId && (
-            <div className="rounded-lg border bg-background p-4">
+          {/* AI Analysis: View and/or Generate/Regenerate (hidden when AI_ANALYSIS_ENABLED=false) */}
+          {aiAnalysisEnabled && scan.aiAnalysisId ? (
+            <div className="rounded-lg border bg-background p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Brain className="size-4 text-primary" />
                   <span className="text-sm font-medium">AI Analysis</span>
                 </div>
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/app/scans/${scan.scanId}#ai-analysis`}>
-                    <ExternalLink className="size-4" />
-                    View
-                  </Link>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateAi}
+                    disabled={isGeneratingAi}
+                  >
+                    {isGeneratingAi ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <RefreshCcw className="size-4" />
+                    )}
+                    Regenerate
+                  </Button>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/app/scans/${scan.scanId}#ai-analysis`}>
+                      <ExternalLink className="size-4" />
+                      View
+                    </Link>
+                  </Button>
+                </div>
               </div>
+              {generateAiMessage && (
+                <p className="text-xs text-muted-foreground">{generateAiMessage}</p>
+              )}
             </div>
-          )}
+          ) : aiAnalysisEnabled && canGenerateAi ? (
+            <div className="rounded-lg border bg-background p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <Brain className="size-4 text-muted-foreground" />
+                <span className="text-sm font-medium">AI Analysis</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                AI was not run for this scan. Queue generation now (worker must have AI_ANALYSIS_ENABLED and an API key).
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleGenerateAi}
+                disabled={isGeneratingAi}
+              >
+                {isGeneratingAi ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Brain className="size-4" />
+                )}
+                Generate AI analysis
+              </Button>
+              {generateAiMessage && (
+                <p className="text-xs text-muted-foreground">{generateAiMessage}</p>
+              )}
+            </div>
+          ) : null}
 
           {/* Actions */}
           <div className="flex flex-wrap gap-2">
