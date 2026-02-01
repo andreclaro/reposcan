@@ -30,12 +30,21 @@ export async function POST(request: Request) {
   }
 
   const {
-    repoUrl,
+    repoUrl: rawRepoUrl,
     branch,
     auditTypes,
     forceRescan = false,
     commitHash: requestCommitHash
   } = parsed.data;
+
+  // Normalize full URL or org/repo to canonical GitHub URL for backend and DB
+  const repoUrl = normalizeRepoUrl(rawRepoUrl);
+  if (!repoUrl) {
+    return NextResponse.json(
+      { error: "Invalid repository: enter a valid GitHub URL or owner/repo" },
+      { status: 400 }
+    );
+  }
 
   const payload = {
     repo_url: repoUrl,
@@ -46,7 +55,7 @@ export async function POST(request: Request) {
 
   // Before queuing: check for existing completed scan (same repo + commit)
   if (!forceRescan) {
-    const normalizedUrl = normalizeRepoUrl(repoUrl);
+    const normalizedUrl = repoUrl;
     if (normalizedUrl) {
       const commitHash =
         requestCommitHash &&
@@ -59,7 +68,7 @@ export async function POST(request: Request) {
         (await (async () => {
           const repo = parseGitHubRepo(repoUrl);
           if (!repo) return null;
-          return getCommitShaForBranch(repo.owner, repo.repo, branch);
+          return getCommitShaForBranch(repo.owner, repo.repo, branch ?? undefined);
         })());
 
       if (resolvedCommit) {
@@ -106,10 +115,16 @@ export async function POST(request: Request) {
   const allowed = await canUserStartScan(session.user.id);
   if (!allowed) {
     const usage = await getUsageForCurrentPeriod(session.user.id);
+    const appUrl =
+      process.env.NEXTAUTH_URL ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
+    const upgradeUrl = appUrl ? `${appUrl}/plans` : "/plans";
     return NextResponse.json(
       {
-        error: "Monthly scan limit reached",
+        error:
+          "Monthly scan limit reached. Upgrade your plan to run more scans.",
         code: "SCAN_LIMIT_REACHED",
+        upgradeUrl,
         limit: usage.scansLimit,
         used: usage.scansUsed,
         periodEnd: usage.periodEnd?.toISOString()
