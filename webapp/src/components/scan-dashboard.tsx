@@ -143,6 +143,7 @@ export default function ScanDashboard({
   const [deleteConfirmValue, setDeleteConfirmValue] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorUpgradeUrl, setErrorUpgradeUrl] = useState<string | null>(null);
   const [cachedMessage, setCachedMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
@@ -349,6 +350,7 @@ export default function ScanDashboard({
     event.preventDefault();
     setIsSubmitting(true);
     setError(null);
+    setErrorUpgradeUrl(null);
     setCachedMessage(null);
 
     try {
@@ -366,6 +368,9 @@ export default function ScanDashboard({
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         setError(payload.error ?? "Failed to start scan.");
+        setErrorUpgradeUrl(
+          payload.code === "SCAN_LIMIT_REACHED" ? payload.upgradeUrl ?? "/plans" : null
+        );
         return;
       }
 
@@ -423,8 +428,8 @@ export default function ScanDashboard({
           <Input
             value={repoUrl}
             onChange={(event) => setRepoUrl(event.target.value)}
-            type="url"
-            placeholder="https://github.com/org/repo"
+            type="text"
+            placeholder="https://github.com/org/repo or org/repo"
             required
             className="h-11"
           />
@@ -452,7 +457,19 @@ export default function ScanDashboard({
           </Button>
         </form>
         {error ? (
-          <p className="mt-3 text-sm text-destructive">{error}</p>
+          <div className="mt-3 space-y-1 text-sm text-destructive">
+            <p>{error}</p>
+            {errorUpgradeUrl ? (
+              <p>
+                <Link
+                  href={errorUpgradeUrl}
+                  className="font-medium underline underline-offset-2 hover:no-underline"
+                >
+                  View plans and upgrade
+                </Link>
+              </p>
+            ) : null}
+          </div>
         ) : null}
         {cachedMessage ? (
           <p className="mt-3 text-sm text-muted-foreground">{cachedMessage}</p>
