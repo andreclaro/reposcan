@@ -32,7 +32,7 @@ export default async function AdminPlansPage() {
     .groupBy(users.planId, plans.name);
 
   const planStats = planCounts.map((row) => ({
-    name: row.planName ?? "No Plan",
+    name: row.planName ?? "Free",
     count: row.count
   }));
   const totalUsers = planStats.reduce((acc, p) => acc + p.count, 0);

@@ -52,7 +52,7 @@ export default function AdminUsersList() {
           {users.map((u) => (
             <tr key={u.id} className="border-t">
               <td className="p-3">{u.email ?? u.id}</td>
-              <td className="p-3">{u.planName ?? "No Plan"}</td>
+              <td className="p-3">{u.planName ?? "Free"}</td>
               <td className="p-3">
                 {u.usage.scansUsed} / {u.usage.scansLimit < 0 ? "∞" : u.usage.scansLimit}
               </td>

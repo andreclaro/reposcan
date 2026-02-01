@@ -23,7 +23,7 @@ export async function GET() {
     .groupBy(users.planId, plans.name);
 
   const data = planCounts.map((row) => ({
-    name: row.planName ?? "No Plan",
+    name: row.planName ?? "Free",
     count: row.count
   }));
 

@@ -54,13 +54,20 @@ export async function GET() {
     usageList.map((u) => [u.userId, { scansUsed: u.scansUsed, scansLimit: u.scansLimit }])
   );
 
+  // Default plan (free): show its name when user has no plan_id
+  const [defaultPlanRow] = await db
+    .select({ id: plans.id, name: plans.name, codename: plans.codename })
+    .from(plans)
+    .where(eq(plans.default, true))
+    .limit(1);
+
   const result = list.map((u) => ({
     id: u.id,
     email: u.email,
     name: u.name,
     planId: u.planId,
-    planName: u.planName,
-    planCodename: u.planCodename,
+    planName: u.planName ?? defaultPlanRow?.name ?? "Free",
+    planCodename: u.planCodename ?? defaultPlanRow?.codename ?? "free",
     stripeCustomerId: u.stripeCustomerId,
     stripeSubscriptionId: u.stripeSubscriptionId,
     trialEndsAt: u.trialEndsAt?.toISOString() ?? null,

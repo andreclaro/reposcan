@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { plans, users } from "@/db/schema";
 import { getServerAuth } from "@/lib/server-auth";
 import { isAdmin } from "@/lib/admin-auth";
+import { getUserPlan } from "@/lib/plans/getUserPlan";
 import { getUsageForCurrentPeriod } from "@/lib/usage";
 import { Button } from "@/components/ui/button";
 import AdminUserPlanChange from "@/components/admin/admin-user-plan-change";
@@ -43,13 +44,23 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
     redirect("/app/admin/users");
   }
 
-  const [currentPlan] = user.planId
+  const [currentPlanFromDb] = user.planId
     ? await db
         .select()
         .from(plans)
         .where(eq(plans.id, user.planId))
         .limit(1)
     : [null];
+
+  // When user has no plan_id, effective plan is the default (Free)
+  const effectivePlan = currentPlanFromDb ?? (await getUserPlan(id));
+  const currentPlan = effectivePlan
+    ? {
+        ...effectivePlan,
+        name: effectivePlan.name ?? "Free",
+        codename: effectivePlan.codename ?? "free"
+      }
+    : null;
 
   const allPlans = await db.select().from(plans).orderBy(plans.name);
   const usage = await getUsageForCurrentPeriod(id);
@@ -73,7 +84,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
         </div>
         <div>
           <span className="text-sm font-medium text-muted-foreground">Current plan</span>
-          <p className="font-medium">{currentPlan?.name ?? "No Plan"}</p>
+          <p className="font-medium">{currentPlan?.name ?? "Free"}</p>
         </div>
         {currentPlan?.codename === "custom" && user.customPriceOverride != null && (
           <div>
@@ -104,7 +115,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
           <span className="text-sm font-medium text-muted-foreground">Change plan</span>
           <AdminUserPlanChange
             userId={id}
-            currentPlanId={user.planId}
+            currentPlanId={user.planId ?? currentPlan?.id ?? null}
             currentPlanCodename={currentPlan?.codename ?? null}
             scansPerMonthOverride={user.scansPerMonthOverride}
             customPriceOverride={user.customPriceOverride}
