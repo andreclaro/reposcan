@@ -36,6 +36,13 @@
       "when": 1738260000000,
       "tag": "0005_add_user_scans_override",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1738340000000,
+      "tag": "0006_add_custom_price_override",
+      "breakpoints": true
     }
   ]
 }

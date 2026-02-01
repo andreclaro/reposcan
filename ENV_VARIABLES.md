@@ -150,12 +150,12 @@ These variables are only required when `STORAGE_BACKEND=s3`.
 #### `GITHUB_CLIENT_ID`
 - **Type**: String
 - **Required**: Yes (for GitHub OAuth)
-- **Description**: GitHub OAuth application client ID.
+- **Description**: GitHub OAuth application client ID. From a **GitHub OAuth App** (not a GitHub App): [github.com/settings/developers](https://github.com/settings/developers) → OAuth Apps → New OAuth App. See [Creating an OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app).
 
 #### `GITHUB_CLIENT_SECRET`
 - **Type**: String
 - **Required**: Yes (for GitHub OAuth)
-- **Description**: GitHub OAuth application client secret.
+- **Description**: GitHub OAuth application client secret (from the same OAuth App). For login-with-GitHub using a **GitHub App** instead, see [Building a "Login with GitHub" button with a GitHub App](https://docs.github.com/en/apps/creating-github-apps/writing-code-for-a-github-app/building-a-login-with-github-button-with-a-github-app); this project uses OAuth Apps.
 
 #### `NEXTAUTH_SECRET`
 - **Type**: String
@@ -168,6 +168,32 @@ These variables are only required when `STORAGE_BACKEND=s3`.
 - **Required**: No
 - **Default**: `false`
 - **Description**: Bypass authentication in development mode (for testing).
+
+### Contact Form (webapp)
+
+Used by the `/contact` page to send messages via [Resend](https://resend.com).
+
+#### `RESEND_API_KEY`
+- **Type**: String
+- **Required**: No (contact form returns 503 if unset)
+- **Description**: Resend API key for sending contact form emails. Create at resend.com.
+
+#### `RESEND_FROM`
+- **Type**: String (email with optional display name)
+- **Required**: No
+- **Default**: `SecurityKit <onboarding@resend.dev>`
+- **Description**: Sender address for contact form emails. Must be a verified domain in Resend.
+
+#### `CONTACT_EMAIL`
+- **Type**: String (email)
+- **Required**: No
+- **Default**: `contact@securitykit.io` (or `NEXT_PUBLIC_CONTACT_EMAIL` if set)
+- **Description**: Recipient address for contact form submissions.
+
+#### `NEXT_PUBLIC_CONTACT_EMAIL`
+- **Type**: String (email)
+- **Required**: No
+- **Description**: Fallback recipient for contact form when `CONTACT_EMAIL` is unset. Exposed to the client (e.g. for mailto fallback).
 
 ### Version Manager Paths (sec_audit CLI / worker)
 

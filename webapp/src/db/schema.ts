@@ -43,6 +43,8 @@ export const users = pgTable("app_user", {
   planId: text("plan_id").references(() => plans.id),
   /** When set and user is on Custom plan, overrides plan's scans_per_month (per-customer limit). -1 = unlimited. */
   scansPerMonthOverride: integer("scans_per_month_override"),
+  /** When set and user is on Custom plan, custom monthly price in cents (e.g. 5000 = $50). */
+  customPriceOverride: integer("custom_price_override"),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   trialEndsAt: timestamp("trial_ends_at", { mode: "date" })

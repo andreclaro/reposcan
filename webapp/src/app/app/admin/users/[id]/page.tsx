@@ -29,6 +29,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
       name: users.name,
       planId: users.planId,
       scansPerMonthOverride: users.scansPerMonthOverride,
+      customPriceOverride: users.customPriceOverride,
       stripeCustomerId: users.stripeCustomerId,
       stripeSubscriptionId: users.stripeSubscriptionId,
       trialEndsAt: users.trialEndsAt,
@@ -74,6 +75,14 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
           <span className="text-sm font-medium text-muted-foreground">Current plan</span>
           <p className="font-medium">{currentPlan?.name ?? "No Plan"}</p>
         </div>
+        {currentPlan?.codename === "custom" && user.customPriceOverride != null && (
+          <div>
+            <span className="text-sm font-medium text-muted-foreground">Custom price</span>
+            <p className="font-medium">
+              ${(user.customPriceOverride / 100).toFixed(2)}/mo
+            </p>
+          </div>
+        )}
         <div>
           <span className="text-sm font-medium text-muted-foreground">Stripe subscription</span>
           <p className="font-mono text-sm break-all">
@@ -98,6 +107,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
             currentPlanId={user.planId}
             currentPlanCodename={currentPlan?.codename ?? null}
             scansPerMonthOverride={user.scansPerMonthOverride}
+            customPriceOverride={user.customPriceOverride}
             plans={allPlans}
           />
         </div>

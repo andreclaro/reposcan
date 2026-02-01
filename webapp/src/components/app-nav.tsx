@@ -26,6 +26,7 @@ export default function AppNav({ isAdmin }: AppNavProps) {
   const isOnDashboard = pathname === "/app";
   const isOnAdmin = pathname.startsWith("/app/admin");
   const isOnPricing = pathname === "/pricing";
+  const isOnContact = pathname === "/contact";
 
   return (
     <nav className="flex items-center gap-4 text-sm">
@@ -50,6 +51,17 @@ export default function AppNav({ isAdmin }: AppNavProps) {
         )}
       >
         Pricing
+      </Link>
+      <Link
+        href="/contact"
+        className={cn(
+          "transition-colors",
+          isOnContact
+            ? "text-foreground font-medium"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        Contact
       </Link>
       {isAdmin && (
         <>

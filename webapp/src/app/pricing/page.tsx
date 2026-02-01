@@ -19,7 +19,7 @@ const tiers: Array<{
   description: string;
   scansPerMonth: string;
   cta: string;
-  href: "/app";
+  href: "/app" | "contact";
   featured: boolean;
   features: string[];
 }> = [
@@ -60,7 +60,7 @@ const tiers: Array<{
     description: "Enterprise, agencies",
     scansPerMonth: "Unlimited",
     cta: "Contact us",
-    href: "/app",
+    href: "contact",
     featured: false,
     features: [
       "Unlimited scans",
@@ -154,7 +154,9 @@ export default async function PricingPage() {
                 variant={tier.featured ? "default" : "outline"}
                 className="w-full"
               >
-                <Link href={tier.href}>{tier.cta}</Link>
+                <Link href={tier.href === "contact" ? "/contact" : tier.href}>
+                  {tier.cta}
+                </Link>
               </Button>
             </div>
           ))}

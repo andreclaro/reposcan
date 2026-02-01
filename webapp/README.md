@@ -7,7 +7,7 @@ an authenticated `/app` dashboard, and scan management.
 
 - FastAPI + Celery running from the main repo (`docker-compose up -d`)
 - Postgres database (local or managed)
-- GitHub OAuth app (callback URL below)
+- GitHub **OAuth App** (not a GitHub App). Use [OAuth Apps](https://github.com/settings/developers) → New OAuth App. Callback URL below.
 
 ## Environment variables
 
@@ -25,6 +25,8 @@ When `DEV_BYPASS_AUTH=true`, the app uses a local dev user
 
 GitHub OAuth callback URL for local dev:
 `http://localhost:3000/api/auth/callback/github`
+
+**OAuth App vs GitHub App:** This app uses a [GitHub OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app) (client ID + client secret) for "Sign in with GitHub". That is different from [GitHub Apps](https://docs.github.com/en/apps/creating-github-apps/writing-code-for-a-github-app/building-a-login-with-github-button-with-a-github-app) (App ID, private key, user access tokens). Use **Developer settings → OAuth Apps**, not GitHub Apps.
 
 ## Install & run
 

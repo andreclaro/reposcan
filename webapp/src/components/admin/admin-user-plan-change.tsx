@@ -14,26 +14,40 @@ type Props = {
   currentPlanId: string | null;
   currentPlanCodename: string | null;
   scansPerMonthOverride: number | null;
+  /** Custom monthly price in cents (e.g. 5000 = $50). Only for Custom plan. */
+  customPriceOverride: number | null;
   plans: Plan[];
 };
+
+function centsToDollars(cents: number | null): string {
+  if (cents == null) return "";
+  return (cents / 100).toFixed(2);
+}
 
 export default function AdminUserPlanChange({
   userId,
   currentPlanId,
   currentPlanCodename,
   scansPerMonthOverride,
+  customPriceOverride,
   plans: plansList
 }: Props) {
   const router = useRouter();
   const [selectedPlanId, setSelectedPlanId] = useState(currentPlanId ?? "");
   const [customScansOnChange, setCustomScansOnChange] = useState("");
+  const [customPriceOnChange, setCustomPriceOnChange] = useState("");
   const [customLimitValue, setCustomLimitValue] = useState(
     scansPerMonthOverride != null ? String(scansPerMonthOverride) : ""
   );
+  const [customPriceValue, setCustomPriceValue] = useState(
+    centsToDollars(customPriceOverride)
+  );
   const [submitting, setSubmitting] = useState(false);
   const [limitSubmitting, setLimitSubmitting] = useState(false);
+  const [priceSubmitting, setPriceSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [limitError, setLimitError] = useState<string | null>(null);
+  const [priceError, setPriceError] = useState<string | null>(null);
 
   const selectedPlan = plansList.find((p) => p.id === selectedPlanId);
   const isCustomSelected = selectedPlan?.codename === "custom";
@@ -45,12 +59,20 @@ export default function AdminUserPlanChange({
     setError(null);
     setSubmitting(true);
     try {
-      const body: { planId: string; scansPerMonthOverride?: number } = {
-        planId: selectedPlanId
-      };
+      const body: {
+        planId: string;
+        scansPerMonthOverride?: number;
+        customPriceOverride?: number | null;
+      } = { planId: selectedPlanId };
       if (isCustomSelected && customScansOnChange !== "") {
         const n = parseInt(customScansOnChange, 10);
         if (!Number.isNaN(n) && n >= -1) body.scansPerMonthOverride = n;
+      }
+      if (isCustomSelected && customPriceOnChange !== "") {
+        const dollars = parseFloat(customPriceOnChange);
+        if (!Number.isNaN(dollars) && dollars >= 0) {
+          body.customPriceOverride = Math.round(dollars * 100);
+        }
       }
       const res = await fetch(`/api/admin/users/${userId}/plan`, {
         method: "PATCH",
@@ -100,6 +122,43 @@ export default function AdminUserPlanChange({
     }
   };
 
+  const handlePriceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isCurrentPlanCustom) return;
+    setPriceError(null);
+    setPriceSubmitting(true);
+    try {
+      const trimmed = customPriceValue.trim();
+      let customPriceOverride: number | null;
+      if (trimmed === "") {
+        customPriceOverride = null;
+      } else {
+        const dollars = parseFloat(trimmed);
+        if (Number.isNaN(dollars) || dollars < 0) {
+          setPriceError("Enter a non-negative amount in dollars or leave empty to clear");
+          setPriceSubmitting(false);
+          return;
+        }
+        customPriceOverride = Math.round(dollars * 100);
+      }
+      const res = await fetch(`/api/admin/users/${userId}/plan`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customPriceOverride })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setPriceError(data.error ?? "Failed to update price");
+        return;
+      }
+      router.refresh();
+    } catch (err) {
+      setPriceError(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setPriceSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-3 mt-2">
       <form onSubmit={handlePlanSubmit} className="flex flex-wrap items-end gap-2">
@@ -116,19 +175,35 @@ export default function AdminUserPlanChange({
           ))}
         </select>
         {isCustomSelected && (
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-muted-foreground whitespace-nowrap">
-              Scans/mo (this customer):
-            </label>
-            <Input
-              type="number"
-              min={-1}
-              className="w-20 h-8 text-sm"
-              placeholder="-1"
-              value={customScansOnChange}
-              onChange={(e) => setCustomScansOnChange(e.target.value)}
-            />
-          </div>
+          <>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted-foreground whitespace-nowrap">
+                Scans/mo (this customer):
+              </label>
+              <Input
+                type="number"
+                min={-1}
+                className="w-20 h-8 text-sm"
+                placeholder="-1"
+                value={customScansOnChange}
+                onChange={(e) => setCustomScansOnChange(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted-foreground whitespace-nowrap">
+                Price $/mo (this customer):
+              </label>
+              <Input
+                type="number"
+                min={0}
+                step={0.01}
+                className="w-24 h-8 text-sm"
+                placeholder="0.00"
+                value={customPriceOnChange}
+                onChange={(e) => setCustomPriceOnChange(e.target.value)}
+              />
+            </div>
+          </>
         )}
         <Button type="submit" size="sm" disabled={submitting || !selectedPlanId}>
           {submitting ? "Saving…" : "Update plan"}
@@ -137,25 +212,48 @@ export default function AdminUserPlanChange({
       </form>
 
       {isCurrentPlanCustom && (
-        <form onSubmit={handleLimitSubmit} className="flex items-end gap-2">
-          <span className="text-sm font-medium text-muted-foreground">
-            Custom limit (this customer):
-          </span>
-          <Input
-            type="number"
-            min={-1}
-            className="w-24 h-8 text-sm"
-            placeholder="-1 = unlimited"
-            value={customLimitValue}
-            onChange={(e) => setCustomLimitValue(e.target.value)}
-          />
-          <Button type="submit" size="sm" disabled={limitSubmitting}>
-            {limitSubmitting ? "Saving…" : "Update limit"}
-          </Button>
-          {limitError && (
-            <span className="text-sm text-destructive">{limitError}</span>
-          )}
-        </form>
+        <>
+          <form onSubmit={handleLimitSubmit} className="flex items-end gap-2">
+            <span className="text-sm font-medium text-muted-foreground">
+              Custom limit (this customer):
+            </span>
+            <Input
+              type="number"
+              min={-1}
+              className="w-24 h-8 text-sm"
+              placeholder="-1 = unlimited"
+              value={customLimitValue}
+              onChange={(e) => setCustomLimitValue(e.target.value)}
+            />
+            <Button type="submit" size="sm" disabled={limitSubmitting}>
+              {limitSubmitting ? "Saving…" : "Update limit"}
+            </Button>
+            {limitError && (
+              <span className="text-sm text-destructive">{limitError}</span>
+            )}
+          </form>
+          <form onSubmit={handlePriceSubmit} className="flex items-end gap-2">
+            <span className="text-sm font-medium text-muted-foreground">
+              Custom price (this customer):
+            </span>
+            <Input
+              type="number"
+              min={0}
+              step={0.01}
+              className="w-24 h-8 text-sm"
+              placeholder="0.00"
+              value={customPriceValue}
+              onChange={(e) => setCustomPriceValue(e.target.value)}
+            />
+            <span className="text-xs text-muted-foreground">$/mo</span>
+            <Button type="submit" size="sm" disabled={priceSubmitting}>
+              {priceSubmitting ? "Saving…" : "Update price"}
+            </Button>
+            {priceError && (
+              <span className="text-sm text-destructive">{priceError}</span>
+            )}
+          </form>
+        </>
       )}
     </div>
   );

@@ -7,7 +7,8 @@ import { updatePlan } from "@/lib/plans/updatePlan";
 
 const bodySchema = z.object({
   planId: z.string().uuid().optional(),
-  scansPerMonthOverride: z.number().int().min(-1).optional()
+  scansPerMonthOverride: z.number().int().min(-1).optional(),
+  customPriceOverride: z.number().int().min(0).nullable().optional()
 });
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -28,10 +29,14 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     );
   }
 
-  const { planId, scansPerMonthOverride } = parsed.data;
-  if (planId === undefined && scansPerMonthOverride === undefined) {
+  const { planId, scansPerMonthOverride, customPriceOverride } = parsed.data;
+  if (
+    planId === undefined &&
+    scansPerMonthOverride === undefined &&
+    customPriceOverride === undefined
+  ) {
     return NextResponse.json(
-      { error: "Provide planId and/or scansPerMonthOverride" },
+      { error: "Provide planId, scansPerMonthOverride, and/or customPriceOverride" },
       { status: 400 }
     );
   }
@@ -40,7 +45,8 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     await updatePlan({
       userId,
       newPlanId: planId,
-      scansPerMonthOverride
+      scansPerMonthOverride,
+      customPriceOverride
     });
     return NextResponse.json({ success: true });
   } catch (err) {
