@@ -33,6 +33,9 @@ services:
       dockerfile: Dockerfile.api
     ports:
       - "8000:8000"
+    # Load from webapp/.env.local (create from webapp/.env.local.example). Env vars below override.
+    env_file:
+      - webapp/.env.local
     environment:
       - REDIS_URL=redis://redis:6379/0
       - RESULTS_DIR=/work/results
@@ -51,6 +54,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # Load from webapp/.env.local (e.g. AI_ANALYSIS_ENABLED, KIMI_API_KEY). Env vars below override.
+    env_file:
+      - webapp/.env.local
     environment:
       - REDIS_URL=redis://redis:6379/0
       - RESULTS_DIR=/work/results

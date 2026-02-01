@@ -12,7 +12,7 @@ This document describes all environment variables used by the Security Audit app
 ### Optional Variables
 
 - `AI_ANALYSIS_ENABLED` - Enable AI-powered analysis (default: `false`)
-- `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` - AI provider API key (required if AI enabled)
+- `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `KIMI_API_KEY` / `MOONSHOT_API_KEY` - AI provider API key (required if AI enabled)
 - `GITHUB_TOKEN` - GitHub API token for resolving branch to commit (webapp; enables existing-scan reuse)
 - `STORAGE_BACKEND` - Storage backend type (default: `local`)
 
@@ -100,15 +100,16 @@ These variables are only required when `STORAGE_BACKEND=s3`.
 - **Type**: String
 - **Required**: No
 - **Default**: `anthropic`
-- **Options**: `anthropic` or `openai`
+- **Options**: `anthropic`, `openai`, or `kimi`
 - **Description**: AI provider to use for analysis.
 
 #### `AI_MODEL`
 - **Type**: String
 - **Required**: No
-- **Default**: 
+- **Default**:
   - `claude-3-opus-20240229` (for Anthropic)
   - `gpt-4-turbo-preview` (for OpenAI)
+  - `kimi-k2.5` (for Kimi)
 - **Anthropic Options**:
   - `claude-3-opus-20240229` - Most capable, best for complex analysis
   - `claude-3-sonnet-20240229` - Balanced performance and cost
@@ -117,6 +118,11 @@ These variables are only required when `STORAGE_BACKEND=s3`.
   - `gpt-4-turbo-preview` - Latest GPT-4 model
   - `gpt-4` - Standard GPT-4
   - `gpt-3.5-turbo` - Faster, lower cost
+- **Kimi (Moonshot) Options**:
+  - `kimi-k2.5` - Kimi K2.5 multimodal (default, 256K context)
+  - `kimi-k2-0905-Preview` - Kimi K2 preview
+  - `kimi-k2-turbo-preview` - Kimi K2 turbo
+  - `kimi-k2-thinking`, `kimi-k2-thinking-turbo` - Thinking models
 - **Description**: AI model to use for analysis.
 
 #### `ANTHROPIC_API_KEY`
@@ -132,6 +138,18 @@ These variables are only required when `STORAGE_BACKEND=s3`.
 - **Description**: OpenAI API key for GPT models.
 - **Format**: `sk-...`
 - **Get it**: https://platform.openai.com/api-keys
+
+#### `KIMI_API_KEY` / `MOONSHOT_API_KEY`
+- **Type**: String
+- **Required**: Yes (if `AI_ANALYSIS_ENABLED=true` and `AI_PROVIDER=kimi`)
+- **Description**: Moonshot/Kimi API key for Kimi K2.5 and other Kimi models. Either variable is accepted.
+- **Get it**: https://platform.moonshot.ai/console/api-keys
+
+#### `KIMI_API_BASE_URL`
+- **Type**: String (URL)
+- **Required**: No
+- **Default**: `https://api.moonshot.ai/v1`
+- **Description**: Kimi API base URL. Override for regional endpoints (e.g. `https://api.moonshot.cn/v1` for China).
 
 ### Next.js Webapp Configuration
 
@@ -311,7 +329,7 @@ ANTHROPIC_API_KEY=sk-ant-api03-...
 ### AI Analysis Not Working
 
 1. Check `AI_ANALYSIS_ENABLED=true` is set
-2. Verify API key is correct: `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`
+2. Verify API key is correct: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `KIMI_API_KEY`/`MOONSHOT_API_KEY` (for provider kimi)
 3. Check API key has sufficient credits/quota
 4. Verify `DATABASE_URL` is set (required for storing AI analysis)
 

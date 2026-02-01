@@ -131,6 +131,28 @@ async def get_scan_status(scan_id: str):
         )
 
 
+@app.post("/scan/{scan_id}/generate-ai")
+async def generate_ai_for_scan(scan_id: str):
+    """
+    Queue generation of AI analysis for an existing completed scan.
+
+    The scan must exist, be completed, and have findings. Requires the worker
+    to have AI_ANALYSIS_ENABLED=true and an API key set. Returns 202 when queued.
+    """
+    try:
+        uuid.UUID(scan_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid scan_id")
+
+    task_id = f"generate-ai-{scan_id}"
+    celery_app.send_task(
+        "tasks.scan_worker.generate_ai_analysis",
+        args=[scan_id],
+        task_id=task_id,
+    )
+    return {"scan_id": scan_id, "status": "queued", "message": "AI analysis generation queued"}
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     """Health check endpoint."""

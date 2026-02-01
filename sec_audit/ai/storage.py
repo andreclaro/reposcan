@@ -3,7 +3,7 @@ import json
 import os
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 import asyncpg
 
@@ -377,6 +377,74 @@ async def store_ai_analysis(
     )
     
     return ai_analysis_id
+
+
+async def fetch_findings_for_scan(
+    conn: asyncpg.Connection,
+    scan_id: str,
+) -> Tuple[List[Finding], List[int]]:
+    """
+    Load all findings for a scan from the database, in stable order by id.
+
+    Returns:
+        (findings, finding_db_ids) so that finding_db_ids[i] is the DB id of findings[i].
+    """
+    rows = await conn.fetch(
+        """
+        SELECT id, scan_id, scanner, severity, category, title, description,
+               file_path, line_start, line_end, code_snippet, cwe, cve,
+               remediation, confidence, metadata
+        FROM finding
+        WHERE scan_id = $1
+        ORDER BY id
+        """,
+        scan_id,
+    )
+    findings = []
+    finding_db_ids = []
+    for row in rows:
+        metadata = row["metadata"] if row["metadata"] is not None else {}
+        if not isinstance(metadata, dict):
+            metadata = {}
+        findings.append(
+            Finding(
+                scan_id=row["scan_id"],
+                scanner=row["scanner"],
+                severity=row["severity"],
+                category=row["category"],
+                title=row["title"] or "",
+                description=row["description"],
+                file_path=row["file_path"],
+                line_start=row["line_start"],
+                line_end=row["line_end"],
+                code_snippet=row["code_snippet"],
+                cwe=row["cwe"],
+                cve=row["cve"],
+                remediation=row["remediation"],
+                confidence=row["confidence"],
+                metadata=metadata,
+            )
+        )
+        finding_db_ids.append(row["id"])
+    return findings, finding_db_ids
+
+
+async def get_scan_repo_info(
+    conn: asyncpg.Connection,
+    scan_id: str,
+) -> Optional[Dict[str, Any]]:
+    """Return scan row fields needed for AI summary: repo_url, branch, status."""
+    row = await conn.fetchrow(
+        "SELECT repo_url, branch, status FROM scan WHERE scan_id = $1",
+        scan_id,
+    )
+    if row is None:
+        return None
+    return {
+        "repo_url": row["repo_url"],
+        "branch": row["branch"] or "main",
+        "status": row["status"],
+    }
 
 
 async def update_scan_status(

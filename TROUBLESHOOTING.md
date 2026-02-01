@@ -134,6 +134,74 @@ RUN useradd -m -u 1000 worker && \
 USER worker
 ```
 
+## Issue: AI analysis not available for scan (404 on /api/scans/.../ai-analysis)
+
+### Symptoms
+- Scan results page shows findings but the "AI Analysis" tab returns 404 or "AI analysis not available for this scan".
+- Scan completed but no AI summary was generated.
+
+### Root Cause
+AI analysis runs only when **all** of the following are true during the scan:
+
+1. **Worker environment**: `AI_ANALYSIS_ENABLED=true` (default is `false`).
+2. **Worker environment**: At least one API key is set (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `KIMI_API_KEY`, or `MOONSHOT_API_KEY`).
+3. The scan produced findings and the database was available.
+
+If the worker did not have AI enabled or had no API key when the scan ran, no AI analysis is stored.
+
+### Solution
+
+#### Option A: Enable AI for future scans
+Set these in the **worker** environment (e.g. in `docker-compose.yml` under `worker.environment` or in `.env` if the worker reads it):
+
+```bash
+AI_ANALYSIS_ENABLED=true
+AI_PROVIDER=kimi          # or anthropic, openai
+AI_MODEL=kimi-k2.5        # or your preferred model
+KIMI_API_KEY=your_key     # or ANTHROPIC_API_KEY / OPENAI_API_KEY
+```
+
+Restart the worker after changing env, then run new scans (or use Admin → Rescan to re-run the same repo).
+
+#### Option B: Generate AI analysis for an existing scan
+For a scan that already completed **without** AI:
+
+1. Ensure the worker has `AI_ANALYSIS_ENABLED=true` and an API key (as above).
+2. Restart the worker so it picks up the env.
+3. In the **Admin** dashboard, open the scan and click **Generate AI analysis** (shown when the scan is completed, has findings, and has no AI analysis yet).
+4. Wait about a minute, then refresh the scan or the results page; the AI Analysis tab should appear.
+
+## Issue: AI analysis 401 Invalid Authentication
+
+### Symptoms
+- AI Analysis tab shows: "AI analysis failed: Error code: 401 - {'error': {'message': 'Invalid Authentication', ...}}"
+- Or: "Kimi API key was rejected (401)."
+
+### Root Cause
+The Kimi/Moonshot (or OpenAI/Anthropic) API key is missing, wrong, expired, or not reaching the worker.
+
+### Solution
+
+1. **Get a valid key**  
+   - Kimi: https://platform.moonshot.ai/console/api-keys  
+   - Ensure the key is active and the account has API/billing access.
+
+2. **Set the key where the worker reads it**  
+   - With docker-compose, api and worker load `webapp/.env.local`. Add:
+     ```bash
+     KIMI_API_KEY=sk-...   # or MOONSHOT_API_KEY=...
+     AI_PROVIDER=kimi
+     AI_ANALYSIS_ENABLED=true
+     ```
+   - No quotes around the value; no leading/trailing spaces.
+
+3. **Restart the worker** so it picks up the new env:
+   ```bash
+   docker compose restart worker
+   ```
+
+4. **Regenerate AI analysis** (Scan Results → AI Analysis tab → "Regenerate AI analysis") so a new run uses the fixed key.
+
 ## General Maintenance
 
 ### Regular Cleanup

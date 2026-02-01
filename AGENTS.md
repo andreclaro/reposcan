@@ -148,9 +148,11 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sec_audit
 REDIS_URL=redis://localhost:6379/0
 RESULTS_DIR=./results
 
-# For AI analysis (optional)
+# For AI analysis (optional). Provider: anthropic | openai | kimi
 AI_ANALYSIS_ENABLED=true
+AI_PROVIDER=anthropic
 ANTHROPIC_API_KEY=sk-ant-api03-...
+# Or: KIMI_API_KEY=... for Kimi K2.5 (AI_PROVIDER=kimi, AI_MODEL=kimi-k2.5)
 AI_MODEL=claude-3-sonnet-20240229
 
 # For webapp (in webapp/.env.local)

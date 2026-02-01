@@ -86,6 +86,13 @@ docker-compose down -v
   - `REDIS_URL=redis://redis:6379/0`
   - `RESULTS_DIR=/work/results`
 
+### Environment file (api & worker)
+
+API and worker load variables from **`webapp/.env.local`** via `env_file`. Values set in `environment:` in `docker-compose.yml` (e.g. `REDIS_URL`, `DATABASE_URL`) override the file.
+
+- **Required**: Create `webapp/.env.local` (e.g. copy from `webapp/.env.local.example`) before `docker-compose up`, or Compose will fail.
+- Put AI (and any other) vars there: `AI_ANALYSIS_ENABLED`, `AI_PROVIDER`, `KIMI_API_KEY` (or `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`). Values in the compose `environment:` block (e.g. `REDIS_URL`, `DATABASE_URL`) override the file so container networking stays correct.
+
 ## Usage
 
 ### Test the API

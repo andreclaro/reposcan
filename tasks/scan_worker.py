@@ -32,11 +32,13 @@ from sec_audit.ecosystem import (
 from sec_audit.utils import parse_audit_selection, should_run_audit
 from sec_audit.ai.normalizer import normalize_findings
 from sec_audit.ai.storage import (
-    store_findings, 
-    store_ai_analysis, 
-    create_db_pool, 
+    store_findings,
+    store_ai_analysis,
+    create_db_pool,
     ensure_scan_record,
-    update_scan_status
+    update_scan_status,
+    fetch_findings_for_scan,
+    get_scan_repo_info,
 )
 from sec_audit.ai.summarizer import AISummarizer
 from sec_audit.ai.storage_backend import create_storage_backend
@@ -566,7 +568,12 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                     update_progress(99, 'Generating AI analysis')
                     log_step("Generating AI analysis")
                     
-                    ai_api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")
+                    ai_api_key = (
+                        os.getenv("ANTHROPIC_API_KEY")
+                        or os.getenv("OPENAI_API_KEY")
+                        or os.getenv("KIMI_API_KEY")
+                        or os.getenv("MOONSHOT_API_KEY")
+                    )
                     if not ai_api_key:
                         logger.warning("AI analysis enabled but no API key found")
                     else:
@@ -691,3 +698,98 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
         
         # Retry with exponential backoff
         raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+
+
+@celery_app.task(bind=True, name="tasks.scan_worker.generate_ai_analysis")
+def generate_ai_analysis(self, scan_id: str) -> Dict[str, Any]:
+    """
+    Generate AI analysis for an existing completed scan that has findings but no ai_analysis.
+
+    Loads findings from DB, runs AISummarizer, stores result. Requires AI_ANALYSIS_ENABLED=true
+    and an API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, KIMI_API_KEY, or MOONSHOT_API_KEY).
+    """
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        logger.warning("generate_ai_analysis: DATABASE_URL not set")
+        return {"ok": False, "error": "DATABASE_URL not set"}
+
+    ai_enabled = os.getenv("AI_ANALYSIS_ENABLED", "false").lower() == "true"
+    ai_api_key = (
+        os.getenv("ANTHROPIC_API_KEY")
+        or os.getenv("OPENAI_API_KEY")
+        or os.getenv("KIMI_API_KEY")
+        or os.getenv("MOONSHOT_API_KEY")
+    )
+    if not ai_enabled or not ai_api_key:
+        logger.warning(
+            "generate_ai_analysis: AI not enabled or no API key. "
+            "Set AI_ANALYSIS_ENABLED=true and one of ANTHROPIC_API_KEY, OPENAI_API_KEY, KIMI_API_KEY, MOONSHOT_API_KEY"
+        )
+        return {
+            "ok": False,
+            "error": "AI analysis not enabled or no API key. Set AI_ANALYSIS_ENABLED=true and an API key.",
+        }
+
+    async def _run():
+        pool = await create_db_pool(db_url)
+        async with pool.acquire() as conn:
+            info = await get_scan_repo_info(conn, scan_id)
+            if not info:
+                return {"ok": False, "error": "Scan not found"}
+            if info["status"] != "completed":
+                return {"ok": False, "error": f"Scan status is {info['status']}, must be completed"}
+
+            findings, finding_db_ids = await fetch_findings_for_scan(conn, scan_id)
+            if not findings:
+                return {"ok": False, "error": "No findings for this scan"}
+
+        repo_url = info["repo_url"]
+        language_counts = {}  # Not stored per scan; prompt still works without it
+
+        summarizer = AISummarizer()
+        ai_summary = await summarizer.generate_summary(
+            scan_id, findings, repo_url, language_counts
+        )
+
+        top_findings_db_ids = []
+        if finding_db_ids and ai_summary.get("topFindings"):
+            for idx in ai_summary["topFindings"]:
+                if 1 <= idx <= len(finding_db_ids):
+                    top_findings_db_ids.append(finding_db_ids[idx - 1])
+
+        mapped_recommendations = []
+        if ai_summary.get("recommendations") and finding_db_ids:
+            for rec in ai_summary["recommendations"]:
+                mapped_rec = rec.copy()
+                if "findingIds" in mapped_rec:
+                    mapped_finding_ids = [
+                        finding_db_ids[i - 1]
+                        for i in mapped_rec["findingIds"]
+                        if 1 <= i <= len(finding_db_ids)
+                    ]
+                    mapped_rec["findingIds"] = mapped_finding_ids
+                mapped_recommendations.append(mapped_rec)
+        else:
+            mapped_recommendations = ai_summary.get("recommendations", [])
+
+        pool2 = await create_db_pool(db_url)
+        async with pool2.acquire() as conn:
+            ai_analysis_id = await store_ai_analysis(
+                conn,
+                scan_id,
+                ai_summary["summary"],
+                mapped_recommendations,
+                ai_summary["riskScore"],
+                top_findings_db_ids,
+                ai_summary.get("model", "unknown"),
+                ai_summary.get("modelVersion", "unknown"),
+                ai_summary["tokensUsed"],
+            )
+        logger.info(f"AI analysis generated for scan {scan_id}, id={ai_analysis_id}")
+        return {"ok": True, "ai_analysis_id": ai_analysis_id}
+
+    try:
+        return asyncio.run(_run())
+    except Exception as e:
+        logger.error(f"generate_ai_analysis failed for {scan_id}: {e}", exc_info=True)
+        return {"ok": False, "error": str(e)}
