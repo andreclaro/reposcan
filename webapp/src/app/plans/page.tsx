@@ -8,9 +8,9 @@ import { getServerAuth } from "@/lib/server-auth";
 import { isAdmin } from "@/lib/admin-auth";
 
 export const metadata = {
-  title: "Pricing - SecurityKit",
+  title: "Plans - SecurityKit",
   description:
-    "SecurityKit pricing: Free, Pro, and Custom tiers for automated security scanning."
+    "SecurityKit plans: Free, Pro, and Custom tiers for automated security scanning."
 };
 
 const tiers: Array<{
@@ -72,7 +72,7 @@ const tiers: Array<{
   }
 ];
 
-export default async function PricingPage() {
+export default async function PlansPage() {
   const session = await getServerAuth();
   const userIsAdmin = isAdmin(session?.user?.email);
 
@@ -94,7 +94,7 @@ export default async function PricingPage() {
               </>
             ) : (
               <Button asChild variant="ghost" size="sm">
-                <Link href="/api/auth/signin/github?callbackUrl=/pricing">
+                <Link href="/api/auth/signin/github?callbackUrl=/plans">
                   Sign in with GitHub
                 </Link>
               </Button>
@@ -105,7 +105,7 @@ export default async function PricingPage() {
 
       <main className="mx-auto max-w-6xl px-6 py-8">
         <div className="text-center mb-12">
-          <h1 className="text-3xl font-bold tracking-tight">Pricing</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Plans</h1>
           <p className="mt-2 text-muted-foreground">
             Choose the plan that fits your team. Upgrade or downgrade anytime.
           </p>

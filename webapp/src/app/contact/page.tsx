@@ -65,8 +65,8 @@ export default async function ContactPage() {
             <Link href="/terms" className="hover:text-foreground">
               Terms of Service
             </Link>
-            <Link href="/pricing" className="hover:text-foreground">
-              Pricing
+            <Link href="/plans" className="hover:text-foreground">
+              Plans
             </Link>
           </div>
         </div>

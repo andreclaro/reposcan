@@ -25,7 +25,7 @@ export default function AppNav({ isAdmin }: AppNavProps) {
 
   const isOnDashboard = pathname === "/app";
   const isOnAdmin = pathname.startsWith("/app/admin");
-  const isOnPricing = pathname === "/pricing";
+  const isOnPlans = pathname === "/plans";
   const isOnContact = pathname === "/contact";
 
   return (
@@ -42,15 +42,15 @@ export default function AppNav({ isAdmin }: AppNavProps) {
         Dashboard
       </Link>
       <Link
-        href="/pricing"
+        href="/plans"
         className={cn(
           "transition-colors",
-          isOnPricing
+          isOnPlans
             ? "text-foreground font-medium"
             : "text-muted-foreground hover:text-foreground"
         )}
       >
-        Pricing
+        Plans
       </Link>
       <Link
         href="/contact"
