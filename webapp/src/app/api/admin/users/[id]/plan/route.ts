@@ -6,7 +6,8 @@ import { isAdmin } from "@/lib/admin-auth";
 import { updatePlan } from "@/lib/plans/updatePlan";
 
 const bodySchema = z.object({
-  planId: z.string().uuid()
+  planId: z.string().uuid().optional(),
+  scansPerMonthOverride: z.number().int().min(-1).optional()
 });
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -27,8 +28,20 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     );
   }
 
+  const { planId, scansPerMonthOverride } = parsed.data;
+  if (planId === undefined && scansPerMonthOverride === undefined) {
+    return NextResponse.json(
+      { error: "Provide planId and/or scansPerMonthOverride" },
+      { status: 400 }
+    );
+  }
+
   try {
-    await updatePlan({ userId, newPlanId: parsed.data.planId });
+    await updatePlan({
+      userId,
+      newPlanId: planId,
+      scansPerMonthOverride
+    });
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Failed to update user plan", err);

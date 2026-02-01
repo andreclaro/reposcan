@@ -28,6 +28,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
       email: users.email,
       name: users.name,
       planId: users.planId,
+      scansPerMonthOverride: users.scansPerMonthOverride,
       stripeCustomerId: users.stripeCustomerId,
       stripeSubscriptionId: users.stripeSubscriptionId,
       trialEndsAt: users.trialEndsAt,
@@ -92,7 +93,13 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
         </div>
         <div>
           <span className="text-sm font-medium text-muted-foreground">Change plan</span>
-          <AdminUserPlanChange userId={id} currentPlanId={user.planId} plans={allPlans} />
+          <AdminUserPlanChange
+            userId={id}
+            currentPlanId={user.planId}
+            currentPlanCodename={currentPlan?.codename ?? null}
+            scansPerMonthOverride={user.scansPerMonthOverride}
+            plans={allPlans}
+          />
         </div>
       </div>
     </div>

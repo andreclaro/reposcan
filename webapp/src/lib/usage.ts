@@ -15,20 +15,33 @@ export function getCurrentPeriod(): { start: Date; end: Date } {
   return { start, end };
 }
 
-/** Resolve scans_per_month for a user: their plan or default plan. -1 = unlimited. */
+/** Resolve scans_per_month for a user. Custom plan: use per-customer override if set; else plan quotas. -1 = unlimited. */
 async function getScansLimitForUser(userId: string): Promise<number> {
-  const [user] = await db
-    .select({ planId: users.planId })
+  const [row] = await db
+    .select({
+      planId: users.planId,
+      scansPerMonthOverride: users.scansPerMonthOverride,
+      planCodename: plans.codename,
+      planQuotas: plans.quotas
+    })
     .from(users)
+    .leftJoin(plans, eq(users.planId, plans.id))
     .where(eq(users.id, userId))
     .limit(1);
 
-  let planQuotas: PlanQuotas | null = null;
-  if (user?.planId) {
+  // Custom plan: per-customer override takes precedence
+  if (row?.planCodename === "custom" && row.scansPerMonthOverride != null) {
+    const override = row.scansPerMonthOverride;
+    if (override < 0) return -1;
+    return override;
+  }
+
+  let planQuotas: PlanQuotas | null = row?.planQuotas ?? null;
+  if (!planQuotas && row?.planId) {
     const [plan] = await db
       .select({ quotas: plans.quotas })
       .from(plans)
-      .where(eq(plans.id, user.planId))
+      .where(eq(plans.id, row.planId))
       .limit(1);
     planQuotas = plan?.quotas ?? null;
   }
@@ -92,10 +105,18 @@ export async function getOrCreateUsageForPeriod(
 
   if (existing) {
     const used = await getScansUsedInPeriod(userId, periodStart, periodEnd);
-    if (existing.scansUsed !== used) {
+    const currentLimit = await getScansLimitForUser(userId);
+    const limitToStore = currentLimit < 0 ? -1 : currentLimit;
+    const limitChanged = existing.scansLimit !== limitToStore;
+    const usedChanged = existing.scansUsed !== used;
+    if (usedChanged || limitChanged) {
       await db
         .update(usageRecords)
-        .set({ scansUsed: used, updatedAt: new Date() })
+        .set({
+          scansUsed: used,
+          scansLimit: limitToStore,
+          updatedAt: new Date()
+        })
         .where(eq(usageRecords.id, existing.id));
     }
     return {
@@ -104,7 +125,7 @@ export async function getOrCreateUsageForPeriod(
       periodStart: existing.periodStart,
       periodEnd: existing.periodEnd,
       scansUsed: used,
-      scansLimit: existing.scansLimit
+      scansLimit: limitToStore
     };
   }
 

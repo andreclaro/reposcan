@@ -29,6 +29,13 @@
       "when": 1738180000000,
       "tag": "0004_fix_scan_repo_commit_index",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1738260000000,
+      "tag": "0005_add_user_scans_override",
+      "breakpoints": true
     }
   ]
 }

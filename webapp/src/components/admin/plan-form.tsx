@@ -195,13 +195,17 @@ export default function PlanForm({ action, initial }: PlanFormProps) {
       </div>
       <div>
         <label className="block text-sm font-medium mb-1">
-          Scans per month (-1 = unlimited)
+          Scans per month
         </label>
+        <p className="text-xs text-muted-foreground mb-1">
+          Use -1 for unlimited (e.g. for Custom plan). Any positive number caps monthly scans.
+        </p>
         <Input
           type="number"
+          min={-1}
           value={scansPerMonth}
           onChange={(e) => setScansPerMonth(e.target.value)}
-          placeholder="50"
+          placeholder="-1 or e.g. 50"
         />
       </div>
       <div className="flex gap-2">

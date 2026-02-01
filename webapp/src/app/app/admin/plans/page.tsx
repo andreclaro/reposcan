@@ -37,6 +37,13 @@ export default async function AdminPlansPage() {
   }));
   const totalUsers = planStats.reduce((acc, p) => acc + p.count, 0);
 
+  const totalMonthlyRevenueCents = planStats.reduce((acc, p) => {
+    const plan = list.find((pl) => pl.name === p.name);
+    const monthlyCents = plan?.monthlyPrice ?? 0;
+    return acc + p.count * monthlyCents;
+  }, 0);
+  const totalMonthlyRevenueEuros = totalMonthlyRevenueCents / 100;
+
   const formatPrice = (cents: number | null) =>
     cents === null ? "—" : `€${(cents / 100).toFixed(2)}`;
 
@@ -47,6 +54,16 @@ export default async function AdminPlansPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Manage billing plans, Stripe price IDs, and view user distribution.
         </p>
+      </div>
+
+      {/* Total monthly revenue */}
+      <div className="rounded-lg border bg-muted/30 px-4 py-3 max-w-xs">
+        <div className="text-sm font-medium text-muted-foreground">
+          Total monthly revenue
+        </div>
+        <div className="text-2xl font-bold mt-1">
+          €{totalMonthlyRevenueEuros.toFixed(2)}
+        </div>
       </div>
 
       {/* User distribution by plan */}
