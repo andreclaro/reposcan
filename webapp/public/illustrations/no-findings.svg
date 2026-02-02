@@ -1,0 +1,31 @@
+<svg viewBox="0 0 400 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="200" cy="150" r="120" fill="#ecfdf5"/>
+  
+  <!-- Main Shield -->
+  <path d="M200 60 L280 100 V170 C280 230 200 270 200 270 C200 270 120 230 120 170 V100 L200 60Z" 
+        fill="#10b981" stroke="#059669" stroke-width="3"/>
+  
+  <!-- Inner Highlight -->
+  <path d="M200 75 L265 110 V168 C265 220 200 255 200 255 C200 255 135 220 135 168 V110 L200 75Z" 
+        fill="#34d399" opacity="0.3"/>
+  
+  <!-- Large Checkmark -->
+  <path d="M160 150 L190 180 L250 120" stroke="white" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Confetti/Stars -->
+  <g fill="#fbbf24">
+    <polygon points="100,100 102,106 108,106 103,110 105,116 100,112 95,116 97,110 92,106 98,106"/>
+    <polygon points="300,80 302,86 308,86 303,90 305,96 300,92 295,96 297,90 292,86 298,86"/>
+    <polygon points="320,180 322,186 328,186 323,190 325,196 320,192 315,196 317,190 312,186 318,186"/>
+    <polygon points="80,180 82,186 88,186 83,190 85,196 80,192 75,196 77,190 72,186 78,186"/>
+  </g>
+  
+  <!-- Small checkmarks -->
+  <g stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M90 140 L95 145 L105 135"/>
+    <path d="M295 140 L300 145 L310 135"/>
+    <path d="M320 220 L325 225 L335 215"/>
+    <path d="M65 220 L70 225 L80 215"/>
+  </g>
+</svg>

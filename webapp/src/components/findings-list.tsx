@@ -7,68 +7,85 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronRight,
+  Filter,
+  Search,
+  X,
+  Bug,
+  Code,
+  Wrench,
+  Info,
+  ShieldCheck,
 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { logger } from "@/lib/logger";
+import { SeverityBadge } from "./severity-badge";
 import type { Finding, FindingsSummary } from "@/types/findings";
 
 type FindingsListProps = {
   scanId: string;
 };
 
-const severityColors: Record<string, string> = {
-  critical: "bg-red-500/10 text-red-600 border-red-500/20",
-  high: "bg-orange-500/10 text-orange-600 border-orange-500/20",
-  medium: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
-  low: "bg-blue-500/10 text-blue-600 border-blue-500/20",
-  info: "bg-gray-500/10 text-gray-600 border-gray-500/20",
-};
+const severityOrder = ["critical", "high", "medium", "low", "info"];
 
 function getCweId(cwe: string | null): string | null {
   if (!cwe) return null;
-
-  // Handle formats like:
-  // - "CWE-78"
-  // - "CWE-78: Improper Neutralization..."
-  // - "78"
   const cweIdMatch =
-    cwe.match(/CWE-(\d+)/i)?.[1] ??
-    cwe.match(/(\d+)/)?.[1] ??
-    null;
-
+    cwe.match(/CWE-(\d+)/i)?.[1] ?? cwe.match(/(\d+)/)?.[1] ?? null;
   return cweIdMatch;
 }
 
 function getCweLabel(cwe: string | null): string | null {
   if (!cwe) return null;
-
-  // Normalize duplicated prefixes like:
-  // "CWE-CWE-78: Improper Neutralization..." -> "CWE-78: Improper Neutralization..."
   const duplicateMatch = cwe.match(/^CWE-CWE-(\d+)(:.*)?/i);
   if (duplicateMatch) {
     const id = duplicateMatch[1];
     const suffix = duplicateMatch[2] ?? "";
     return `CWE-${id}${suffix}`;
   }
-
   return cwe;
 }
 
 function getDisplayFilePath(filePath: string | null): string | null {
   if (!filePath) return null;
-
   const tmpScanPrefix = "/tmp/scan_";
-
-  // Normalize paths coming from the temporary scan directory, e.g.:
-  // /tmp/scan_<scanId>_<suffix>/scrcpy/server/src/... -> scrcpy/server/src/...
   if (filePath.startsWith(tmpScanPrefix)) {
     const parts = filePath.split("/");
     if (parts.length > 3) {
       return parts.slice(3).join("/");
     }
   }
-
   return filePath;
+}
+
+function getFileExtension(filePath: string | null): string {
+  if (!filePath) return "";
+  const parts = filePath.split(".");
+  return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : "";
+}
+
+function getLanguageIcon(extension: string) {
+  const langMap: Record<string, string> = {
+    js: "JS",
+    ts: "TS",
+    jsx: "JSX",
+    tsx: "TSX",
+    py: "Py",
+    go: "Go",
+    rs: "Rust",
+    java: "Java",
+    rb: "Ruby",
+    php: "PHP",
+    cs: "C#",
+    cpp: "C++",
+    c: "C",
+    swift: "Swift",
+    kt: "Kotlin",
+  };
+  return langMap[extension] || extension.toUpperCase();
 }
 
 export default function FindingsList({ scanId }: FindingsListProps) {
@@ -77,19 +94,16 @@ export default function FindingsList({ scanId }: FindingsListProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedFinding, setExpandedFinding] = useState<number | null>(null);
-  const [availableFilters, setAvailableFilters] = useState<{
-    severities: string[];
-    categories: string[];
-    scanners: string[];
-  }>({
-    severities: [],
-    categories: [],
-    scanners: [],
-  });
+  const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState({
     severity: "",
     category: "",
     scanner: "",
+  });
+  const [availableFilters, setAvailableFilters] = useState({
+    severities: [] as string[],
+    categories: [] as string[],
+    scanners: [] as string[],
   });
 
   useEffect(() => {
@@ -105,40 +119,25 @@ export default function FindingsList({ scanId }: FindingsListProps) {
       if (filters.severity) params.append("severity", filters.severity);
       if (filters.category) params.append("category", filters.category);
       if (filters.scanner) params.append("scanner", filters.scanner);
+      if (searchQuery) params.append("search", searchQuery);
 
       const url = `/api/scans/${scanId}/findings?${params.toString()}`;
-      logger.debug("[findings-list] fetch", { url, scanId });
       const response = await fetch(url);
-      logger.debug("[findings-list] response", {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-      });
+
       if (!response.ok) {
-        logger.warn("[findings-list] error response", {
-          status: response.status,
-          statusText: response.statusText,
-        });
         throw new Error("Failed to fetch findings");
       }
-      const data = await response.json();
-      logger.debug("[findings-list] data received", {
-        hasFindings: !!data.findings,
-        findingsLength: data.findings?.length ?? 0,
-        hasSummary: !!data.summary,
-      });
 
+      const data = await response.json();
       const currentFindings: Finding[] = data.findings || [];
       const summ = data.summary || null;
 
-      // Derive filter options from summary (unfiltered counts) so options
-      // are available even when the current list is empty (no findings or
-      // filters return 0 results).
       if (summ?.by_severity || summ?.by_category || summ?.by_scanner) {
         const severities = summ.by_severity
           ? (Object.entries(summ.by_severity) as [string, number][])
               .filter(([, count]) => count > 0)
               .map(([s]) => s)
+              .sort((a, b) => severityOrder.indexOf(a) - severityOrder.indexOf(b))
           : [];
         const categories = summ.by_category
           ? Object.keys(summ.by_category).filter(
@@ -150,19 +149,11 @@ export default function FindingsList({ scanId }: FindingsListProps) {
               (s) => (summ!.by_scanner as Record<string, number>)[s] > 0
             )
           : [];
-        setAvailableFilters({
-          severities,
-          categories,
-          scanners,
-        });
+        setAvailableFilters({ severities, categories, scanners });
       }
 
       setFindings(currentFindings);
       setSummary(summ);
-      logger.debug("[findings-list] fetchFindings success", {
-        findingsSet: data.findings?.length ?? 0,
-        summarySet: !!data.summary,
-      });
     } catch (err) {
       logger.error("[findings-list] fetchFindings error", err);
       setError(err instanceof Error ? err.message : "Failed to load findings");
@@ -171,29 +162,72 @@ export default function FindingsList({ scanId }: FindingsListProps) {
     }
   };
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchFindings();
+  };
+
+  const clearFilters = () => {
+    setFilters({ severity: "", category: "", scanner: "" });
+    setSearchQuery("");
+  };
+
+  const hasActiveFilters =
+    filters.severity || filters.category || filters.scanner || searchQuery;
+
   if (loading) {
     return (
-      <div className="rounded-2xl border bg-background p-8 text-center">
-        <p className="text-sm text-muted-foreground">Loading findings...</p>
-      </div>
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-8">
+          <div className="flex items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-blue-500" />
+          </div>
+          <p className="mt-4 text-center text-sm text-slate-500">
+            Loading findings...
+          </p>
+        </CardContent>
+      </Card>
     );
   }
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-8 text-center">
-        <p className="text-sm text-destructive">{error}</p>
-        <button
-          onClick={fetchFindings}
-          className="mt-4 text-sm text-primary hover:underline"
-        >
-          Retry
-        </button>
-      </div>
+      <Card className="border-red-200 bg-red-50">
+        <CardContent className="p-8 text-center">
+          <AlertTriangle className="mx-auto h-12 w-12 text-red-400" />
+          <p className="mt-4 text-sm font-medium text-red-700">{error}</p>
+          <Button
+            variant="outline"
+            onClick={fetchFindings}
+            className="mt-4"
+          >
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
-  // Filter options from summary (or fallback to current findings when no summary)
+  // Empty state - no findings at all
+  if (summary?.total === 0) {
+    return (
+      <Card className="border-0 shadow-sm">
+        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="rounded-full bg-emerald-50 p-4">
+            <ShieldCheck className="h-10 w-10 text-emerald-500" />
+          </div>
+          <h3 className="mt-4 text-lg font-semibold text-slate-900">
+            No vulnerabilities found
+          </h3>
+          <p className="mt-2 max-w-sm text-sm text-slate-500">
+            Great news! This scan didn&apos;t detect any security issues in your
+            repository.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const severities =
     availableFilters.severities.length > 0
       ? availableFilters.severities
@@ -202,11 +236,7 @@ export default function FindingsList({ scanId }: FindingsListProps) {
     availableFilters.categories.length > 0
       ? availableFilters.categories
       : Array.from(
-          new Set(
-            findings
-              .map((f) => f.category)
-              .filter((c): c is string => !!c)
-          )
+          new Set(findings.map((f) => f.category).filter((c): c is string => !!c))
         );
   const scanners =
     availableFilters.scanners.length > 0
@@ -215,17 +245,32 @@ export default function FindingsList({ scanId }: FindingsListProps) {
 
   return (
     <div className="space-y-4">
-      {/* Filters — always visible so users can change filters when result set is empty */}
-      <div className="rounded-2xl border bg-muted/40 p-3">
-        <div className="grid gap-4 md:grid-cols-3">
-          <div>
-            <label className="text-xs text-muted-foreground">Severity</label>
+      {/* Filters */}
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-4">
+          {/* Search */}
+          <form onSubmit={handleSearch} className="mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                type="text"
+                placeholder="Search findings..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </form>
+
+          {/* Filter Pills */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Filter className="h-4 w-4 text-slate-400" />
+            
+            {/* Severity Filter */}
             <select
               value={filters.severity}
-              onChange={(e) =>
-                setFilters({ ...filters, severity: e.target.value })
-              }
-              className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+              onChange={(e) => setFilters({ ...filters, severity: e.target.value })}
+              className="h-8 rounded-full border border-slate-200 bg-white px-3 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="">All severities</option>
               {severities.map((s) => (
@@ -234,205 +279,260 @@ export default function FindingsList({ scanId }: FindingsListProps) {
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">Category</label>
-            <select
-              value={filters.category}
-              onChange={(e) =>
-                setFilters({ ...filters, category: e.target.value })
-              }
-              className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
-            >
-              <option value="">All categories</option>
-              {categories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">Scanner</label>
-            <select
-              value={filters.scanner}
-              onChange={(e) =>
-                setFilters({ ...filters, scanner: e.target.value })
-              }
-              className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
-            >
-              <option value="">All scanners</option>
-              {scanners.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
 
-      {/* Findings List or empty state */}
-      {findings.length === 0 ? (
-        <div className="rounded-2xl border bg-background p-8 text-center">
-          <AlertTriangle className="mx-auto size-12 text-muted-foreground/50" />
-          <p className="mt-4 text-sm font-medium">No findings</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {summary?.total === 0
-              ? "This scan did not detect any security issues."
-              : "No findings match the current filters. Try changing severity, category, or scanner."}
-          </p>
-        </div>
-      ) : (
-      <div className="space-y-3">
-        {findings.map((finding) => (
-          <div
-            key={finding.id}
-            className="rounded-xl border bg-background/80 p-4"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium",
-                      severityColors[finding.severity] ||
-                        severityColors.info
-                    )}
-                  >
-                    <AlertTriangle className="size-3" />
-                    {finding.severity}
-                  </span>
-                  {finding.category && (
-                    <span className="text-xs text-muted-foreground">
-                      {finding.category}
-                    </span>
-                  )}
-                  <span className="text-xs text-muted-foreground">
-                    {finding.scanner}
-                  </span>
-                </div>
-                <h3 className="font-medium">{finding.title}</h3>
-                {finding.description && (
-                  <p className="text-sm text-muted-foreground">
-                    {finding.description}
-                  </p>
-                )}
-                {getDisplayFilePath(finding.filePath) && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <FileCode className="size-3" />
-                    <span>
-                      {getDisplayFilePath(finding.filePath)}
-                      {finding.lineStart && `:${finding.lineStart}`}
-                    </span>
-                  </div>
-                )}
-                {(finding.cwe || finding.cve) && (
-                  <div className="flex items-center gap-4 text-xs">
-                    {finding.cwe && (
-                      (() => {
-                        const cweId = getCweId(finding.cwe);
-                        const cweLabel = getCweLabel(finding.cwe);
-                        if (!cweId) return (
-                          <span className="text-xs text-muted-foreground">
-                            {cweLabel}
-                          </span>
-                        );
-                        return (
-                      <a
-                        href={`https://cwe.mitre.org/data/definitions/${cweId}.html`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline flex items-center gap-1"
-                      >
-                        <AlertTriangle className="size-3" />
-                        <span>{cweLabel}</span>
-                        <ExternalLink className="size-3" />
-                      </a>
-                        );
-                      })()
-                    )}
-                    {finding.cve && (
-                      <a
-                        href={`https://cve.mitre.org/cgi-bin/cvename.cgi?name=${finding.cve}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline flex items-center gap-1"
-                      >
-                        {finding.cve}
-                        <ExternalLink className="size-3" />
-                      </a>
-                    )}
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() =>
-                  setExpandedFinding(
-                    expandedFinding === finding.id ? null : finding.id
-                  )
-                }
-                className="text-muted-foreground hover:text-foreground"
+            {/* Category Filter */}
+            {categories.length > 0 && (
+              <select
+                value={filters.category}
+                onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+                className="h-8 rounded-full border border-slate-200 bg-white px-3 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
-                {expandedFinding === finding.id ? (
-                  <ChevronDown className="size-5" />
-                ) : (
-                  <ChevronRight className="size-5" />
-                )}
-              </button>
-            </div>
-
-            {/* Expanded Details */}
-            {expandedFinding === finding.id && (
-              <div className="mt-4 space-y-4 border-t pt-4">
-                {finding.codeSnippet && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-2">
-                      Code Snippet
-                    </p>
-                    <pre className="rounded-md border bg-muted/40 p-3 text-xs overflow-x-auto">
-                      <code>{finding.codeSnippet}</code>
-                    </pre>
-                  </div>
-                )}
-                {finding.remediation && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-2">
-                      Remediation
-                    </p>
-                    <p className="text-sm">{finding.remediation}</p>
-                  </div>
-                )}
-                {finding.metadata && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-2">
-                      Scanner Metadata
-                    </p>
-                    <pre className="rounded-md border bg-muted/40 p-3 text-xs overflow-x-auto">
-                      <code>
-                        {typeof finding.metadata === 'string'
-                          ? finding.metadata
-                          : JSON.stringify(finding.metadata, null, 2)}
-                      </code>
-                    </pre>
-                  </div>
-                )}
-                <div>
-                  <a
-                    href={`/api/scans/${scanId}/findings/${finding.id}/analysis`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
-                  >
-                    View detailed code analysis
-                    <ExternalLink className="size-3" />
-                  </a>
-                </div>
-              </div>
+                <option value="">All categories</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
             )}
+
+            {/* Scanner Filter */}
+            {scanners.length > 0 && (
+              <select
+                value={filters.scanner}
+                onChange={(e) => setFilters({ ...filters, scanner: e.target.value })}
+                className="h-8 rounded-full border border-slate-200 bg-white px-3 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">All scanners</option>
+                {scanners.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="h-8 gap-1 text-xs"
+              >
+                <X className="h-3 w-3" />
+                Clear
+              </Button>
+            )}
+
+            <span className="ml-auto text-xs text-slate-500">
+              {findings.length} {findings.length === 1 ? "finding" : "findings"}
+              {summary && summary.total !== findings.length && ` of ${summary.total}`}
+            </span>
           </div>
-        ))}
-      </div>
+        </CardContent>
+      </Card>
+
+      {/* Findings List */}
+      {findings.length === 0 ? (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <Search className="h-10 w-10 text-slate-300" />
+            <h3 className="mt-4 text-base font-semibold text-slate-900">
+              No findings match
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Try adjusting your filters to see more results.
+            </p>
+            <Button variant="outline" onClick={clearFilters} className="mt-4">
+              Clear all filters
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {findings.map((finding) => {
+            const isExpanded = expandedFinding === finding.id;
+            const filePath = getDisplayFilePath(finding.filePath);
+            const fileExt = getFileExtension(filePath);
+
+            return (
+              <Card
+                key={finding.id}
+                className={cn(
+                  "overflow-hidden border-0 shadow-sm transition-shadow",
+                  isExpanded ? "shadow-md" : "hover:shadow-md"
+                )}
+              >
+                <CardContent className="p-0">
+                  {/* Header */}
+                  <div
+                    className="cursor-pointer p-4"
+                    onClick={() =>
+                      setExpandedFinding(isExpanded ? null : finding.id)
+                    }
+                  >
+                    <div className="flex items-start gap-3">
+                      <SeverityBadge severity={finding.severity} size="md" />
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="font-medium text-slate-900">
+                            {finding.title}
+                          </h3>
+                          <button className="flex-shrink-0 text-slate-400 hover:text-slate-600">
+                            {isExpanded ? (
+                              <ChevronDown className="h-5 w-5" />
+                            ) : (
+                              <ChevronRight className="h-5 w-5" />
+                            )}
+                          </button>
+                        </div>
+
+                        {finding.description && (
+                          <p className="mt-1 text-sm text-slate-500 line-clamp-2">
+                            {finding.description}
+                          </p>
+                        )}
+
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          {finding.category && (
+                            <Badge variant="secondary" className="text-xs">
+                              {finding.category}
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="text-xs">
+                            {finding.scanner}
+                          </Badge>
+                          {filePath && (
+                            <div className="flex items-center gap-1 text-xs text-slate-500">
+                              <FileCode className="h-3.5 w-3.5" />
+                              <span className="truncate max-w-[200px]">
+                                {filePath}
+                                {finding.lineStart && `:${finding.lineStart}`}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div className="border-t bg-slate-50/50 p-4">
+                      <div className="space-y-4">
+                        {/* CWE/CVE Links */}
+                        {(finding.cwe || finding.cve) && (
+                          <div className="flex flex-wrap gap-3">
+                            {finding.cwe && (() => {
+                              const cweId = getCweId(finding.cwe);
+                              const cweLabel = getCweLabel(finding.cwe);
+                              if (!cweId) return (
+                                <Badge variant="outline" className="text-xs">
+                                  {cweLabel}
+                                </Badge>
+                              );
+                              return (
+                                <a
+                                  href={`https://cwe.mitre.org/data/definitions/${cweId}.html`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200"
+                                >
+                                  {cweLabel}
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              );
+                            })()}
+                            {finding.cve && (
+                              <a
+                                href={`https://cve.mitre.org/cgi-bin/cvename.cgi?name=${finding.cve}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200"
+                              >
+                                {finding.cve}
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Code Snippet */}
+                        {finding.codeSnippet && (
+                          <div>
+                            <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-600">
+                              <Code className="h-4 w-4" />
+                              Code Snippet
+                            </div>
+                            <div className="relative overflow-hidden rounded-lg border bg-slate-900">
+                              <div className="flex items-center gap-1.5 border-b border-slate-800 bg-slate-800/50 px-3 py-2">
+                                <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
+                                <div className="h-2.5 w-2.5 rounded-full bg-yellow-500" />
+                                <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
+                                {fileExt && (
+                                  <span className="ml-2 text-xs text-slate-500">
+                                    {getLanguageIcon(fileExt)}
+                                  </span>
+                                )}
+                              </div>
+                              <pre className="overflow-x-auto p-4 text-xs text-slate-300">
+                                <code>{finding.codeSnippet}</code>
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Remediation */}
+                        {finding.remediation && (
+                          <div>
+                            <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-600">
+                              <Wrench className="h-4 w-4" />
+                              Remediation
+                            </div>
+                            <div className="rounded-lg border-l-4 border-emerald-400 bg-emerald-50 p-3 text-sm text-slate-700">
+                              {finding.remediation}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Metadata */}
+                        {finding.metadata && (
+                          <div>
+                            <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-600">
+                              <Info className="h-4 w-4" />
+                              Scanner Metadata
+                            </div>
+                            <pre className="max-h-40 overflow-auto rounded-lg border bg-slate-100 p-3 text-xs text-slate-600">
+                              <code>
+                                {typeof finding.metadata === "string"
+                                  ? finding.metadata
+                                  : JSON.stringify(finding.metadata, null, 2)}
+                              </code>
+                            </pre>
+                          </div>
+                        )}
+
+                        {/* Analysis Link */}
+                        <div className="pt-2">
+                          <a
+                            href={`/api/scans/${scanId}/findings/${finding.id}/analysis`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+                          >
+                            View detailed code analysis
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       )}
     </div>
   );

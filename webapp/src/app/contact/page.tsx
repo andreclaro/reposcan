@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Shield } from "lucide-react";
 
 import AppNav from "@/components/app-nav";
 import { ContactForm } from "@/components/contact-form";
@@ -18,23 +19,31 @@ export default async function ContactPage() {
   const userIsAdmin = isAdmin(session?.user?.email);
 
   return (
-    <div className="min-h-screen bg-muted/20">
-      <header className="border-b bg-background">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <div className="flex items-center gap-6">
-            <Link href="/" className="text-sm font-semibold">
-              SecurityKit
+    <div className="min-h-screen bg-slate-50">
+      {/* Header - Matching app layout style */}
+      <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-8">
+            <Link href="/" className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900">
+                <Shield className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-lg font-semibold text-slate-900">
+                SecurityKit
+              </span>
             </Link>
             <AppNav isAdmin={userIsAdmin} />
           </div>
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <div className="flex items-center gap-4">
             {session?.user?.email ? (
               <>
-                <span>{session.user.email}</span>
+                <div className="hidden text-sm text-slate-500 sm:block">
+                  {session.user.email}
+                </div>
                 <SignOutButton />
               </>
             ) : (
-              <Button asChild variant="ghost" size="sm">
+              <Button asChild size="sm">
                 <Link href="/api/auth/signin/github?callbackUrl=/contact">
                   Sign in with GitHub
                 </Link>
@@ -44,30 +53,45 @@ export default async function ContactPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold tracking-tight">Contact us</h1>
-          <p className="mt-2 text-muted-foreground max-w-xl mx-auto">
+      <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-2xl text-center mb-12">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+            Contact us
+          </h1>
+          <p className="mt-4 text-lg text-slate-600">
             Interested in a Custom plan or have questions? Send us a message
             and we&apos;ll get back to you soon.
           </p>
         </div>
 
-        <ContactForm />
+        <div className="mx-auto max-w-xl">
+          <ContactForm />
+        </div>
       </main>
 
-      <footer className="border-t py-8 mt-12">
-        <div className="mx-auto max-w-4xl px-6 text-center text-sm text-muted-foreground">
-          <div className="flex justify-center gap-6">
-            <Link href="/privacy" className="hover:text-foreground">
-              Privacy Policy
-            </Link>
-            <Link href="/terms" className="hover:text-foreground">
-              Terms of Service
-            </Link>
-            <Link href="/plans" className="hover:text-foreground">
-              Plans
-            </Link>
+      {/* Footer */}
+      <footer className="border-t bg-white py-12">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
+            <div className="flex items-center gap-2">
+              <div className="flex h-6 w-6 items-center justify-center rounded bg-slate-900">
+                <Shield className="h-3.5 w-3.5 text-white" />
+              </div>
+              <span className="text-sm font-semibold text-slate-900">
+                SecurityKit
+              </span>
+            </div>
+            <div className="flex gap-6 text-sm text-slate-500">
+              <Link href="/privacy" className="hover:text-slate-900">
+                Privacy Policy
+              </Link>
+              <Link href="/terms" className="hover:text-slate-900">
+                Terms of Service
+              </Link>
+              <Link href="/plans" className="hover:text-slate-900">
+                Plans
+              </Link>
+            </div>
           </div>
         </div>
       </footer>

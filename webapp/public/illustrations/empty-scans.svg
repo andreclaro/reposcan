@@ -1,0 +1,33 @@
+<svg viewBox="0 0 400 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="200" cy="150" r="120" fill="#f1f5f9"/>
+  
+  <!-- Main Shield -->
+  <path d="M200 60 L280 100 V170 C280 230 200 270 200 270 C200 270 120 230 120 170 V100 L200 60Z" 
+        fill="#e2e8f0" stroke="#94a3b8" stroke-width="3"/>
+  
+  <!-- Inner Shield -->
+  <path d="M200 80 L260 112 V165 C260 210 200 245 200 245 C200 245 140 210 140 165 V112 L200 80Z" 
+        fill="#f8fafc"/>
+  
+  <!-- Magnifying Glass -->
+  <g transform="translate(170, 130)">
+    <circle cx="25" cy="25" r="20" stroke="#64748b" stroke-width="4" fill="none"/>
+    <line x1="40" y1="40" x2="60" y2="60" stroke="#64748b" stroke-width="4" stroke-linecap="round"/>
+    <!-- Scan lines -->
+    <line x1="20" y1="20" x2="30" y2="20" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
+    <line x1="20" y1="25" x2="30" y2="25" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
+    <line x1="20" y1="30" x2="30" y2="30" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Radar Animation Effect -->
+  <path d="M200 150 L200 80" stroke="#3b82f6" stroke-width="2" opacity="0.5">
+    <animateTransform attributeName="transform" type="rotate" from="0 200 150" to="360 200 150" dur="4s" repeatCount="indefinite"/>
+  </path>
+  
+  <!-- Dots representing scans -->
+  <circle cx="150" cy="200" r="4" fill="#cbd5e1"/>
+  <circle cx="250" cy="190" r="4" fill="#cbd5e1"/>
+  <circle cx="180" cy="220" r="4" fill="#cbd5e1"/>
+  <circle cx="220" cy="210" r="4" fill="#cbd5e1"/>
+</svg>
