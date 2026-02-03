@@ -1,0 +1,61 @@
+import type { NextAuthConfig } from "next-auth";
+import GitHub from "next-auth/providers/github";
+import Credentials from "next-auth/providers/credentials";
+import { DEV_BYPASS_AUTH, DEV_USER } from "@/lib/dev-auth";
+
+const githubClientId = process.env.AUTH_GITHUB_ID || process.env.GITHUB_CLIENT_ID;
+const githubClientSecret = process.env.AUTH_GITHUB_SECRET || process.env.GITHUB_CLIENT_SECRET;
+
+const providers = [];
+
+if (githubClientId && githubClientSecret) {
+  providers.push(
+    GitHub({
+      clientId: githubClientId,
+      clientSecret: githubClientSecret,
+    })
+  );
+}
+
+if (DEV_BYPASS_AUTH) {
+  providers.push(
+    Credentials({
+      name: "Dev Mode",
+      credentials: {},
+      authorize: async () => DEV_USER
+    })
+  );
+}
+
+export const authConfig: NextAuthConfig = {
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  trustHost: true,
+  providers,
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60
+  },
+  jwt: {
+    maxAge: 30 * 24 * 60 * 60
+  },
+  pages: {
+    signIn: "/login",
+    error: "/login"
+  },
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.isEnabled = (user as { isEnabled?: boolean }).isEnabled ?? true;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.isEnabled = (token.isEnabled as boolean) ?? true;
+      }
+      return session;
+    }
+  }
+};

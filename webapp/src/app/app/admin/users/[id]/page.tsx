@@ -9,7 +9,9 @@ import { isAdmin } from "@/lib/admin-auth";
 import { getUserPlan } from "@/lib/plans/getUserPlan";
 import { getUsageForCurrentPeriod } from "@/lib/usage";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import AdminUserPlanChange from "@/components/admin/admin-user-plan-change";
+import AdminUserEnableToggle from "@/components/admin/admin-user-enable-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +36,8 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
       stripeCustomerId: users.stripeCustomerId,
       stripeSubscriptionId: users.stripeSubscriptionId,
       trialEndsAt: users.trialEndsAt,
-      createdAt: users.createdAt
+      createdAt: users.createdAt,
+      isEnabled: users.isEnabled
     })
     .from(users)
     .where(eq(users.id, id))
@@ -80,7 +83,22 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
       <div className="rounded-lg border p-4 space-y-3 max-w-xl">
         <div>
           <span className="text-sm font-medium text-muted-foreground">Email</span>
-          <p className="font-medium">{user.email}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-medium">{user.email}</p>
+            {!user.isEnabled && (
+              <Badge variant="secondary">Pending Approval</Badge>
+            )}
+          </div>
+        </div>
+        <div>
+          <span className="text-sm font-medium text-muted-foreground">Account Status</span>
+          <div className="mt-1">
+            <AdminUserEnableToggle
+              userId={id}
+              isEnabled={user.isEnabled}
+              userEmail={user.email}
+            />
+          </div>
         </div>
         <div>
           <span className="text-sm font-medium text-muted-foreground">Current plan</span>

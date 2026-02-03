@@ -19,7 +19,7 @@ export default async function AppPage({
   const session = await getServerAuth();
 
   if (!session?.user?.id) {
-    redirect("/api/auth/signin");
+    redirect("/login");
   }
 
   const records = await db

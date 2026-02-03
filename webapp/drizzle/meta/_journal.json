@@ -43,6 +43,13 @@
       "when": 1738340000000,
       "tag": "0006_add_custom_price_override",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1738577500000,
+      "tag": "0007_add_user_is_enabled",
+      "breakpoints": true
     }
   ]
 }

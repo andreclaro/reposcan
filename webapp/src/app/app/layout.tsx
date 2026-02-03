@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Shield } from "lucide-react";
 
 import AppNav from "@/components/app-nav";
@@ -12,7 +13,19 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const session = await getServerAuth();
-  const userIsAdmin = isAdmin(session?.user?.email);
+  
+  // Redirect to login if not authenticated
+  if (!session?.user) {
+    redirect("/login");
+  }
+  
+  // Check if user is enabled (skip for admins)
+  const userIsAdmin = isAdmin(session.user.email);
+  const isEnabled = session.user.isEnabled ?? true;
+  
+  if (!isEnabled && !userIsAdmin) {
+    redirect("/login?error=AccountDisabled");
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">

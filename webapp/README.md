@@ -19,9 +19,19 @@ Copy `.env.local.example` to `.env.local` and fill in values:
 - `GITHUB_CLIENT_SECRET`
 - `NEXTAUTH_SECRET`
 - `DEV_BYPASS_AUTH` (optional, set `true` to skip GitHub login in dev)
+- `BETA_MODE_ENABLED` (optional, set `true` to require admin approval for new accounts)
+- `ADMIN_EMAIL` (comma-separated list of admin emails)
 
 When `DEV_BYPASS_AUTH=true`, the app uses a local dev user
 (`dev@local.test`) and allows direct access to `/app`.
+
+### Beta Mode
+
+When `BETA_MODE_ENABLED=true`:
+- New user accounts are created with `is_enabled=false` by default
+- Users cannot log in until an admin enables their account
+- Admins can enable/disable users from the admin dashboard (`/app/admin/users`)
+- Disabled users see a "Pending Approval" message when trying to log in
 
 GitHub OAuth callback URL for local dev:
 `http://localhost:3000/api/auth/callback/github`

@@ -147,7 +147,7 @@ export default function PlansPage() {
           </div>
           <div className="flex items-center gap-4">
             <Button asChild variant="ghost" size="sm">
-              <Link href="/api/auth/signin">Sign in</Link>
+              <Link href="/login">Sign in</Link>
             </Button>
           </div>
         </div>

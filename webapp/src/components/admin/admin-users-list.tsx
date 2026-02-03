@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 
 type UserRow = {
   id: string;
@@ -13,6 +15,7 @@ type UserRow = {
   planName: string | null;
   planCodename: string | null;
   stripeSubscriptionId: string | null;
+  isEnabled: boolean;
   usage: { scansUsed: number; scansLimit: number };
   createdAt: string | null;
 };
@@ -21,6 +24,7 @@ export default function AdminUsersList() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [updating, setUpdating] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/users")
@@ -33,6 +37,33 @@ export default function AdminUsersList() {
       .finally(() => setLoading(false));
   }, []);
 
+  const toggleEnabled = async (userId: string, currentEnabled: boolean) => {
+    setUpdating(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isEnabled: !currentEnabled })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update user");
+      }
+
+      // Update local state
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === userId ? { ...u, isEnabled: !currentEnabled } : u
+        )
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update");
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   if (loading) return <p className="text-sm text-muted-foreground">Loading users…</p>;
   if (error) return <p className="text-sm text-destructive">{error}</p>;
 
@@ -42,6 +73,7 @@ export default function AdminUsersList() {
         <thead className="bg-muted/50">
           <tr>
             <th className="text-left p-3 font-medium">Email</th>
+            <th className="text-left p-3 font-medium">Status</th>
             <th className="text-left p-3 font-medium">Plan</th>
             <th className="text-left p-3 font-medium">Usage</th>
             <th className="text-left p-3 font-medium">Subscription</th>
@@ -51,7 +83,33 @@ export default function AdminUsersList() {
         <tbody>
           {users.map((u) => (
             <tr key={u.id} className="border-t">
-              <td className="p-3">{u.email ?? u.id}</td>
+              <td className="p-3">
+                <div className="flex items-center gap-2">
+                  {u.email ?? u.id}
+                  {!u.isEnabled && (
+                    <Badge variant="secondary" className="text-xs">
+                      Pending
+                    </Badge>
+                  )}
+                </div>
+              </td>
+              <td className="p-3">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={u.isEnabled}
+                    onCheckedChange={() => toggleEnabled(u.id, u.isEnabled)}
+                    disabled={updating === u.id}
+                    aria-label={u.isEnabled ? "Disable user" : "Enable user"}
+                  />
+                  <span
+                    className={`text-xs ${
+                      u.isEnabled ? "text-green-600" : "text-amber-600"
+                    }`}
+                  >
+                    {u.isEnabled ? "Active" : "Disabled"}
+                  </span>
+                </div>
+              </td>
               <td className="p-3">{u.planName ?? "Free"}</td>
               <td className="p-3">
                 {u.usage.scansUsed} / {u.usage.scansLimit < 0 ? "∞" : u.usage.scansLimit}

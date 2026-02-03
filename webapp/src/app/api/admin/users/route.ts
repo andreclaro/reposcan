@@ -25,6 +25,7 @@ export async function GET() {
       stripeSubscriptionId: users.stripeSubscriptionId,
       trialEndsAt: users.trialEndsAt,
       createdAt: users.createdAt,
+      isEnabled: users.isEnabled,
       planName: plans.name,
       planCodename: plans.codename
     })
@@ -72,6 +73,7 @@ export async function GET() {
     stripeSubscriptionId: u.stripeSubscriptionId,
     trialEndsAt: u.trialEndsAt?.toISOString() ?? null,
     createdAt: u.createdAt?.toISOString() ?? null,
+    isEnabled: u.isEnabled,
     usage: usageByUser[u.id] ?? { scansUsed: 0, scansLimit: 5 }
   }));
 

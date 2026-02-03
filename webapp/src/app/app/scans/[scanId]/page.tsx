@@ -15,7 +15,7 @@ export default async function ScanResultsPage({ params }: PageProps) {
   const session = await getServerAuth();
 
   if (!session?.user?.id) {
-    redirect("/api/auth/signin");
+    redirect("/login");
   }
 
   // Fetch scan and verify ownership

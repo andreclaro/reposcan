@@ -149,11 +149,11 @@ export default async function HomePage() {
                   size="sm"
                   className="hidden sm:inline-flex"
                 >
-                  <Link href="/api/auth/signin/github">Sign in</Link>
+                  <Link href="/login">Sign in</Link>
                 </Button>
                 <Button asChild size="sm">
                   <Link
-                    href="/api/auth/signin/github?callbackUrl=/app"
+                    href="/login?callbackUrl=/app"
                     className="gap-2"
                   >
                     <Github className="h-4 w-4" />
@@ -206,7 +206,7 @@ export default async function HomePage() {
               <div className="mt-10 flex flex-col gap-3 sm:flex-row">
                 <Button asChild size="lg" className="h-12 px-8 text-base">
                   <Link
-                    href={isAuthed ? "/app" : "/api/auth/signin/github?callbackUrl=/app"}
+                    href={isAuthed ? "/app" : "/login?callbackUrl=/app"}
                     className="gap-2"
                   >
                     Start free scan
@@ -380,7 +380,7 @@ export default async function HomePage() {
           <div className="mt-12 text-center">
             <Button asChild size="lg" className="h-12 px-8">
               <Link
-                href={isAuthed ? "/app" : "/api/auth/signin/github?callbackUrl=/app"}
+                href={isAuthed ? "/app" : "/login?callbackUrl=/app"}
                 className="gap-2"
               >
                 Try it now
@@ -470,7 +470,7 @@ export default async function HomePage() {
                   href={
                     isAuthed
                       ? "/app"
-                      : "/api/auth/signin/github?callbackUrl=/app"
+                      : "/login?callbackUrl=/app"
                   }
                   className="gap-2"
                 >

@@ -44,7 +44,7 @@ export default async function ContactPage() {
               </>
             ) : (
               <Button asChild size="sm">
-                <Link href="/api/auth/signin/github?callbackUrl=/contact">
+                <Link href="/login?callbackUrl=/contact">
                   Sign in with GitHub
                 </Link>
               </Button>

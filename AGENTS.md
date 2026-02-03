@@ -350,6 +350,29 @@ All user inputs are validated before use:
 - `.env.local` is gitignored for local development
 - API keys validated on every request
 
+### Beta Mode / Whitelist Access
+The webapp supports a beta launch mode where new accounts require admin approval:
+
+- **Environment Variable**: `BETA_MODE_ENABLED=true` (default: `false`)
+- When enabled, new user accounts are created with `is_enabled=false` by default
+- Users see a "Pending Approval" message and cannot access the service until enabled
+- Admins (defined by `ADMIN_EMAIL`) can enable/disable users via the admin dashboard
+- Admins are always allowed to log in regardless of their `is_enabled` status
+
+**Configuration:**
+```bash
+# .env.local
+BETA_MODE_ENABLED=true
+ADMIN_EMAIL=admin@example.com,another-admin@example.com
+```
+
+**Database Migration:**
+```bash
+cd webapp
+DATABASE_URL=postgresql://... npx drizzle-kit migrate
+# Or apply manually: drizzle/0007_add_user_is_enabled.sql
+```
+
 ### Worker Isolation
 - Each scan runs in isolated temporary directory
 - Automatic cleanup after scan completion

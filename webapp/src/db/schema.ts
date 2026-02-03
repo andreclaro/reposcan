@@ -47,7 +47,9 @@ export const users = pgTable("app_user", {
   customPriceOverride: integer("custom_price_override"),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
-  trialEndsAt: timestamp("trial_ends_at", { mode: "date" })
+  trialEndsAt: timestamp("trial_ends_at", { mode: "date" }),
+  /** Beta mode: users must be enabled by admin before accessing the service */
+  isEnabled: boolean("is_enabled").notNull().default(true)
 });
 
 export const accounts = pgTable(
