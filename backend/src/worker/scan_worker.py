@@ -34,7 +34,7 @@ from audit.ai.normalizer import normalize_findings
 from audit.ai.storage import (
     store_findings,
     store_ai_analysis,
-    create_db_pool,
+    run_with_db,
     ensure_scan_record,
     update_scan_status,
     fetch_findings_for_scan,
@@ -123,24 +123,17 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
         log_step(f"{progress}% - {step}")
         if db_url:
             try:
-                async def update_progress_async():
-                    pool = await create_db_pool(db_url)
-                    async with pool.acquire() as conn:
-                        await update_scan_status(conn, scan_id, "running", progress=progress)
-                asyncio.run(update_progress_async())
+                asyncio.run(run_with_db(db_url, lambda conn: update_scan_status(conn, scan_id, "running", progress=progress)))
             except Exception as e:
                 logger.debug(f"Failed to update database progress: {e}")
     
     # Update scan status to "running" in database
     if db_url:
         try:
-            async def update_status_async():
-                pool = await create_db_pool(db_url)
-                async with pool.acquire() as conn:
-                    await ensure_scan_record(conn, scan_id, repo_url, branch, audit_types, status="running")
-                    await update_scan_status(conn, scan_id, "running", progress=0)
-            
-            asyncio.run(update_status_async())
+            async def _init_status(conn):
+                await ensure_scan_record(conn, scan_id, repo_url, branch, audit_types, status="running")
+                await update_scan_status(conn, scan_id, "running", progress=0)
+            asyncio.run(run_with_db(db_url, _init_status))
             logger.info(f"Updated scan {scan_id} status to 'running' in database")
         except Exception as e:
             logger.error(f"Failed to update scan status to 'running': {e}", exc_info=True)
@@ -179,11 +172,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                 # Update database with the detected branch
                 if db_url:
                     try:
-                        async def update_branch_async():
-                            pool = await create_db_pool(db_url)
-                            async with pool.acquire() as conn:
-                                await update_scan_status(conn, scan_id, "running", branch=branch)
-                        asyncio.run(update_branch_async())
+                        asyncio.run(run_with_db(db_url, lambda conn: update_scan_status(conn, scan_id, "running", branch=branch)))
                     except Exception as e:
                         logger.debug(f"Failed to update branch in database: {e}")
                 

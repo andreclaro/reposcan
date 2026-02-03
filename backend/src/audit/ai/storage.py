@@ -3,9 +3,11 @@ import json
 import os
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Awaitable, Callable, TypeVar
 
 import asyncpg
+
+T = TypeVar("T")
 
 from .models import Finding
 
@@ -529,6 +531,7 @@ async def update_scan_status(
 async def create_db_pool(database_url: str, max_retries: int = 5, retry_delay: float = 2.0) -> asyncpg.Pool:
     """
     Create a database connection pool with retry logic.
+    Use run_with_db() when possible so the pool is closed after use and connections are released.
     
     Args:
         database_url: PostgreSQL connection string
@@ -536,7 +539,7 @@ async def create_db_pool(database_url: str, max_retries: int = 5, retry_delay: f
         retry_delay: Delay in seconds between retries
         
     Returns:
-        asyncpg.Pool instance
+        asyncpg.Pool instance (caller must close it when done to avoid exhausting Postgres connections)
         
     Raises:
         Exception: If connection fails after all retries
@@ -544,10 +547,11 @@ async def create_db_pool(database_url: str, max_retries: int = 5, retry_delay: f
     last_error = None
     for attempt in range(1, max_retries + 1):
         try:
-            pool = await asyncpg.create_pool(database_url, min_size=1, max_size=10)
+            # Keep pool small to avoid "too many clients" when many workers/tasks run
+            pool = await asyncpg.create_pool(database_url, min_size=0, max_size=2)
             logger.debug(f"Successfully created database connection pool (attempt {attempt})")
             return pool
-        except (asyncpg.exceptions.InvalidPasswordError, 
+        except (asyncpg.exceptions.InvalidPasswordError,
                 asyncpg.exceptions.InvalidCatalogNameError) as e:
             # Don't retry on authentication/database errors
             logger.error(f"Database authentication/configuration error: {e}")
@@ -562,6 +566,22 @@ async def create_db_pool(database_url: str, max_retries: int = 5, retry_delay: f
                 await asyncio.sleep(retry_delay)
             else:
                 logger.error(f"Failed to create database pool after {max_retries} attempts: {e}")
-    
+
     # If we get here, all retries failed
     raise Exception(f"Failed to create database connection pool after {max_retries} attempts: {last_error}")
+
+
+async def run_with_db(
+    database_url: str,
+    fn: Callable[[asyncpg.Connection], Awaitable[T]],
+) -> T:
+    """
+    Create a pool, run the given async function with a connection, then close the pool.
+    Use this for one-off DB work so connections are always released and Postgres is not exhausted.
+    """
+    pool = await create_db_pool(database_url)
+    try:
+        async with pool.acquire() as conn:
+            return await fn(conn)
+    finally:
+        await pool.close()

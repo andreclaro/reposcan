@@ -1,19 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { CreditCard, Users, Scan, Wrench } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { CreditCard, Users, Scan, Wrench, ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 const adminNav: Array<{
   name: string;
-  href: "/app/admin" | "/app/admin/plans" | "/app/admin/users";
+  href: "/app/admin" | "/app/admin/plans" | "/app/admin/users" | "/app/admin/tools";
   icon: typeof Scan;
 }> = [
   { name: "Scans", href: "/app/admin", icon: Scan },
   { name: "Plans", href: "/app/admin/plans", icon: CreditCard },
-  { name: "Users", href: "/app/admin/users", icon: Users }
+  { name: "Users", href: "/app/admin/users", icon: Users },
+  { name: "Tools", href: "/app/admin/tools", icon: Wrench },
 ];
 
 type AppNavProps = {
@@ -22,12 +29,12 @@ type AppNavProps = {
 
 export default function AppNav({ isAdmin }: AppNavProps) {
   const pathname = usePathname();
+  const router = useRouter();
 
   const isOnDashboard = pathname === "/app";
   const isOnAdmin = pathname.startsWith("/app/admin");
   const isOnPlans = pathname === "/plans";
   const isOnContact = pathname === "/contact";
-  const isOnTools = pathname === "/app/tools";
 
   return (
     <nav className="flex items-center gap-4 text-sm">
@@ -64,33 +71,24 @@ export default function AppNav({ isAdmin }: AppNavProps) {
       >
         Contact
       </Link>
-      <Link
-        href="/app/tools"
-        className={cn(
-          "transition-colors",
-          isOnTools
-            ? "text-foreground font-medium"
-            : "text-muted-foreground hover:text-foreground"
-        )}
-      >
-        Tools
-      </Link>
       {isAdmin && (
-        <>
-          <Link
-            href="/app/admin"
-            className={cn(
-              "transition-colors",
-              isOnAdmin
-                ? "text-foreground font-medium"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Admin
-          </Link>
-          {isOnAdmin && (
-            <span className="flex items-center gap-2 text-muted-foreground">
-              <span className="text-border">|</span>
+        <div className="relative">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "flex items-center gap-0.5 transition-colors",
+                  isOnAdmin
+                    ? "text-foreground font-medium"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Admin
+                <ChevronDown className="size-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-40">
               {adminNav.map((item) => {
                 const Icon = item.icon;
                 const active =
@@ -98,24 +96,22 @@ export default function AppNav({ isAdmin }: AppNavProps) {
                     ? pathname === "/app/admin" || pathname === "/app/admin/"
                     : pathname.startsWith(item.href);
                 return (
-                  <Link
+                  <DropdownMenuItem
                     key={item.name}
-                    href={item.href}
+                    onClick={() => router.push(item.href)}
                     className={cn(
-                      "flex items-center gap-1 transition-colors",
-                      active
-                        ? "text-foreground font-medium"
-                        : "text-muted-foreground hover:text-foreground"
+                      "flex cursor-pointer items-center gap-2",
+                      active && "bg-accent font-medium"
                     )}
                   >
                     <Icon className="size-3.5" />
                     {item.name}
-                  </Link>
+                  </DropdownMenuItem>
                 );
               })}
-            </span>
-          )}
-        </>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       )}
     </nav>
   );
