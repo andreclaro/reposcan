@@ -1,26 +1,21 @@
-# Docker Compose Setup
+# Docker Setup Guide
 
-Simple setup to run the entire Security Audit API stack with Docker Compose.
+Run the entire Security Audit stack using Docker Compose.
 
 ## Quick Start
 
 ### Build Images
 
-Build all Docker images:
-
 ```bash
 ./scripts/build.sh
 ```
 
-Or build specific services:
-
+Build specific services:
 ```bash
 ./scripts/build.sh --api      # Build only API service
 ./scripts/build.sh --worker   # Build only worker service
 ./scripts/build.sh --no-cache # Build without cache
 ```
-
-See `./scripts/build.sh --help` for all options.
 
 ### Start All Services
 
@@ -29,14 +24,13 @@ docker-compose up -d
 ```
 
 Or build and start in one command:
-
 ```bash
 docker-compose up -d --build
 ```
 
-This starts:
-- **Redis** - Task queue broker
-- **API** - FastAPI service on port 8000
+Services started:
+- **Redis** - Task queue broker (port 6379)
+- **API** - FastAPI service (port 8000)
 - **Worker** - Celery worker for processing scans
 
 ### View Logs
@@ -57,13 +51,12 @@ docker-compose logs -f redis
 docker-compose down
 ```
 
-### Stop and Remove Volumes
-
+Remove volumes (WARNING: deletes data):
 ```bash
 docker-compose down -v
 ```
 
-## Services
+## Service Details
 
 ### Redis
 - **Port**: 6379
@@ -75,25 +68,41 @@ docker-compose down -v
 - **URL**: http://localhost:8000
 - **Docs**: http://localhost:8000/docs
 - **Volume**: Code mounted for hot-reload
-- **Environment**: 
-  - `REDIS_URL=redis://redis:6379/0`
-  - `RESULTS_DIR=/work/results`
 
 ### Worker
 - **Concurrency**: 2 workers
 - **Volume**: Code mounted, Docker socket for Trivy scans
-- **Environment**: 
-  - `REDIS_URL=redis://redis:6379/0`
-  - `RESULTS_DIR=/work/results`
 
-### Environment file (api & worker)
+## Environment Configuration
 
-API and worker load variables from **`webapp/.env.local`** via `env_file`. Values set in `environment:` in `docker-compose.yml` (e.g. `REDIS_URL`, `DATABASE_URL`) override the file.
+API and worker load variables from `webapp/.env.local` via `env_file`.
 
-- **Required**: Create `webapp/.env.local` (e.g. copy from `webapp/.env.local.example`) before `docker-compose up`, or Compose will fail.
-- Put AI (and any other) vars there: `AI_ANALYSIS_ENABLED`, `AI_PROVIDER`, `KIMI_API_KEY` (or `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`). Values in the compose `environment:` block (e.g. `REDIS_URL`, `DATABASE_URL`) override the file so container networking stays correct.
+**Required:** Create `webapp/.env.local` before starting:
+```bash
+cp webapp/.env.local.example webapp/.env.local
+# Edit with your values
+```
 
-## Usage
+Values in `docker-compose.yml` `environment:` block override the file for container networking.
+
+### Minimal Configuration
+
+```bash
+REDIS_URL=redis://redis:6379/0
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/sec_audit
+RESULTS_DIR=/work/results
+```
+
+### With AI Analysis
+
+```bash
+AI_ANALYSIS_ENABLED=true
+AI_PROVIDER=kimi
+AI_MODEL=kimi-k2.5
+KIMI_API_KEY=your_key
+```
+
+## Usage Examples
 
 ### Test the API
 
@@ -115,7 +124,7 @@ curl http://localhost:8000/scan/{scan_id}/status
 
 ### View Results
 
-Results are stored in the `results/` directory (mounted as volume `results_data`):
+Results are stored in the `results/` directory:
 
 ```bash
 # List results
@@ -129,35 +138,9 @@ cat results/{scan_id}/results.json
 
 ### Hot Reload
 
-Both API and worker services have code mounted as volumes, so changes are reflected immediately:
-
-- **API**: Uses `--reload` flag for auto-restart
+Both API and worker have code mounted as volumes:
+- **API**: Uses `--reload` flag
 - **Worker**: Restart manually: `docker-compose restart worker`
-
-### Rebuild Images
-
-**Using build script (recommended):**
-```bash
-# Rebuild all
-./scripts/build.sh
-
-# Rebuild specific service
-./scripts/build.sh --api
-./scripts/build.sh --worker
-
-# Rebuild without cache (clean build)
-./scripts/build.sh --no-cache
-```
-
-**Using docker-compose:**
-```bash
-# Rebuild all
-docker-compose build
-
-# Rebuild specific service
-docker-compose build api
-docker-compose build worker
-```
 
 ### Run Commands in Containers
 
@@ -196,8 +179,7 @@ docker-compose restart worker
 
 ### Port Already in Use
 
-If port 8000 is already in use, change it in `docker-compose.yml`:
-
+Change port in `docker-compose.yml`:
 ```yaml
 api:
   ports:
@@ -205,8 +187,6 @@ api:
 ```
 
 ### Docker Socket Permission Issues
-
-If you get permission errors with Docker-in-Docker:
 
 ```bash
 # Add your user to docker group (Linux)
@@ -216,7 +196,7 @@ sudo usermod -aG docker $USER
 
 ## Production Considerations
 
-For production, you may want to:
+For production deployments:
 
 1. Remove volume mounts (copy code into images)
 2. Use environment-specific configs
@@ -224,12 +204,3 @@ For production, you may want to:
 4. Use secrets management
 5. Enable health checks and monitoring
 6. Set up log aggregation
-
-## Environment Variables
-
-Create a `.env` file to override defaults:
-
-```bash
-REDIS_URL=redis://redis:6379/0
-RESULTS_DIR=/work/results
-```
