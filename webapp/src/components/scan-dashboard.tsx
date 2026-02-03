@@ -9,12 +9,14 @@ import {
   AlertCircle,
   CheckCircle2,
   ArrowRight,
+  Filter,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import { ScanListItem } from "./scan-list-item";
 import { parseGitHubRepo } from "@/lib/github-url";
 import { DEFAULT_AUDIT_TYPES } from "@/lib/validators";
@@ -47,6 +49,11 @@ export default function ScanDashboard({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const branchIsDirtyRef = useRef(branchIsDirty);
 
+  // Filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [findingsFilter, setFindingsFilter] = useState<string>("all");
+
   const parsedRepo = useMemo(() => parseGitHubRepo(repoUrl), [repoUrl]);
   const repoSlug = parsedRepo ? `${parsedRepo.owner}/${parsedRepo.repo}` : null;
 
@@ -71,6 +78,60 @@ export default function ScanDashboard({
     () => scans.filter((scan) => activeStatuses.has(scan.status)),
     [scans]
   );
+
+  // Filtered scans
+  const filteredScans = useMemo(() => {
+    return scans.filter((scan) => {
+      // Status filter
+      if (statusFilter !== "all" && scan.status !== statusFilter) {
+        return false;
+      }
+
+      // Findings filter
+      if (findingsFilter !== "all") {
+        const hasFindings = (scan.findingsCount ?? 0) > 0;
+        if (findingsFilter === "with-findings" && !hasFindings) {
+          return false;
+        }
+        if (findingsFilter === "no-findings" && hasFindings) {
+          return false;
+        }
+      }
+
+      // Search filter (repo URL, scan ID, commit hash)
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesRepo = scan.repoUrl.toLowerCase().includes(query);
+        const matchesScanId = scan.scanId.toLowerCase().includes(query);
+        const matchesCommit = scan.commitHash?.toLowerCase().includes(query);
+        if (!matchesRepo && !matchesScanId && !matchesCommit) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [scans, statusFilter, findingsFilter, searchQuery]);
+
+  // Status counts for stats
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    scans.forEach((scan) => {
+      counts[scan.status] = (counts[scan.status] || 0) + 1;
+    });
+    return counts;
+  }, [scans]);
+
+  const hasActiveFilters =
+    statusFilter !== "all" ||
+    findingsFilter !== "all" ||
+    searchQuery !== "";
+
+  const clearFilters = () => {
+    setStatusFilter("all");
+    setFindingsFilter("all");
+    setSearchQuery("");
+  };
 
   const startRefreshing = (scanId: string) => {
     setRefreshingScanIds((prev) => {
@@ -299,6 +360,28 @@ export default function ScanDashboard({
     </Card>
   );
 
+  // Empty filter state
+  const EmptyFilterState = () => (
+    <Card className="border-dashed border-2 bg-slate-50/50">
+      <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+        <div className="mb-4 rounded-full bg-slate-100 p-4">
+          <Filter className="h-8 w-8 text-slate-400" />
+        </div>
+        <h3 className="text-lg font-semibold text-slate-900">
+          No scans match your filters
+        </h3>
+        <p className="mt-2 max-w-sm text-sm text-slate-500">
+          Try adjusting your search or filter criteria to find what you&apos;re
+          looking for.
+        </p>
+        <Button variant="outline" onClick={clearFilters} className="mt-4">
+          <X className="mr-2 h-4 w-4" />
+          Clear all filters
+        </Button>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="space-y-8">
       {/* New Scan Form */}
@@ -347,7 +430,9 @@ export default function ScanDashboard({
                   </option>
                 ))}
                 {branchOptions.length === 0 && (
-                  <option value="">{isLoadingBranches ? "Loading..." : "Branch"}</option>
+                  <option value="">
+                    {isLoadingBranches ? "Loading..." : "Branch"}
+                  </option>
                 )}
               </select>
 
@@ -398,6 +483,101 @@ export default function ScanDashboard({
         </CardContent>
       </Card>
 
+      {/* Stats & Filters */}
+      {scans.length > 0 && (
+        <div className="space-y-4">
+          {/* Stats Cards */}
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {[
+              { key: "all", label: "All", count: scans.length },
+              { key: "queued", label: "Queued", count: statusCounts["queued"] || 0 },
+              { key: "running", label: "Running", count: statusCounts["running"] || 0 },
+              { key: "completed", label: "Completed", count: statusCounts["completed"] || 0 },
+              { key: "failed", label: "Failed", count: statusCounts["failed"] || 0 },
+              { key: "retrying", label: "Retrying", count: statusCounts["retrying"] || 0 },
+            ].map((stat) => (
+              <button
+                key={stat.key}
+                onClick={() => setStatusFilter(stat.key)}
+                className={`rounded-xl border p-3 text-left transition-all ${
+                  statusFilter === stat.key
+                    ? "border-blue-500 bg-blue-50 shadow-sm"
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                }`}
+              >
+                <div className="text-xs font-medium text-slate-500">
+                  {stat.label}
+                </div>
+                <div className="mt-1 text-xl font-bold text-slate-900">
+                  {stat.count}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Filter Bar */}
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 text-slate-500">
+                  <Filter className="h-4 w-4" />
+                  <span className="text-sm font-medium">Filters</span>
+                </div>
+
+                {/* Search Input */}
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by repo, scan ID, or commit..."
+                    className="h-9 pl-9"
+                  />
+                </div>
+
+                {/* Status Filter */}
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="queued">Queued</option>
+                  <option value="running">Running</option>
+                  <option value="completed">Completed</option>
+                  <option value="failed">Failed</option>
+                  <option value="retrying">Retrying</option>
+                </select>
+
+                {/* Findings Filter */}
+                <select
+                  value={findingsFilter}
+                  onChange={(e) => setFindingsFilter(e.target.value)}
+                  className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="all">All Scans</option>
+                  <option value="with-findings">With Findings</option>
+                  <option value="no-findings">No Findings</option>
+                </select>
+
+                {/* Clear Filters */}
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearFilters}
+                    className="h-9 gap-1 text-slate-500 hover:text-slate-900"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Scan History */}
       <div>
         <div className="mb-4 flex items-center justify-between">
@@ -406,7 +586,8 @@ export default function ScanDashboard({
               Scan history
             </h2>
             <p className="text-sm text-slate-500">
-              {scans.length} {scans.length === 1 ? "scan" : "scans"} total
+              {filteredScans.length} of {scans.length} scans
+              {hasActiveFilters && " (filtered)"}
             </p>
           </div>
           {activeScanIds.length > 0 && (
@@ -423,8 +604,10 @@ export default function ScanDashboard({
         <div className="space-y-4">
           {scans.length === 0 ? (
             <EmptyState />
+          ) : filteredScans.length === 0 ? (
+            <EmptyFilterState />
           ) : (
-            scans.map((scan) => (
+            filteredScans.map((scan) => (
               <ScanListItem
                 key={scan.scanId}
                 scan={scan}
