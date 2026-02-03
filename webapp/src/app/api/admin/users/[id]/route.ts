@@ -6,6 +6,9 @@ import { plans, usageRecords, users } from "@/db/schema";
 import { getServerAuth } from "@/lib/server-auth";
 import { isAdmin } from "@/lib/admin-auth";
 import { getUsageForCurrentPeriod } from "@/lib/usage";
+import { sendEmail, type SendEmailResult } from "@/lib/email";
+import { buildAccountApprovedEmail } from "@/lib/email-templates/account-approved";
+import { logger } from "@/lib/logger.server";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -85,9 +88,14 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     );
   }
 
-  // Check if user exists
+  // Fetch user with current state
   const [existingUser] = await db
-    .select({ id: users.id, email: users.email })
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      isEnabled: users.isEnabled,
+    })
     .from(users)
     .where(eq(users.id, id))
     .limit(1);
@@ -104,6 +112,10 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     );
   }
 
+  // Detect if this is a transition from disabled to enabled
+  const isApprovalTransition =
+    existingUser.isEnabled === false && body.isEnabled === true;
+
   // Update user
   const [updatedUser] = await db
     .update(users)
@@ -112,10 +124,39 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     .returning({
       id: users.id,
       email: users.email,
-      isEnabled: users.isEnabled
+      isEnabled: users.isEnabled,
     });
 
-  return NextResponse.json({ user: updatedUser });
+  // Send approval email if transitioning from disabled to enabled
+  let emailSent = false;
+  let emailError: string | undefined;
+
+  if (isApprovalTransition && existingUser.email) {
+    logger.info("Sending account approval email", { userId: id, email: existingUser.email });
+    const { subject, html } = buildAccountApprovedEmail({
+      userName: existingUser.name,
+    });
+    const result: SendEmailResult = await sendEmail({
+      to: existingUser.email,
+      subject,
+      html,
+    });
+
+    if ("success" in result && result.success) {
+      emailSent = true;
+    } else if ("skipped" in result && result.skipped) {
+      logger.warn("Account approval email skipped", { reason: result.reason });
+    } else if ("success" in result && !result.success) {
+      emailError = result.error;
+      logger.error("Account approval email failed", { error: result.error });
+    }
+  }
+
+  return NextResponse.json({
+    user: updatedUser,
+    emailSent,
+    ...(emailError && { emailError }),
+  });
 }
 
 export async function DELETE(_request: Request, { params }: RouteParams) {
