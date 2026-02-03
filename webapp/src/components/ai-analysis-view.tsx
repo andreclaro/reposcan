@@ -9,6 +9,7 @@ import type { TopFinding } from "@/types/findings";
 
 type AIAnalysisViewProps = {
   scanId: string;
+  initialData?: AIAnalysis | null;
 };
 
 type Recommendation = {
@@ -77,16 +78,18 @@ function RiskScoreGauge({ score }: { score: number }) {
   );
 }
 
-export default function AIAnalysisView({ scanId }: AIAnalysisViewProps) {
-  const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function AIAnalysisView({ scanId, initialData }: AIAnalysisViewProps) {
+  const [analysis, setAnalysis] = useState<AIAnalysis | null>(initialData ?? null);
+  const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
   const [regenerateMessage, setRegenerateMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchAnalysis();
-  }, [scanId]);
+    if (!initialData) {
+      fetchAnalysis();
+    }
+  }, [scanId, initialData]);
 
   const fetchAnalysis = async () => {
     setLoading(true);

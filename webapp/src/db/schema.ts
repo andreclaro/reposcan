@@ -213,3 +213,27 @@ export const stripeEvents = pgTable("stripe_event", {
   stripeEventId: text("stripe_event_id").unique().notNull(),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow()
 });
+
+// Scan sharing - public share links for scans
+export const scanShares = pgTable(
+  "scan_share",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    scanId: text("scan_id")
+      .notNull()
+      .references(() => scans.scanId, { onDelete: "cascade" }),
+    token: text("token").unique().notNull(),
+    shareType: text("share_type").notNull().default("full"), // 'full' | 'summary'
+    expiresAt: timestamp("expires_at", { mode: "date" }),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" })
+  },
+  (table) => ({
+    scanIdIdx: index("idx_scan_shares_scan_id").on(table.scanId),
+    tokenIdx: index("idx_scan_shares_token").on(table.token)
+  })
+);

@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { eq, and } from "drizzle-orm";
 
 import ScanResults from "@/components/scan-results";
+import ScanShareDialog from "@/components/scan-share-dialog";
 import { db } from "@/db";
 import { scans } from "@/db/schema";
 import { getServerAuth } from "@/lib/server-auth";
@@ -41,15 +42,18 @@ export default async function ScanResultsPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">
-          {repoOwner}/{repoName}
-        </h1>
-        {shortCommitHash && (
-          <p className="text-sm text-muted-foreground font-mono">
-            {shortCommitHash} {scan.branch ? `(${scan.branch})` : ""}
-          </p>
-        )}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold">
+            {repoOwner}/{repoName}
+          </h1>
+          {shortCommitHash && (
+            <p className="text-sm text-muted-foreground font-mono">
+              {shortCommitHash} {scan.branch ? `(${scan.branch})` : ""}
+            </p>
+          )}
+        </div>
+        <ScanShareDialog scanId={scanId} scanStatus={scan.status} />
       </div>
 
       <ScanResults
