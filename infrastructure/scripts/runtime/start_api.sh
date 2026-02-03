@@ -12,5 +12,5 @@ echo ""
 
 # Run from repo root with backend on path: PYTHONPATH=backend/src
 # Or: cd backend && pip install -e . && uvicorn api.main:app --reload --port 8000
-# Run from repo root; script lives in infrastructure/deploy/
-PYTHONPATH="${PYTHONPATH:-}:$(cd "$(dirname "$0")/../.." && pwd)/backend/src" uvicorn api.main:app --reload --port 8000
+# Run from repo root; script lives in infrastructure/scripts/runtime/
+PYTHONPATH="${PYTHONPATH:-}:$(cd "$(dirname "$0")/../../.." && pwd)/backend/src" uvicorn api.main:app --reload --port 8000

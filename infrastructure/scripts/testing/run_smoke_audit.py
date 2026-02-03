@@ -3,8 +3,8 @@
 Run audit CLI with the smoke-test CSV and verify expected output files exist.
 
 Usage:
-  python infrastructure/deploy/run_smoke_audit.py [--csv PATH] [--repos DIR]
-  python infrastructure/deploy/run_smoke_audit.py --verify-only --audit DIR
+  python infrastructure/scripts/testing/run_smoke_audit.py [--csv PATH] [--repos DIR]
+  python infrastructure/scripts/testing/run_smoke_audit.py --verify-only --audit DIR
 
 Without --verify-only: runs audit (audit output is cwd/audit), then verifies.
 With --verify-only: only checks the given audit directory for expected files.
@@ -68,12 +68,12 @@ def verify_audit_dir(audit_dir: Path) -> bool:
 def main() -> int:
     root = Path.cwd().resolve()
     parser = argparse.ArgumentParser(description="Run smoke-test audit and verify output.")
-    deploy_dir = Path(__file__).resolve().parent
+    scripts_dir = Path(__file__).resolve().parent.parent
     parser.add_argument(
         "--csv",
         type=Path,
-        default=deploy_dir / "repositories_smoke_test.csv",
-        help="Path to repositories CSV (default: infrastructure/deploy/repositories_smoke_test.csv)",
+        default=scripts_dir / "fixtures" / "repositories_smoke_test.csv",
+        help="Path to repositories CSV (default: infrastructure/scripts/fixtures/repositories_smoke_test.csv)",
     )
     parser.add_argument(
         "--repos",

@@ -31,9 +31,9 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
-# Get script directory and project root (script lives in infrastructure/deploy/)
+# Get script directory and project root (script lives in infrastructure/scripts/deployment/)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 # Change to project root
 cd "$PROJECT_ROOT"
@@ -66,7 +66,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help)
-            echo "Usage: ./infrastructure/deploy/build.sh [OPTIONS]"
+            echo "Usage: ./infrastructure/scripts/deployment/build.sh [OPTIONS]"
             echo ""
             echo "Options:"
             echo "  --api       Build only the API service image"
@@ -76,9 +76,9 @@ while [[ $# -gt 0 ]]; do
             echo "  --help      Show this help message"
             echo ""
             echo "Examples:"
-            echo "  ./infrastructure/deploy/build.sh                 # Build all images"
-            echo "  ./infrastructure/deploy/build.sh --api          # Build only API image"
-            echo "  ./infrastructure/deploy/build.sh --no-cache     # Build all images without cache"
+            echo "  ./infrastructure/scripts/deployment/build.sh                 # Build all images"
+            echo "  ./infrastructure/scripts/deployment/build.sh --api          # Build only API image"
+            echo "  ./infrastructure/scripts/deployment/build.sh --no-cache     # Build all images without cache"
             exit 0
             ;;
         *)
