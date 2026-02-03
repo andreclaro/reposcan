@@ -4,7 +4,7 @@
  * Usage: DATABASE_URL=postgresql://... node scripts/apply-migration.mjs [migration_name]
  * Example: node scripts/apply-migration.mjs 0003_add_billing
  * Loads .env.local or .env from webapp root if DATABASE_URL is not set.
- * Default migration: 0003_add_billing (billing schema)
+ * Default migration: 0000_schema (full schema)
  */
 import postgres from "postgres";
 import { readFileSync, existsSync } from "fs";
@@ -39,8 +39,9 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
-const migrationName = process.argv[2] || "0003_add_billing";
-const migrationFile = join(__dirname, "../drizzle", `${migrationName}.sql`);
+const migrationName = process.argv[2] || "0000_schema";
+const baseName = migrationName.endsWith(".sql") ? migrationName : `${migrationName}.sql`;
+const migrationFile = join(__dirname, "../drizzle", baseName);
 
 if (!existsSync(migrationFile)) {
   console.error(`Error: Migration file not found: ${migrationFile}`);

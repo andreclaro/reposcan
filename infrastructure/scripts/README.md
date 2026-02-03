@@ -73,7 +73,28 @@ Test data files used by testing scripts.
 Scripts for system maintenance and cleanup.
 
 - **`maintenance/fix_disk_space.sh`** - Clean up disk space by removing old data
-- **`maintenance/purge_dbs.py`** - Purge old database records
+- **`maintenance/purge_dbs.py`** - Purge all data from PostgreSQL and Redis (full reset)
+- **`maintenance/prune_db_tables.py`** - Prune old database rows by retention (scans, findings, optional sessions/tokens/stripe events)
+- **`maintenance/seed_plans.py`** - Seed default subscription plans (Free, Pro, Custom) if missing
+  ```bash
+  # Dry run: show what would be deleted (scans older than 90 days)
+  python infrastructure/scripts/maintenance/prune_db_tables.py --older-than-days 90 --dry-run
+
+  # Prune scans (and related findings, ai_analysis, scan_share) older than 90 days
+  python infrastructure/scripts/maintenance/prune_db_tables.py --older-than-days 90 --confirm
+
+  # Also prune expired sessions and verification tokens, and old stripe_event rows
+  python infrastructure/scripts/maintenance/prune_db_tables.py --older-than-days 90 --prune-sessions --prune-verification-tokens --prune-stripe-events --confirm
+  ```
+
+- **`maintenance/seed_plans.py`** - Seed default subscription plans (Free, Pro, Custom) if missing
+  ```bash
+  # Dry run: show what would be inserted
+  python infrastructure/scripts/maintenance/seed_plans.py --dry-run
+
+  # Insert default plans where codename is missing
+  python infrastructure/scripts/maintenance/seed_plans.py --confirm
+  ```
 
 ## Monitoring Scripts
 
