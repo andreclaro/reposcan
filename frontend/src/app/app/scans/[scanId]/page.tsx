@@ -76,6 +76,11 @@ export default async function ScanResultsPage({ params }: PageProps) {
               infoCount={scan.infoCount ?? 0}
               branch={scan.branch}
               commitHash={scan.commitHash}
+              scanDate={
+                scan.createdAt
+                  ? new Date(scan.createdAt).toISOString().slice(0, 10)
+                  : null
+              }
             />
           )}
           <ScanShareDialog scanId={scanId} scanStatus={scan.status} />

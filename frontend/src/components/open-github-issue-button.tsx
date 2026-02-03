@@ -23,6 +23,8 @@ export type OpenGitHubIssueButtonProps = {
   infoCount?: number;
   branch?: string | null;
   commitHash?: string | null;
+  /** Scan date for title and context (e.g. "2026-02-03" or formatted string). */
+  scanDate?: string | null;
   /** When true, button is disabled (e.g. scan not completed). */
   disabled?: boolean;
   className?: string;
@@ -41,6 +43,7 @@ function buildDefaultIssueBody(props: {
   infoCount?: number;
   branch?: string | null;
   commitHash?: string | null;
+  scanDate?: string | null;
   origin?: string;
 }): string {
   const lines: string[] = [
@@ -68,16 +71,17 @@ function buildDefaultIssueBody(props: {
     lines.push("");
   }
 
-  if (props.branch || props.commitHash) {
+  if (props.branch || props.commitHash || props.scanDate) {
     lines.push("### Scan context");
     lines.push("");
     if (props.branch) lines.push(`- Branch: \`${props.branch}\``);
     if (props.commitHash) lines.push(`- Commit: \`${props.commitHash}\``);
+    if (props.scanDate) lines.push(`- Date: ${props.scanDate}`);
     lines.push("");
   }
 
   lines.push("---");
-  lines.push("*Please add any additional context or priority above.*");
+  lines.push("*Powered by [SecurityKit](https://securitykit.dev)*");
   return lines.join("\n");
 }
 
@@ -98,14 +102,24 @@ export default function OpenGitHubIssueButton({
   infoCount = 0,
   branch = null,
   commitHash = null,
+  scanDate = null,
   disabled = false,
   className,
 }: OpenGitHubIssueButtonProps) {
   const parsed = repoUrl ? parseGitHubRepo(repoUrl) : null;
 
+  const defaultTitle = (() => {
+    const base = "Security scan findings";
+    const shortHash = commitHash ? commitHash.slice(0, 7) : null;
+    if (shortHash && scanDate) return `${base} (${shortHash} · ${scanDate})`;
+    if (shortHash) return `${base} (${shortHash})`;
+    if (scanDate) return `${base} (${scanDate})`;
+    return base;
+  })();
+
   const handleClick = useCallback(() => {
     if (!parsed) return;
-    const title = issueTitle ?? "Security scan findings";
+    const title = issueTitle ?? defaultTitle;
     const body =
       issueBody ??
       buildDefaultIssueBody({
@@ -118,6 +132,7 @@ export default function OpenGitHubIssueButton({
         infoCount,
         branch,
         commitHash,
+        scanDate,
         origin: window.location.origin,
       });
     const url = new URL(
@@ -130,6 +145,7 @@ export default function OpenGitHubIssueButton({
     parsed,
     issueTitle,
     issueBody,
+    defaultTitle,
     scanId,
     findingsCount,
     criticalCount,
@@ -139,6 +155,7 @@ export default function OpenGitHubIssueButton({
     infoCount,
     branch,
     commitHash,
+    scanDate,
   ]);
 
   if (!parsed) {
