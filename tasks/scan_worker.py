@@ -155,7 +155,17 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             tmpdir_path = Path(tmpdir)
             repo_path = tmpdir_path / safe_repo_slug(repo_url)
             
-            # Step 1: Clone repository
+            # Step 1: Test network connectivity to GitHub
+            logger.info(f"Testing network connectivity before cloning...")
+            try:
+                import socket
+                sock = socket.create_connection(("github.com", 443), timeout=10)
+                sock.close()
+                logger.info("Network connectivity to github.com:443 OK")
+            except Exception as e:
+                logger.warning(f"Network connectivity test failed: {e}")
+            
+            # Step 2: Clone repository
             logger.info(f"Cloning {repo_url} to {repo_path}")
             try:
                 # Clone and capture the actual branch used (may be auto-detected)

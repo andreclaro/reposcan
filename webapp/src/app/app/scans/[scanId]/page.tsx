@@ -30,9 +30,10 @@ export default async function ScanResultsPage({ params }: PageProps) {
   }
 
   const scan = scanRecords[0];
-  const repoPath =
-    scan.repoUrl?.split("github.com/")[1]?.replace(/\.git$/, "") ??
-    scan.repoUrl;
+  const repoName =
+    scan.repoUrl?.split("/").pop()?.replace(/\.git$/, "") ??
+    "Repository";
+  const repoOwner = scan.repoUrl?.split("/").slice(-2)[0] ?? "";
   const shortCommitHash = scan.commitHash ? scan.commitHash.slice(0, 7) : null;
 
   const aiAnalysisEnabled =
@@ -40,7 +41,16 @@ export default async function ScanResultsPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Scan Results</h1>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold">
+          {repoOwner}/{repoName}
+        </h1>
+        {shortCommitHash && (
+          <p className="text-sm text-muted-foreground font-mono">
+            {shortCommitHash} {scan.branch ? `(${scan.branch})` : ""}
+          </p>
+        )}
+      </div>
 
       <ScanResults
         scanId={scanId}

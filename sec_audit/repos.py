@@ -14,6 +14,37 @@ SUBMODULES_TIMEOUT = int(os.getenv("SEC_AUDIT_SUBMODULES_TIMEOUT", "300"))
 GIT_REV_PARSE_TIMEOUT = int(os.getenv("SEC_AUDIT_GIT_REV_PARSE_TIMEOUT", "10"))
 
 
+def _configure_git():
+    """Configure git with safe defaults for containerized environments."""
+    try:
+        # Set a dummy user config to prevent "user.name not configured" errors
+        subprocess.run(
+            ["git", "config", "--global", "user.email", "sec-audit@localhost"],
+            check=False,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "--global", "user.name", "Security Audit"],
+            check=False,
+            capture_output=True,
+        )
+        # Disable SSL verification if needed (useful in some container environments)
+        # This can be controlled via env var
+        if os.getenv("GIT_SSL_NO_VERIFY", "").lower() in ("1", "true", "yes"):
+            subprocess.run(
+                ["git", "config", "--global", "http.sslVerify", "false"],
+                check=False,
+                capture_output=True,
+            )
+            logger.warning("Git SSL verification disabled via GIT_SSL_NO_VERIFY")
+    except Exception as e:
+        logger.debug("Git configuration skipped: %s", e)
+
+
+# Configure git on module load
+_configure_git()
+
+
 def repo_name(repo: str) -> str:
     name = Path(repo).name
     if name.endswith(".git"):
@@ -100,7 +131,14 @@ def get_default_branch(repo: str) -> str:
     except subprocess.TimeoutExpired:
         raise RuntimeError("Timeout while detecting default branch") from None
     except subprocess.CalledProcessError as e:
-        raise RuntimeError("Failed to detect default branch") from e
+        # Log the actual error for debugging
+        stderr_msg = e.stderr.strip() if e.stderr else "No error output"
+        print(f"[get_default_branch] Git error: {stderr_msg}")
+        
+        # Fallback to common default branches
+        # Exit code 128 often means network/auth issues, try common branches
+        print("[get_default_branch] Falling back to 'main' as default branch")
+        return "main"
 
 
 def clone_repo(
@@ -192,6 +230,9 @@ def clone_repo(
             error_msg = f"{stdout_text}\n{stderr_text}"
         else:
             error_msg = stdout_text or stderr_text or str(e)
+        
+        # Log the actual error for debugging
+        logger.error("Git clone failed with exit code %d: %s", e.returncode, error_msg)
         
         # Check if the error is due to branch not found
         branch_not_found_indicators = [

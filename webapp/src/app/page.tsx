@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { useSession } from "next-auth/react";
 import {
   ArrowRight,
   CheckCircle2,
@@ -18,6 +19,7 @@ import {
   Scan,
   FileSearch,
   Sparkles,
+  User,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -150,6 +152,9 @@ const slideInRight = {
 };
 
 export default function HomePage() {
+  const { data: session, status } = useSession();
+  const isAuthenticated = status === "authenticated";
+
   return (
     <div className="relative min-h-screen">
       {/* Navigation */}
@@ -189,23 +194,47 @@ export default function HomePage() {
             </Link>
           </nav>
           <div className="flex items-center gap-3">
-            <Button
-              asChild
-              variant="ghost"
-              size="sm"
-              className="hidden sm:inline-flex"
-            >
-              <Link href="/login">Sign in</Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link
-                href="/login?callbackUrl=/app"
-                className="gap-2"
-              >
-                <Github className="h-4 w-4" />
-                Get Started
-              </Link>
-            </Button>
+            {isAuthenticated ? (
+              <>
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="sm"
+                  className="hidden sm:inline-flex gap-2"
+                >
+                  <Link href="/app">
+                    <User className="h-4 w-4" />
+                    {session?.user?.email?.split("@")[0] || "Account"}
+                  </Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link href="/app" className="gap-2">
+                    <LayoutDashboard className="h-4 w-4" />
+                    Open dashboard
+                  </Link>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="sm"
+                  className="hidden sm:inline-flex"
+                >
+                  <Link href="/login">Sign in</Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link
+                    href="/login?callbackUrl=/app"
+                    className="gap-2"
+                  >
+                    <Github className="h-4 w-4" />
+                    Get Started
+                  </Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </motion.header>
@@ -258,7 +287,7 @@ export default function HomePage() {
                 transition={{ duration: 0.5, delay: 0.4 }}
                 className="mt-10 w-full max-w-3xl"
               >
-                <HeroScanForm isAuthed={false} />
+                <HeroScanForm isAuthed={isAuthenticated} />
               </motion.div>
 
               {/* Social Proof */}
@@ -445,10 +474,10 @@ export default function HomePage() {
           <FadeIn delay={0.3} className="mt-12 text-center">
             <Button asChild size="lg" className="h-12 px-8">
               <Link
-                href="/login?callbackUrl=/app"
+                href={isAuthenticated ? "/app" : "/login?callbackUrl=/app"}
                 className="gap-2"
               >
-                Try it now
+                {isAuthenticated ? "Open dashboard" : "Try it now"}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
@@ -552,10 +581,10 @@ export default function HomePage() {
                   className="h-12 bg-white px-8 text-base text-blue-600 hover:bg-blue-50"
                 >
                   <Link
-                    href="/login?callbackUrl=/app"
+                    href={isAuthenticated ? "/app" : "/login?callbackUrl=/app"}
                     className="gap-2"
                   >
-                    Start scanning for free
+                    {isAuthenticated ? "Open dashboard" : "Start scanning for free"}
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>

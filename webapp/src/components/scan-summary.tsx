@@ -89,129 +89,105 @@ export default function ScanSummary({ scan }: ScanSummaryProps) {
   const isRunning = scan.status === "running" || scan.status === "queued";
 
   return (
-    <div className="space-y-6">
-      {/* Repository Info Card */}
+    <div className="space-y-4">
+      {/* Compact Repository Info Card */}
       <Card className="overflow-hidden border-0 shadow-sm">
-        <CardHeader className="bg-slate-50/50 pb-4">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-700">
-            <GitBranch className="h-4 w-4" />
-            Repository Information
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-4">
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="space-y-4">
+        <CardContent className="p-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* Repository & Branch */}
+            <div className="space-y-2">
               <div>
                 <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
                   Repository
                 </label>
-                <div className="mt-1">
+                <div className="mt-0.5">
                   {githubUrl ? (
                     <a
                       href={githubUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-900 hover:text-blue-600"
+                      className="inline-flex items-center gap-1 text-sm font-medium text-slate-900 hover:text-blue-600 truncate max-w-[250px]"
                     >
-                      {scan.repoUrl}
-                      <ExternalLink className="h-3.5 w-3.5" />
+                      {scan.repoUrl.replace(/^https:\/\//, "")}
+                      <ExternalLink className="h-3 w-3 flex-shrink-0" />
                     </a>
                   ) : (
-                    <span className="text-sm font-medium text-slate-900">
+                    <span className="text-sm font-medium text-slate-900 truncate max-w-[250px] block">
                       {scan.repoUrl}
                     </span>
                   )}
                 </div>
               </div>
-
-              <div className="flex flex-wrap gap-6">
+              <div className="flex items-center gap-3">
                 {scan.branch && (
-                  <div className="flex items-center gap-2">
-                    <GitBranch className="h-4 w-4 text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500">Branch</p>
-                      <p className="text-sm font-medium text-slate-900">
-                        {scan.branch}
-                      </p>
-                    </div>
+                  <div className="flex items-center gap-1">
+                    <GitBranch className="h-3 w-3 text-slate-400" />
+                    <span className="text-sm text-slate-700">{scan.branch}</span>
                   </div>
                 )}
-
                 {scan.commitHash && (
-                  <div className="flex items-center gap-2">
-                    <GitCommit className="h-4 w-4 text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500">Commit</p>
-                      <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono text-slate-700">
-                        {scan.commitHash.substring(0, 7)}
-                      </code>
-                    </div>
+                  <div className="flex items-center gap-1">
+                    <GitCommit className="h-3 w-3 text-slate-400" />
+                    <code className="rounded bg-slate-100 px-1 text-xs font-mono text-slate-700">
+                      {scan.commitHash.substring(0, 7)}
+                    </code>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    Status
-                  </label>
-                  <div className="mt-1">
-                    <StatusBadge status={scan.status} />
-                  </div>
+            {/* Status & Progress */}
+            <div className="space-y-2">
+              <div>
+                <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Status
+                </label>
+                <div className="mt-0.5">
+                  <StatusBadge status={scan.status} />
                 </div>
-
-                {displayProgress !== null && (
-                  <div>
-                    <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                      Progress
-                    </label>
-                    <div className="mt-1 flex items-center gap-2">
-                      <span className="text-sm font-medium text-slate-900">
-                        {displayProgress}%
-                      </span>
-                      {isRunning && (
-                        <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                      )}
-                    </div>
-                    {/* Progress Bar */}
-                    <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                      <div
-                        className={cn(
-                          "h-full transition-all duration-500",
-                          isRunning ? "bg-blue-500" : "bg-emerald-500"
-                        )}
-                        style={{ width: `${displayProgress}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              {displayProgress !== null && (
                 <div>
-                  <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    Created
-                  </label>
-                  <div className="mt-1 flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                    <span className="text-sm text-slate-700">
-                      {formatDate(scan.createdAt)}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-slate-500">Progress:</span>
+                    <span className="text-sm font-medium text-slate-900">
+                      {displayProgress}%
                     </span>
+                    {isRunning && (
+                      <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
+                    )}
+                  </div>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                    <div
+                      className={cn(
+                        "h-full transition-all duration-500",
+                        isRunning ? "bg-blue-500" : "bg-emerald-500"
+                      )}
+                      style={{ width: `${displayProgress}%` }}
+                    />
                   </div>
                 </div>
+              )}
+            </div>
 
+            {/* Created & Updated */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-3 w-3 text-slate-400" />
                 <div>
-                  <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    Updated
-                  </label>
-                  <div className="mt-1 flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5 text-slate-400" />
-                    <span className="text-sm text-slate-700">
-                      {formatDate(scan.updatedAt)}
-                    </span>
-                  </div>
+                  <span className="text-xs text-slate-500">Created: </span>
+                  <span className="text-sm text-slate-700">
+                    {formatDate(scan.createdAt)}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock className="h-3 w-3 text-slate-400" />
+                <div>
+                  <span className="text-xs text-slate-500">Updated: </span>
+                  <span className="text-sm text-slate-700">
+                    {formatDate(scan.updatedAt)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -219,26 +195,26 @@ export default function ScanSummary({ scan }: ScanSummaryProps) {
         </CardContent>
       </Card>
 
-      {/* Findings Summary Card */}
+      {/* Compact Findings Summary Card */}
       <Card className="overflow-hidden border-0 shadow-sm">
-        <CardHeader className="bg-slate-50/50 pb-4">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-700">
+        <CardHeader className="bg-slate-50/50 py-3 px-4">
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold text-slate-700">
             <AlertCircle className="h-4 w-4" />
             Findings Summary
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-4">
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500">Total vulnerabilities found</p>
-              <p className="text-3xl font-bold text-slate-900">
+        <CardContent className="p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-baseline gap-2">
+              <span className="text-sm text-slate-500">Total vulnerabilities:</span>
+              <span className="text-2xl font-bold text-slate-900">
                 {scan.findingsCount ?? 0}
-              </p>
+              </span>
             </div>
             {totalFindings === 0 && scan.status === "completed" && (
-              <div className="flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2">
-                <ShieldCheck className="h-5 w-5 text-emerald-600" />
-                <span className="font-medium text-emerald-700">
+              <div className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1">
+                <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                <span className="text-sm font-medium text-emerald-700">
                   No issues found
                 </span>
               </div>
@@ -247,28 +223,24 @@ export default function ScanSummary({ scan }: ScanSummaryProps) {
 
           {totalFindings > 0 && (
             <>
-              <Separator className="mb-6" />
+              <Separator className="mb-4" />
 
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {/* Compact severity grid */}
+              <div className="grid grid-cols-5 gap-2">
                 {severityCounts.map(({ label, count, key }) => (
                   <div
                     key={label}
                     className={cn(
-                      "relative overflow-hidden rounded-xl border p-4 transition-all",
+                      "relative overflow-hidden rounded-lg border p-2 text-center transition-all",
                       count && count > 0
                         ? "bg-white shadow-sm"
                         : "bg-slate-50/50"
                     )}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-600">
-                        {label}
-                      </span>
-                      <SeverityBadge severity={key} showIcon={false} size="sm" />
-                    </div>
+                    <div className="text-xs font-medium text-slate-500">{label}</div>
                     <p
                       className={cn(
-                        "mt-2 text-2xl font-bold",
+                        "text-xl font-bold",
                         key === "critical" && count && count > 0
                           ? "text-red-600"
                           : key === "high" && count && count > 0
@@ -282,7 +254,7 @@ export default function ScanSummary({ scan }: ScanSummaryProps) {
                     {count && count > 0 && (
                       <div
                         className={cn(
-                          "absolute bottom-0 left-0 h-1",
+                          "absolute bottom-0 left-0 h-0.5",
                           key === "critical" && "bg-red-500",
                           key === "high" && "bg-orange-500",
                           key === "medium" && "bg-yellow-500",
@@ -298,9 +270,9 @@ export default function ScanSummary({ scan }: ScanSummaryProps) {
                 ))}
               </div>
 
-              {/* Visual Bar Chart */}
-              <div className="mt-6">
-                <div className="flex h-4 overflow-hidden rounded-full">
+              {/* Compact Visual Bar Chart */}
+              <div className="mt-4">
+                <div className="flex h-3 overflow-hidden rounded-full">
                   {scan.criticalCount ? (
                     <div
                       className="bg-red-500"
@@ -341,22 +313,6 @@ export default function ScanSummary({ scan }: ScanSummaryProps) {
                       }}
                     />
                   ) : null}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-3 text-xs">
-                  {[
-                    scan.criticalCount ? { color: "bg-red-500", label: "Critical" } : null,
-                    scan.highCount ? { color: "bg-orange-500", label: "High" } : null,
-                    scan.mediumCount ? { color: "bg-yellow-500", label: "Medium" } : null,
-                    scan.lowCount ? { color: "bg-blue-500", label: "Low" } : null,
-                    scan.infoCount ? { color: "bg-slate-400", label: "Info" } : null,
-                  ]
-                    .filter((item): item is { color: string; label: string } => item !== null)
-                    .map((item) => (
-                      <div key={item.label} className="flex items-center gap-1.5">
-                        <span className={`h-2 w-2 rounded-full ${item.color}`} />
-                        <span className="text-slate-500">{item.label}</span>
-                      </div>
-                    ))}
                 </div>
               </div>
             </>
