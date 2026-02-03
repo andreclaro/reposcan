@@ -1,17 +1,18 @@
+"use client";
+
 import Link from "next/link";
 import Image from "next/image";
+import { motion } from "framer-motion";
 import {
   ArrowRight,
   CheckCircle2,
   Github,
   Shield,
-  Lock,
   Bug,
   Container,
   Package,
   LayoutDashboard,
   Zap,
-  ChevronRight,
   ExternalLink,
   Link2,
   Scan,
@@ -23,8 +24,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { DEV_BYPASS_AUTH } from "@/lib/dev-auth";
-import { getServerAuth } from "@/lib/server-auth";
+import HeroScanForm from "@/components/hero-scan-form";
+import {
+  FadeIn,
+  SlideInLeft,
+  SlideInRight,
+  ScaleIn,
+  StaggerContainer,
+  StaggerItem,
+} from "@/components/animated-section";
 
 // Feature data with enhanced descriptions
 const features = [
@@ -87,22 +95,70 @@ const howItWorks = [
   },
 ];
 
-// Trust indicators
-const trustBadges = [
-  { icon: Shield, text: "SOC 2 Compliant" },
-  { icon: Lock, text: "GDPR Ready" },
-  { icon: CheckCircle2, text: "Open Source Tools" },
-];
+// Animation variants
+const fadeInUp = {
+  hidden: { opacity: 0, y: 30 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { duration: 0.6, ease: [0.25, 0.1, 0.25, 1] as const }
+  },
+};
 
-export default async function HomePage() {
-  const session = await getServerAuth();
-  const isAuthed = Boolean(session?.user?.id);
-  const isDevBypass = DEV_BYPASS_AUTH;
+const fadeIn = {
+  hidden: { opacity: 0 },
+  visible: { 
+    opacity: 1,
+    transition: { duration: 0.6, ease: [0.25, 0.1, 0.25, 1] as const }
+  },
+};
 
+const staggerContainer = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const staggerItem = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { duration: 0.5, ease: [0.25, 0.1, 0.25, 1] as const }
+  },
+};
+
+const slideInLeft = {
+  hidden: { opacity: 0, x: -50 },
+  visible: { 
+    opacity: 1, 
+    x: 0,
+    transition: { duration: 0.6, ease: [0.25, 0.1, 0.25, 1] as const }
+  },
+};
+
+const slideInRight = {
+  hidden: { opacity: 0, x: 50 },
+  visible: { 
+    opacity: 1, 
+    x: 0,
+    transition: { duration: 0.6, ease: [0.25, 0.1, 0.25, 1] as const }
+  },
+};
+
+export default function HomePage() {
   return (
     <div className="relative min-h-screen">
       {/* Navigation */}
-      <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
+      <motion.header 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md"
+      >
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900">
@@ -133,38 +189,26 @@ export default async function HomePage() {
             </Link>
           </nav>
           <div className="flex items-center gap-3">
-            {isDevBypass ? (
-              <Button asChild size="sm">
-                <Link href="/app">Continue in dev mode</Link>
-              </Button>
-            ) : isAuthed ? (
-              <Button asChild size="sm">
-                <Link href="/app">Open dashboard</Link>
-              </Button>
-            ) : (
-              <>
-                <Button
-                  asChild
-                  variant="ghost"
-                  size="sm"
-                  className="hidden sm:inline-flex"
-                >
-                  <Link href="/login">Sign in</Link>
-                </Button>
-                <Button asChild size="sm">
-                  <Link
-                    href="/login?callbackUrl=/app"
-                    className="gap-2"
-                  >
-                    <Github className="h-4 w-4" />
-                    Get Started
-                  </Link>
-                </Button>
-              </>
-            )}
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="hidden sm:inline-flex"
+            >
+              <Link href="/login">Sign in</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link
+                href="/login?callbackUrl=/app"
+                className="gap-2"
+              >
+                <Github className="h-4 w-4" />
+                Get Started
+              </Link>
+            </Button>
           </div>
         </div>
-      </header>
+      </motion.header>
 
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-b from-slate-50 to-white pb-16 pt-20 sm:pb-24 sm:pt-32">
@@ -172,68 +216,69 @@ export default async function HomePage() {
           <div className="grid gap-12 lg:grid-cols-2 lg:gap-8 items-center">
             {/* Left Content */}
             <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-              <Badge
-                variant="secondary"
-                className="mb-6 w-fit gap-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100"
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 }}
               >
-                <Sparkles className="h-3.5 w-3.5" />
-                Now with AI-powered analysis
-              </Badge>
-              <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
+                <Badge
+                  variant="secondary"
+                  className="mb-6 w-fit gap-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Now with AI-powered analysis
+                </Badge>
+              </motion.div>
+              
+              <motion.h1 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="max-w-3xl text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl"
+              >
                 Ship code with{" "}
                 <span className="text-blue-600">confidence</span>
-              </h1>
-              <p className="mt-6 max-w-2xl text-lg text-slate-600">
+              </motion.h1>
+              
+              <motion.p 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                className="mt-6 max-w-2xl text-lg text-slate-600"
+              >
                 Catch vulnerabilities before they reach production. Automated
                 security scanning for your code, dependencies, containers, and
                 infrastructure — all in one unified platform.
-              </p>
+              </motion.p>
 
-              {/* Trust Badges */}
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-4 lg:justify-start">
-                {trustBadges.map((badge) => (
-                  <div
-                    key={badge.text}
-                    className="flex items-center gap-1.5 text-sm text-slate-500"
-                  >
-                    <badge.icon className="h-4 w-4 text-emerald-600" />
-                    <span>{badge.text}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* CTA Buttons */}
-              <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-                <Button asChild size="lg" className="h-12 px-8 text-base">
-                  <Link
-                    href={isAuthed ? "/app" : "/login?callbackUrl=/app"}
-                    className="gap-2"
-                  >
-                    Start free scan
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  variant="outline"
-                  size="lg"
-                  className="h-12 px-8 text-base"
-                >
-                  <Link href="/plans" className="gap-2">
-                    View pricing
-                    <ChevronRight className="h-4 w-4" />
-                  </Link>
-                </Button>
-              </div>
+              {/* Scan Form */}
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.4 }}
+                className="mt-10 w-full max-w-3xl"
+              >
+                <HeroScanForm isAuthed={false} />
+              </motion.div>
 
               {/* Social Proof */}
-              <p className="mt-6 text-sm text-slate-500">
-                Free forever for open source. No credit card required.
-              </p>
+              <motion.p 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5, delay: 0.5 }}
+                className="mt-6 text-sm text-slate-500"
+              >
+                Free forever for public repositories. No credit card required.
+              </motion.p>
             </div>
 
             {/* Right Content - Hero Illustration */}
-            <div className="relative flex items-center justify-center lg:justify-end">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.7, delay: 0.3 }}
+              className="relative flex items-center justify-center lg:justify-end"
+            >
               <div className="relative w-full max-w-lg">
                 <div className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-blue-100 to-indigo-100 opacity-50 blur-2xl" />
                 <Image
@@ -245,13 +290,19 @@ export default async function HomePage() {
                   priority
                 />
               </div>
-            </div>
+            </motion.div>
           </div>
         </div>
       </section>
 
       {/* Stats Bar */}
-      <section className="border-y bg-white">
+      <motion.section 
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: "-100px" }}
+        variants={staggerContainer}
+        className="border-y bg-white"
+      >
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 gap-8 py-8 md:grid-cols-4">
             {[
@@ -260,21 +311,25 @@ export default async function HomePage() {
               { value: "99.9%", label: "Uptime guaranteed" },
               { value: "5 min", label: "Average scan time" },
             ].map((stat) => (
-              <div key={stat.label} className="text-center">
+              <motion.div 
+                key={stat.label} 
+                variants={staggerItem}
+                className="text-center"
+              >
                 <div className="text-2xl font-bold text-slate-900 sm:text-3xl">
                   {stat.value}
                 </div>
                 <div className="mt-1 text-sm text-slate-500">{stat.label}</div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Features Grid */}
       <section id="features" className="bg-slate-50 py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
+          <FadeIn className="text-center">
             <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
               Comprehensive security coverage
             </h2>
@@ -282,37 +337,42 @@ export default async function HomePage() {
               One platform, multiple scanners. We run the best open-source
               security tools so you don&apos;t have to.
             </p>
-          </div>
+          </FadeIn>
 
-          <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-100px" }}
+            variants={staggerContainer}
+            className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4"
+          >
             {features.map((feature) => (
-              <Card
-                key={feature.title}
-                className="group relative overflow-hidden border-0 bg-white shadow-sm transition-shadow hover:shadow-md"
-              >
-                <CardContent className="p-6">
-                  <div
-                    className={`mb-4 flex h-12 w-12 items-center justify-center rounded-xl ${feature.bgColor}`}
-                  >
-                    <feature.icon className={`h-6 w-6 ${feature.color}`} />
-                  </div>
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    {feature.title}
-                  </h3>
-                  <p className="mt-2 text-sm text-slate-600">
-                    {feature.description}
-                  </p>
-                </CardContent>
-              </Card>
+              <motion.div key={feature.title} variants={staggerItem}>
+                <Card className="group relative overflow-hidden border-0 bg-white shadow-sm transition-shadow hover:shadow-md h-full">
+                  <CardContent className="p-6">
+                    <div
+                      className={`mb-4 flex h-12 w-12 items-center justify-center rounded-xl ${feature.bgColor}`}
+                    >
+                      <feature.icon className={`h-6 w-6 ${feature.color}`} />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      {feature.title}
+                    </h3>
+                    <p className="mt-2 text-sm text-slate-600">
+                      {feature.description}
+                    </p>
+                  </CardContent>
+                </Card>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
-      {/* How It Works - Improved Design */}
+      {/* How It Works */}
       <section id="how-it-works" className="bg-white py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
+          <FadeIn className="text-center">
             <Badge className="mb-4 bg-blue-50 text-blue-700 hover:bg-blue-100">
               Simple workflow
             </Badge>
@@ -322,80 +382,85 @@ export default async function HomePage() {
             <p className="mt-4 text-lg text-slate-600">
               Get your first security scan in under 5 minutes
             </p>
-          </div>
+          </FadeIn>
 
           <div className="mt-16 grid gap-8 lg:grid-cols-3">
             {howItWorks.map((step, index) => (
-              <Card
+              <motion.div
                 key={step.step}
-                className="relative overflow-hidden border-0 bg-slate-50 shadow-none"
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.5, delay: index * 0.15 }}
               >
-                {/* Step Number Background */}
-                <div className="absolute -right-4 -top-4 text-8xl font-bold text-slate-100/50">
-                  {step.step}
-                </div>
-                
-                <CardContent className="relative p-8">
-                  {/* Step Badge */}
-                  <div className="mb-6 flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-200">
-                      <step.icon className="h-6 w-6" />
+                <Card className="relative overflow-hidden border-0 bg-slate-50 shadow-none h-full">
+                  {/* Step Number Background */}
+                  <div className="absolute -right-4 -top-4 text-8xl font-bold text-slate-100/50">
+                    {step.step}
+                  </div>
+                  
+                  <CardContent className="relative p-8">
+                    {/* Step Badge */}
+                    <div className="mb-6 flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-200">
+                        <step.icon className="h-6 w-6" />
+                      </div>
+                      <Badge variant="secondary" className="text-xs font-medium">
+                        Step {step.step}
+                      </Badge>
                     </div>
-                    <Badge variant="secondary" className="text-xs font-medium">
-                      Step {step.step}
-                    </Badge>
-                  </div>
 
-                  <h3 className="text-xl font-semibold text-slate-900">
-                    {step.title}
-                  </h3>
-                  <p className="mt-2 text-slate-600">
-                    {step.description}
-                  </p>
+                    <h3 className="text-xl font-semibold text-slate-900">
+                      {step.title}
+                    </h3>
+                    <p className="mt-2 text-slate-600">
+                      {step.description}
+                    </p>
 
-                  {/* Details List */}
-                  <ul className="mt-6 space-y-3">
-                    {step.details.map((detail, idx) => (
-                      <li key={idx} className="flex items-center gap-3 text-sm text-slate-600">
-                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100">
-                          <CheckCircle2 className="h-3 w-3 text-blue-600" />
-                        </div>
-                        {detail}
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
+                    {/* Details List */}
+                    <ul className="mt-6 space-y-3">
+                      {step.details.map((detail, idx) => (
+                        <li key={idx} className="flex items-center gap-3 text-sm text-slate-600">
+                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100">
+                            <CheckCircle2 className="h-3 w-3 text-blue-600" />
+                          </div>
+                          {detail}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
 
-                {/* Connector Line (hidden on last item and mobile) */}
-                {index < howItWorks.length - 1 && (
-                  <div className="hidden lg:block absolute top-1/2 -right-4 w-8">
-                    <ArrowRight className="h-6 w-6 text-slate-300" />
-                  </div>
-                )}
-              </Card>
+                  {/* Connector Line (hidden on last item and mobile) */}
+                  {index < howItWorks.length - 1 && (
+                    <div className="hidden lg:block absolute top-1/2 -right-4 w-8">
+                      <ArrowRight className="h-6 w-6 text-slate-300" />
+                    </div>
+                  )}
+                </Card>
+              </motion.div>
             ))}
           </div>
 
           {/* Bottom CTA */}
-          <div className="mt-12 text-center">
+          <FadeIn delay={0.3} className="mt-12 text-center">
             <Button asChild size="lg" className="h-12 px-8">
               <Link
-                href={isAuthed ? "/app" : "/login?callbackUrl=/app"}
+                href="/login?callbackUrl=/app"
                 className="gap-2"
               >
                 Try it now
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
-          </div>
+          </FadeIn>
         </div>
       </section>
 
       {/* AI Analysis Feature */}
-      <section className="bg-slate-900 py-20 sm:py-28">
+      <section className="bg-slate-900 py-20 sm:py-28 overflow-hidden">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-12 lg:grid-cols-2 items-center">
-            <div>
+            <SlideInLeft>
               <Badge className="mb-4 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20">
                 New
               </Badge>
@@ -407,44 +472,57 @@ export default async function HomePage() {
                 insights. Get prioritized recommendations and understand the
                 real impact of each vulnerability.
               </p>
-              <ul className="mt-8 space-y-4">
+              <motion.ul 
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true }}
+                variants={staggerContainer}
+                className="mt-8 space-y-4"
+              >
                 {[
                   "Risk scoring from 0-100",
                   "Executive summary generation",
                   "Prioritized fix recommendations",
                   "Effort estimation for remediation",
                 ].map((item) => (
-                  <li key={item} className="flex items-center gap-3">
+                  <motion.li 
+                    key={item} 
+                    variants={staggerItem}
+                    className="flex items-center gap-3"
+                  >
                     <CheckCircle2 className="h-5 w-5 text-emerald-400" />
                     <span className="text-slate-300">{item}</span>
-                  </li>
+                  </motion.li>
                 ))}
-              </ul>
-            </div>
-            <div className="relative rounded-2xl bg-slate-800 p-8">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-300">
-                    Risk Score
-                  </span>
-                  <span className="text-2xl font-bold text-red-400">72</span>
-                </div>
-                <div className="h-2 rounded-full bg-slate-700">
-                  <div className="h-full w-[72%] rounded-full bg-gradient-to-r from-yellow-500 to-red-500" />
-                </div>
-                <p className="text-sm text-red-400">High Risk</p>
-                <div className="mt-6 rounded-xl bg-slate-900/50 p-4">
-                  <p className="text-sm font-medium text-slate-300">
-                    Executive Summary
-                  </p>
-                  <p className="mt-2 text-sm text-slate-400">
-                    This scan identified 12 vulnerabilities across 3 severity
-                    levels. The critical SQL injection in user-auth.js requires
-                    immediate attention...
-                  </p>
+              </motion.ul>
+            </SlideInLeft>
+            
+            <SlideInRight>
+              <div className="relative rounded-2xl bg-slate-800 p-8">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-slate-300">
+                      Risk Score
+                    </span>
+                    <span className="text-2xl font-bold text-red-400">72</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-slate-700">
+                    <div className="h-full w-[72%] rounded-full bg-gradient-to-r from-yellow-500 to-red-500" />
+                  </div>
+                  <p className="text-sm text-red-400">High Risk</p>
+                  <div className="mt-6 rounded-xl bg-slate-900/50 p-4">
+                    <p className="text-sm font-medium text-slate-300">
+                      Executive Summary
+                    </p>
+                    <p className="mt-2 text-sm text-slate-400">
+                      This scan identified 12 vulnerabilities across 3 severity
+                      levels. The critical SQL injection in user-auth.js requires
+                      immediate attention...
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
+            </SlideInRight>
           </div>
         </div>
       </section>
@@ -452,49 +530,59 @@ export default async function HomePage() {
       {/* Pricing CTA */}
       <section className="bg-white py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-700 px-6 py-16 text-center sm:px-16 sm:py-20">
-            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Ready to secure your code?
-            </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-blue-100">
-              Start scanning for free. Upgrade when you need more scans or
-              advanced features.
-            </p>
-            <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-              <Button
-                asChild
-                size="lg"
-                className="h-12 bg-white px-8 text-base text-blue-600 hover:bg-blue-50"
+          <ScaleIn>
+            <div className="rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-700 px-6 py-16 text-center sm:px-16 sm:py-20">
+              <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                Ready to secure your code?
+              </h2>
+              <p className="mx-auto mt-4 max-w-2xl text-lg text-blue-100">
+                Start scanning for free. Upgrade when you need more scans or
+                advanced features.
+              </p>
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.2 }}
+                className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row"
               >
-                <Link
-                  href={
-                    isAuthed
-                      ? "/app"
-                      : "/login?callbackUrl=/app"
-                  }
-                  className="gap-2"
+                <Button
+                  asChild
+                  size="lg"
+                  className="h-12 bg-white px-8 text-base text-blue-600 hover:bg-blue-50"
                 >
-                  Start scanning for free
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                className="h-12 border-2 border-white bg-transparent px-8 text-base text-white hover:bg-white/10"
-              >
-                <Link href="/plans">View pricing</Link>
-              </Button>
+                  <Link
+                    href="/login?callbackUrl=/app"
+                    className="gap-2"
+                  >
+                    Start scanning for free
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  size="lg"
+                  className="h-12 border-2 border-white bg-transparent px-8 text-base text-white hover:bg-white/10"
+                >
+                  <Link href="/plans">View pricing</Link>
+                </Button>
+              </motion.div>
+              <p className="mt-6 text-sm text-blue-200">
+                No credit card required. 5 free scans per month.
+              </p>
             </div>
-            <p className="mt-6 text-sm text-blue-200">
-              No credit card required. 5 free scans per month.
-            </p>
-          </div>
+          </ScaleIn>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t bg-slate-50">
+      <motion.footer 
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.5 }}
+        className="border-t bg-slate-50"
+      >
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="grid gap-8 md:grid-cols-3">
             <div className="space-y-4">
@@ -579,7 +667,7 @@ export default async function HomePage() {
             </p>
           </div>
         </div>
-      </footer>
+      </motion.footer>
     </div>
   );
 }

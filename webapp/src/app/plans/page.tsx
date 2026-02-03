@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   Check,
   Shield,
@@ -13,6 +14,7 @@ import {
   Users,
   Clock,
   ArrowRight,
+  User,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -129,6 +131,8 @@ const trustBadges = [
 
 export default function PlansPage() {
   const [isYearly, setIsYearly] = useState(true);
+  const { data: session, status } = useSession();
+  const isAuthenticated = status === "authenticated";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -146,9 +150,18 @@ export default function PlansPage() {
             </Link>
           </div>
           <div className="flex items-center gap-4">
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/login">Sign in</Link>
-            </Button>
+            {isAuthenticated ? (
+              <Button asChild variant="ghost" size="sm" className="gap-2">
+                <Link href="/app">
+                  <User className="h-4 w-4" />
+                  Dashboard
+                </Link>
+              </Button>
+            ) : (
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/login">Sign in</Link>
+              </Button>
+            )}
           </div>
         </div>
       </header>

@@ -117,3 +117,36 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
   return NextResponse.json({ user: updatedUser });
 }
+
+export async function DELETE(_request: Request, { params }: RouteParams) {
+  const session = await getServerAuth();
+  if (!session?.user?.email || !isAdmin(session.user.email)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
+  const { id } = await params;
+
+  // Check if user exists
+  const [existingUser] = await db
+    .select({ id: users.id, email: users.email })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+
+  if (!existingUser) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  // Prevent admins from deleting their own account
+  if (existingUser.email === session.user.email) {
+    return NextResponse.json(
+      { error: "Cannot delete your own account" },
+      { status: 400 }
+    );
+  }
+
+  // Delete user (cascades to scans, findings, accounts, sessions via FK constraints)
+  await db.delete(users).where(eq(users.id, id));
+
+  return NextResponse.json({ success: true });
+}

@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Shield } from "lucide-react";
+import { Shield, User } from "lucide-react";
 
 import AppNav from "@/components/app-nav";
 import SignOutButton from "@/components/sign-out-button";
+import { Button } from "@/components/ui/button";
 import { getServerAuth } from "@/lib/server-auth";
 import { isAdmin } from "@/lib/admin-auth";
 
@@ -47,6 +48,12 @@ export default async function AppLayout({
             <div className="hidden text-sm text-slate-500 sm:block">
               {session?.user?.email}
             </div>
+            <Button asChild variant="ghost" size="sm" className="gap-2">
+              <Link href="/app/profile">
+                <User className="h-4 w-4" />
+                Profile
+              </Link>
+            </Button>
             <SignOutButton />
           </div>
         </div>
