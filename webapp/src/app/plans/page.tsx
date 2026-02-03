@@ -1,46 +1,70 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
-import { Check, Shield, Zap, Building2, HelpCircle } from "lucide-react";
+import {
+  Check,
+  Shield,
+  Zap,
+  Building2,
+  HelpCircle,
+  Sparkles,
+  Lock,
+  Users,
+  Clock,
+  ArrowRight,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import AppNav from "@/components/app-nav";
-import SignOutButton from "@/components/sign-out-button";
-import { getServerAuth } from "@/lib/server-auth";
-import { isAdmin } from "@/lib/admin-auth";
+import { Switch } from "@/components/ui/switch";
 
-export const metadata = {
-  title: "Plans & Pricing - SecurityKit",
-  description:
-    "Simple, transparent pricing for security scanning. Free for open source, affordable for teams."
-};
+interface Tier {
+  name: string;
+  icon: React.ElementType;
+  price: { monthly: number | null; yearly: number | null };
+  description: string;
+  scansPerMonth: string;
+  cta: string;
+  href: "/app" | "/contact";
+  featured: boolean;
+  features: string[];
+  notIncluded?: string[];
+  savings?: string;
+}
 
-const tiers = [
+const tiers: Tier[] = [
   {
     name: "Free",
     icon: Shield,
-    price: { monthly: "€0", yearly: null },
+    price: { monthly: 0, yearly: 0 },
     description: "Perfect for open source projects and evaluation",
     scansPerMonth: "5",
     cta: "Get started free",
-    href: "/app" as const,
+    href: "/app",
     featured: false,
     features: [
       "5 scans per month",
-      "Public repositories",
+      "Public repositories only",
       "All security scanners",
       "Basic reporting",
-      "Community support"
-    ]
+      "Community support",
+    ],
+    notIncluded: [
+      "AI-powered analysis",
+      "PDF/JSON exports",
+      "Scheduled scans",
+    ],
   },
   {
     name: "Pro",
     icon: Zap,
-    price: { monthly: "€29", yearly: "€290" },
+    price: { monthly: 29, yearly: 290 },
     description: "For professional developers and small teams",
     scansPerMonth: "50",
-    cta: "Start 14-day trial",
-    href: "/app" as const,
+    cta: "Start 14-day free trial",
+    href: "/app",
     featured: true,
     features: [
       "50 scans per month",
@@ -49,17 +73,18 @@ const tiers = [
       "Export reports (PDF/JSON)",
       "Email notifications",
       "Scheduled scans",
-      "Priority support"
-    ]
+      "Priority support",
+    ],
+    savings: "Save €58",
   },
   {
     name: "Enterprise",
     icon: Building2,
-    price: { monthly: "Custom", yearly: null },
+    price: { monthly: null, yearly: null },
     description: "For organizations with advanced security needs",
     scansPerMonth: "Unlimited",
     cta: "Contact sales",
-    href: "/contact" as const,
+    href: "/contact",
     featured: false,
     features: [
       "Unlimited scans",
@@ -68,37 +93,42 @@ const tiers = [
       "Custom security policies",
       "SSO & advanced auth",
       "SLA guarantee",
-      "Dedicated support"
-    ]
-  }
+      "Dedicated support",
+    ],
+  },
 ];
 
 const faqs = [
   {
     question: "What happens when I exceed my scan limit?",
     answer:
-      "You'll be notified when you approach your limit. You can upgrade anytime to get more scans, or wait until your monthly quota resets."
+      "You'll be notified when you approach your limit. You can upgrade anytime to get more scans, or wait until your monthly quota resets.",
   },
   {
     question: "Can I cancel my subscription anytime?",
     answer:
-      "Yes, you can cancel or downgrade at any time. Your subscription will remain active until the end of your billing period."
+      "Yes, you can cancel or downgrade at any time. Your subscription will remain active until the end of your billing period.",
   },
   {
     question: "Do you offer refunds?",
     answer:
-      "We offer a 14-day free trial for Pro plans. If you're not satisfied, you can cancel before being charged."
+      "We offer a 14-day free trial for Pro plans. If you're not satisfied, you can cancel before being charged.",
   },
   {
     question: "What's included in the free plan?",
     answer:
-      "The free plan includes 5 scans per month on public repositories with access to all our security scanners and basic reporting."
-  }
+      "The free plan includes 5 scans per month on public repositories with access to all our security scanners and basic reporting.",
+  },
 ];
 
-export default async function PlansPage() {
-  const session = await getServerAuth();
-  const userIsAdmin = isAdmin(session?.user?.email);
+const trustBadges = [
+  { icon: Clock, text: "14-day free trial" },
+  { icon: Lock, text: "Cancel anytime" },
+  { icon: Users, text: "No credit card required" },
+];
+
+export default function PlansPage() {
+  const [isYearly, setIsYearly] = useState(true);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -114,33 +144,22 @@ export default async function PlansPage() {
                 SecurityKit
               </span>
             </Link>
-            <AppNav isAdmin={userIsAdmin} />
           </div>
           <div className="flex items-center gap-4">
-            {session?.user?.email ? (
-              <>
-                <div className="hidden text-sm text-slate-500 sm:block">
-                  {session.user.email}
-                </div>
-                <SignOutButton />
-              </>
-            ) : (
-              <Button asChild size="sm">
-                <Link href="/api/auth/signin/github?callbackUrl=/plans">
-                  Sign in with GitHub
-                </Link>
-              </Button>
-            )}
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/api/auth/signin">Sign in</Link>
+            </Button>
           </div>
         </div>
       </header>
 
       <main>
         {/* Hero Section */}
-        <section className="bg-white border-b py-16 sm:py-24">
+        <section className="bg-white border-b py-12 sm:py-16">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
-            <Badge className="mb-4 bg-blue-50 text-blue-700 hover:bg-blue-100">
-              Simple pricing
+            <Badge className="mb-4 bg-blue-50 text-blue-700 hover:bg-blue-100 border-0">
+              <Sparkles className="w-3 h-3 mr-1" />
+              Simple, transparent pricing
             </Badge>
             <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
               Choose your plan
@@ -149,68 +168,113 @@ export default async function PlansPage() {
               Start free and scale as you grow. All plans include access to our
               full suite of security scanners.
             </p>
+
+            {/* Billing Toggle */}
+            <div className="mt-8 flex items-center justify-center gap-3">
+              <span
+                className={`text-sm font-medium ${
+                  !isYearly ? "text-slate-900" : "text-slate-500"
+                }`}
+              >
+                Monthly
+              </span>
+              <Switch
+                checked={isYearly}
+                onCheckedChange={setIsYearly}
+                className="data-[state=checked]:bg-blue-600"
+              />
+              <span
+                className={`text-sm font-medium ${
+                  isYearly ? "text-slate-900" : "text-slate-500"
+                }`}
+              >
+                Yearly
+              </span>
+              <Badge
+                variant="secondary"
+                className="ml-2 bg-emerald-100 text-emerald-700 border-0"
+              >
+                Save 17%
+              </Badge>
+            </div>
           </div>
         </section>
 
         {/* Pricing Cards */}
-        <section className="py-16 sm:py-24">
+        <section className="py-12 sm:py-16">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="grid gap-8 lg:grid-cols-3">
+            <div className="grid gap-6 lg:grid-cols-3 lg:gap-8">
               {tiers.map((tier) => (
                 <Card
                   key={tier.name}
-                  className={`relative flex flex-col overflow-hidden ${
+                  className={`relative flex flex-col h-full ${
                     tier.featured
-                      ? "border-2 border-blue-600 shadow-xl shadow-blue-100"
-                      : "border border-slate-200 shadow-sm"
+                      ? "border-2 border-blue-600 shadow-2xl shadow-blue-100 scale-105 z-10"
+                      : "border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
                   }`}
                 >
                   {tier.featured && (
-                    <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-medium px-3 py-1 rounded-bl-lg">
-                      Most popular
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                      <Badge className="bg-blue-600 text-white border-0 px-3 py-1 text-xs font-semibold">
+                        Most popular
+                      </Badge>
                     </div>
                   )}
-                  <CardContent className="flex flex-col flex-1 p-6 sm:p-8">
+                  <CardContent className="flex flex-col flex-1 p-6">
                     {/* Header */}
-                    <div className="mb-6">
+                    <div className="mb-5">
                       <div
-                        className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl ${
-                          tier.featured ? "bg-blue-100" : "bg-slate-100"
+                        className={`mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg ${
+                          tier.featured
+                            ? "bg-blue-100 text-blue-600"
+                            : "bg-slate-100 text-slate-600"
                         }`}
                       >
-                        <tier.icon
-                          className={`h-6 w-6 ${
-                            tier.featured ? "text-blue-600" : "text-slate-600"
-                          }`}
-                        />
+                        <tier.icon className="h-5 w-5" />
                       </div>
-                      <h2 className="text-xl font-semibold text-slate-900">
+                      <h2 className="text-lg font-semibold text-slate-900">
                         {tier.name}
                       </h2>
-                      <p className="mt-2 text-sm text-slate-500">
+                      <p className="mt-1 text-sm text-slate-500">
                         {tier.description}
                       </p>
                     </div>
 
                     {/* Price */}
-                    <div className="mb-6">
+                    <div className="mb-5">
                       <div className="flex items-baseline gap-1">
-                        <span className="text-4xl font-bold text-slate-900">
-                          {tier.price.monthly}
-                        </span>
-                        {tier.price.monthly !== "Custom" && (
-                          <span className="text-slate-500">/month</span>
+                        {tier.price.monthly === null ? (
+                          <span className="text-3xl font-bold text-slate-900">
+                            Custom
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-3xl font-bold text-slate-900">
+                              €
+                              {isYearly && tier.price.yearly
+                                ? Math.round(tier.price.yearly / 12)
+                                : tier.price.monthly}
+                            </span>
+                            <span className="text-slate-500">/month</span>
+                          </>
                         )}
                       </div>
-                      {tier.price.yearly && (
+                      {tier.featured && isYearly && tier.price.yearly && tier.price.monthly && (
                         <p className="mt-1 text-sm text-slate-500">
-                          {tier.price.yearly} billed yearly{" "}
-                          <span className="text-emerald-600 font-medium">
-                            (Save €58)
+                          <span className="line-through text-slate-400">
+                            €{tier.price.monthly * 12} yearly
+                          </span>
+                          <span className="ml-1 text-emerald-600 font-medium">
+                            €{tier.price.yearly} billed yearly
                           </span>
                         </p>
                       )}
-                      <div className="mt-4 inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                      {tier.featured && !isYearly && (
+                        <p className="mt-1 text-sm text-slate-500">
+                          Billed monthly
+                        </p>
+                      )}
+                      <div className="mt-3 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
                         {tier.scansPerMonth} scans/month
                       </div>
                     </div>
@@ -218,7 +282,7 @@ export default async function PlansPage() {
                     {/* CTA */}
                     <Button
                       asChild
-                      className={`w-full mb-8 ${
+                      className={`w-full mb-5 ${
                         tier.featured
                           ? "bg-blue-600 hover:bg-blue-700 text-white"
                           : "bg-slate-900 hover:bg-slate-800 text-white"
@@ -226,19 +290,22 @@ export default async function PlansPage() {
                     >
                       <Link href={tier.href}>
                         {tier.cta}
+                        {tier.featured && (
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        )}
                       </Link>
                     </Button>
 
                     {/* Features */}
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-slate-900 mb-4">
+                      <p className="text-xs font-semibold text-slate-900 uppercase tracking-wide mb-3">
                         What&apos;s included:
                       </p>
-                      <ul className="space-y-3">
+                      <ul className="space-y-2.5">
                         {tier.features.map((feature) => (
                           <li
                             key={feature}
-                            className="flex items-start gap-3 text-sm text-slate-600"
+                            className="flex items-start gap-2.5 text-sm text-slate-600"
                           >
                             <Check
                               className={`mt-0.5 h-4 w-4 flex-shrink-0 ${
@@ -257,8 +324,21 @@ export default async function PlansPage() {
               ))}
             </div>
 
+            {/* Trust Badges */}
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-6">
+              {trustBadges.map((badge) => (
+                <div
+                  key={badge.text}
+                  className="flex items-center gap-2 text-sm text-slate-500"
+                >
+                  <badge.icon className="h-4 w-4 text-slate-400" />
+                  <span>{badge.text}</span>
+                </div>
+              ))}
+            </div>
+
             {/* Note */}
-            <p className="mt-8 text-center text-sm text-slate-500">
+            <p className="mt-6 text-center text-sm text-slate-500">
               All prices in EUR. Taxes may apply. Need a custom plan?{" "}
               <Link href="/contact" className="text-blue-600 hover:underline">
                 Contact us
@@ -268,9 +348,9 @@ export default async function PlansPage() {
         </section>
 
         {/* Feature Comparison */}
-        <section className="border-t bg-white py-16 sm:py-24">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-12">
+        <section className="border-t bg-white py-12 sm:py-16">
+          <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-10">
               <h2 className="text-2xl font-bold text-slate-900">
                 Compare plans
               </h2>
@@ -283,46 +363,125 @@ export default async function PlansPage() {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-6 py-4 text-left font-semibold text-slate-900">
+                    <th className="px-6 py-4 text-left font-semibold text-slate-900 w-2/5">
                       Feature
                     </th>
-                    <th className="px-6 py-4 text-center font-semibold text-slate-900">
+                    <th className="px-4 py-4 text-center font-semibold text-slate-900">
                       Free
                     </th>
-                    <th className="px-6 py-4 text-center font-semibold text-slate-900 bg-blue-50/50">
+                    <th className="px-4 py-4 text-center font-semibold text-slate-900 bg-blue-50/50">
                       Pro
                     </th>
-                    <th className="px-6 py-4 text-center font-semibold text-slate-900">
+                    <th className="px-4 py-4 text-center font-semibold text-slate-900">
                       Enterprise
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {[
-                    { name: "Scans per month", free: "5", pro: "50", enterprise: "Unlimited" },
-                    { name: "Public repositories", free: "✓", pro: "✓", enterprise: "✓" },
-                    { name: "Private repositories", free: "—", pro: "✓", enterprise: "✓" },
-                    { name: "All security scanners", free: "✓", pro: "✓", enterprise: "✓" },
-                    { name: "AI analysis", free: "—", pro: "✓", enterprise: "✓" },
-                    { name: "PDF/JSON exports", free: "—", pro: "✓", enterprise: "✓" },
-                    { name: "Scheduled scans", free: "—", pro: "✓", enterprise: "✓" },
-                    { name: "API access", free: "—", pro: "—", enterprise: "✓" },
-                    { name: "SSO", free: "—", pro: "—", enterprise: "✓" },
-                    { name: "Custom policies", free: "—", pro: "—", enterprise: "✓" },
-                    { name: "Support", free: "Community", pro: "Priority", enterprise: "Dedicated" },
+                    {
+                      name: "Scans per month",
+                      free: "5",
+                      pro: "50",
+                      enterprise: "Unlimited",
+                    },
+                    {
+                      name: "Public repositories",
+                      free: "✓",
+                      pro: "✓",
+                      enterprise: "✓",
+                    },
+                    {
+                      name: "Private repositories",
+                      free: "—",
+                      pro: "✓",
+                      enterprise: "✓",
+                    },
+                    {
+                      name: "All security scanners",
+                      free: "✓",
+                      pro: "✓",
+                      enterprise: "✓",
+                    },
+                    {
+                      name: "AI analysis",
+                      free: "—",
+                      pro: "✓",
+                      enterprise: "✓",
+                    },
+                    {
+                      name: "PDF/JSON exports",
+                      free: "—",
+                      pro: "✓",
+                      enterprise: "✓",
+                    },
+                    {
+                      name: "Scheduled scans",
+                      free: "—",
+                      pro: "✓",
+                      enterprise: "✓",
+                    },
+                    {
+                      name: "Email notifications",
+                      free: "—",
+                      pro: "✓",
+                      enterprise: "✓",
+                    },
+                    {
+                      name: "API access",
+                      free: "—",
+                      pro: "—",
+                      enterprise: "✓",
+                    },
+                    {
+                      name: "SSO / SAML",
+                      free: "—",
+                      pro: "—",
+                      enterprise: "✓",
+                    },
+                    {
+                      name: "Custom policies",
+                      free: "—",
+                      pro: "—",
+                      enterprise: "✓",
+                    },
+                    {
+                      name: "Support",
+                      free: "Community",
+                      pro: "Priority",
+                      enterprise: "Dedicated",
+                    },
                   ].map((row) => (
                     <tr key={row.name} className="hover:bg-slate-50/50">
-                      <td className="px-6 py-4 font-medium text-slate-900">
+                      <td className="px-6 py-3.5 font-medium text-slate-900">
                         {row.name}
                       </td>
-                      <td className="px-6 py-4 text-center text-slate-600">
-                        {row.free}
+                      <td className="px-4 py-3.5 text-center text-slate-600">
+                        {row.free === "✓" ? (
+                          <Check className="h-4 w-4 text-emerald-600 mx-auto" />
+                        ) : row.free === "—" ? (
+                          <span className="text-slate-300">—</span>
+                        ) : (
+                          row.free
+                        )}
                       </td>
-                      <td className="px-6 py-4 text-center text-slate-900 bg-blue-50/30 font-medium">
-                        {row.pro}
+                      <td className="px-4 py-3.5 text-center text-slate-900 bg-blue-50/30 font-medium">
+                        {row.pro === "✓" ? (
+                          <Check className="h-4 w-4 text-blue-600 mx-auto" />
+                        ) : row.pro === "—" ? (
+                          <span className="text-slate-300">—</span>
+                        ) : (
+                          row.pro
+                        )}
                       </td>
-                      <td className="px-6 py-4 text-center text-slate-600">
-                        {row.enterprise}
+                      <td className="px-4 py-3.5 text-center text-slate-600">
+                        {row.enterprise === "✓" ? (
+                          <Check className="h-4 w-4 text-emerald-600 mx-auto" />
+                        ) : row.enterprise === "—" ? (
+                          <span className="text-slate-300">—</span>
+                        ) : (
+                          row.enterprise
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -333,25 +492,25 @@ export default async function PlansPage() {
         </section>
 
         {/* FAQ */}
-        <section className="border-t py-16 sm:py-24">
+        <section className="border-t py-12 sm:py-16">
           <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-12">
+            <div className="text-center mb-10">
               <h2 className="text-2xl font-bold text-slate-900">
                 Frequently asked questions
               </h2>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {faqs.map((faq, index) => (
                 <Card key={index} className="border-0 shadow-sm">
-                  <CardContent className="p-6">
+                  <CardContent className="p-5">
                     <div className="flex gap-4">
                       <HelpCircle className="h-5 w-5 flex-shrink-0 text-blue-600" />
                       <div>
                         <h3 className="font-medium text-slate-900">
                           {faq.question}
                         </h3>
-                        <p className="mt-2 text-sm text-slate-600">
+                        <p className="mt-1.5 text-sm text-slate-600">
                           {faq.answer}
                         </p>
                       </div>
@@ -364,7 +523,10 @@ export default async function PlansPage() {
             <div className="mt-8 text-center">
               <p className="text-slate-600">
                 Have more questions?{" "}
-                <Link href="/contact" className="text-blue-600 hover:underline font-medium">
+                <Link
+                  href="/contact"
+                  className="text-blue-600 hover:underline font-medium"
+                >
                   Contact our team
                 </Link>
               </p>
@@ -374,7 +536,7 @@ export default async function PlansPage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t bg-white py-12">
+      <footer className="border-t bg-white py-10">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
             <div className="flex items-center gap-2">
