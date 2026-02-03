@@ -61,3 +61,31 @@ export async function getCommitShaForBranch(
   const commitData = (await commitsRes.json()) as { sha?: string };
   return commitData.sha ?? null;
 }
+
+/**
+ * Check whether the repository has issues enabled via GitHub API.
+ * Returns false on any failure (missing token for private repo, 404, rate limit, etc.).
+ */
+export async function getRepoHasIssues(
+  owner: string,
+  repo: string
+): Promise<boolean> {
+  const token = process.env.GITHUB_TOKEN;
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github.v3+json",
+    "User-Agent": "sec-audit-repos-frontend"
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(
+    `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
+    { headers, next: { revalidate: 0 } }
+  );
+  if (!res.ok) {
+    return false;
+  }
+  const data = (await res.json()) as { has_issues?: boolean };
+  return data.has_issues === true;
+}

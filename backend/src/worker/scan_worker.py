@@ -216,64 +216,57 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             # Check for cached scan with same repo_url + commit_hash
             if db_url and commit_hash and not force_rescan:
                 try:
-                    async def check_cache_async():
-                        pool = await create_db_pool(db_url)
-                        async with pool.acquire() as conn:
-                            # Look for a completed scan with same repo + commit
-                            cached = await conn.fetchrow(
-                                """
-                                SELECT scan_id, results_path, findings_count,
-                                       critical_count, high_count, medium_count, low_count, info_count
-                                FROM scan
-                                WHERE repo_url = $1
-                                  AND commit_hash = $2
-                                  AND status = 'completed'
-                                ORDER BY created_at DESC
-                                LIMIT 1
-                                """,
-                                repo_url,
-                                commit_hash
-                            )
-                            return cached
+                    async def check_cache(conn):
+                        return await conn.fetchrow(
+                            """
+                            SELECT scan_id, results_path, findings_count,
+                                   critical_count, high_count, medium_count, low_count, info_count
+                            FROM scan
+                            WHERE repo_url = $1
+                              AND commit_hash = $2
+                              AND status = 'completed'
+                            ORDER BY created_at DESC
+                            LIMIT 1
+                            """,
+                            repo_url,
+                            commit_hash,
+                        )
 
-                    cached_scan = asyncio.run(check_cache_async())
+                    cached_scan = asyncio.run(run_with_db(db_url, check_cache))
 
                     if cached_scan:
                         logger.info(f"Found cached scan {cached_scan['scan_id']} for {repo_url}@{commit_hash}")
 
-                        # Update current scan to reference cached results
-                        async def update_to_cached_async():
-                            pool = await create_db_pool(db_url)
-                            async with pool.acquire() as conn:
-                                await ensure_scan_record(conn, scan_id, repo_url, branch, audit_types, status="completed")
-                                await conn.execute(
-                                    """
-                                    UPDATE scan SET
-                                        status = 'completed',
-                                        progress = 100,
-                                        commit_hash = $2,
-                                        results_path = $3,
-                                        findings_count = $4,
-                                        critical_count = $5,
-                                        high_count = $6,
-                                        medium_count = $7,
-                                        low_count = $8,
-                                        info_count = $9,
-                                        updated_at = NOW()
-                                    WHERE scan_id = $1
-                                    """,
-                                    scan_id,
-                                    commit_hash,
-                                    cached_scan['results_path'],
-                                    cached_scan['findings_count'],
-                                    cached_scan['critical_count'],
-                                    cached_scan['high_count'],
-                                    cached_scan['medium_count'],
-                                    cached_scan['low_count'],
-                                    cached_scan['info_count']
-                                )
+                        async def update_to_cached(conn):
+                            await ensure_scan_record(conn, scan_id, repo_url, branch, audit_types, status="completed")
+                            await conn.execute(
+                                """
+                                UPDATE scan SET
+                                    status = 'completed',
+                                    progress = 100,
+                                    commit_hash = $2,
+                                    results_path = $3,
+                                    findings_count = $4,
+                                    critical_count = $5,
+                                    high_count = $6,
+                                    medium_count = $7,
+                                    low_count = $8,
+                                    info_count = $9,
+                                    updated_at = NOW()
+                                WHERE scan_id = $1
+                                """,
+                                scan_id,
+                                commit_hash,
+                                cached_scan["results_path"],
+                                cached_scan["findings_count"],
+                                cached_scan["critical_count"],
+                                cached_scan["high_count"],
+                                cached_scan["medium_count"],
+                                cached_scan["low_count"],
+                                cached_scan["info_count"],
+                            )
 
-                        asyncio.run(update_to_cached_async())
+                        asyncio.run(run_with_db(db_url, update_to_cached))
 
                         return {
                             'scan_id': scan_id,
@@ -485,32 +478,30 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                     # Store findings in PostgreSQL
                     update_progress(97, 'Storing findings in database')
                     
-                    async def store_findings_async():
-                        pool = await create_db_pool(db_url)
-                        async with pool.acquire() as conn:
-                            try:
-                                await ensure_scan_record(
-                                    conn,
-                                    scan_id,
-                                    repo_url,
-                                    branch,
-                                    audit_types,
-                                    status="running"
-                                )
-                                verify = await conn.fetchval(
-                                    "SELECT scan_id FROM scan WHERE scan_id = $1",
-                                    scan_id
-                                )
-                                if not verify:
-                                    error_msg = f"Scan record does not exist after ensure_scan_record for scan_id={scan_id}"
-                                    logger.error(error_msg)
-                                    raise RuntimeError(error_msg)
-                            except Exception as ensure_err:
-                                logger.error(f"Failed to ensure scan record: {ensure_err}", exc_info=True)
-                                raise
-                            return await store_findings(conn, scan_id, findings)
-                    
-                    stats = asyncio.run(store_findings_async())
+                    async def store_findings_with_ensure(conn):
+                        await ensure_scan_record(
+                            conn,
+                            scan_id,
+                            repo_url,
+                            branch,
+                            audit_types,
+                            status="running",
+                        )
+                        verify = await conn.fetchval(
+                            "SELECT scan_id FROM scan WHERE scan_id = $1",
+                            scan_id,
+                        )
+                        if not verify:
+                            raise RuntimeError(
+                                f"Scan record does not exist after ensure_scan_record for scan_id={scan_id}"
+                            )
+                        return await store_findings(conn, scan_id, findings)
+
+                    try:
+                        stats = asyncio.run(run_with_db(db_url, store_findings_with_ensure))
+                    except Exception as ensure_err:
+                        logger.error(f"Failed to ensure scan record: {ensure_err}", exc_info=True)
+                        raise
                     finding_db_ids = stats.get('inserted_ids', [])  # Database IDs in same order as findings list
                     results['findings'] = stats
                     logger.info(f"Stored {stats['findings_count']} findings in database")
@@ -608,22 +599,20 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                             mapped_recommendations = ai_summary.get('recommendations', [])
                         
                         # Store AI summary in database
-                        async def store_ai_async():
-                            pool = await create_db_pool(db_url)
-                            async with pool.acquire() as conn:
-                                return await store_ai_analysis(
-                                    conn,
-                                    scan_id,
-                                    ai_summary['summary'],
-                                    mapped_recommendations,
-                                    ai_summary['riskScore'],
-                                    top_findings_db_ids,
-                                    ai_summary.get('model', 'unknown'),
-                                    ai_summary.get('modelVersion', 'unknown'),
-                                    ai_summary['tokensUsed']
-                                )
-                        
-                        ai_analysis_id = asyncio.run(store_ai_async())
+                        async def store_ai(conn):
+                            return await store_ai_analysis(
+                                conn,
+                                scan_id,
+                                ai_summary["summary"],
+                                mapped_recommendations,
+                                ai_summary["riskScore"],
+                                top_findings_db_ids,
+                                ai_summary.get("model", "unknown"),
+                                ai_summary.get("modelVersion", "unknown"),
+                                ai_summary["tokensUsed"],
+                            )
+
+                        ai_analysis_id = asyncio.run(run_with_db(db_url, store_ai))
                         results['ai_analysis'] = {
                             'id': ai_analysis_id,
                             'risk_score': ai_summary['riskScore'],
@@ -650,19 +639,17 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             # Update scan status to "completed" in database
             if db_url:
                 try:
-                    async def update_completed_async():
-                        pool = await create_db_pool(db_url)
-                        async with pool.acquire() as conn:
-                            await update_scan_status(
-                                conn, 
-                                scan_id, 
-                                "completed", 
-                                progress=100,
-                                commit_hash=commit_hash,
-                                results_path=str(results_dir)
-                            )
-                    
-                    asyncio.run(update_completed_async())
+                    async def update_completed(conn):
+                        await update_scan_status(
+                            conn,
+                            scan_id,
+                            "completed",
+                            progress=100,
+                            commit_hash=commit_hash,
+                            results_path=str(results_dir),
+                        )
+
+                    asyncio.run(run_with_db(db_url, update_completed))
                     logger.info(f"Updated scan {scan_id} status to 'completed' in database")
                 except Exception as e:
                     logger.warning(f"Failed to update scan status to 'completed': {e}")
@@ -684,13 +671,11 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
         # db_url is already defined at function start
         if db_url:
             try:
-                async def update_failed_async():
-                    pool = await create_db_pool(db_url)
-                    async with pool.acquire() as conn:
-                        await ensure_scan_record(conn, scan_id, repo_url, branch, audit_types, status="failed")
-                        await update_scan_status(conn, scan_id, "failed")
-                
-                asyncio.run(update_failed_async())
+                async def update_failed(conn):
+                    await ensure_scan_record(conn, scan_id, repo_url, branch, audit_types, status="failed")
+                    await update_scan_status(conn, scan_id, "failed")
+
+                asyncio.run(run_with_db(db_url, update_failed))
                 logger.info(f"Updated scan {scan_id} status to 'failed' in database")
             except Exception as e:
                 logger.warning(f"Failed to update scan status to 'failed': {e}")
@@ -729,21 +714,39 @@ def generate_ai_analysis(self, scan_id: str) -> Dict[str, Any]:
             "error": "AI analysis not enabled or no API key. Set AI_ANALYSIS_ENABLED=true and an API key.",
         }
 
-    async def _run():
-        pool = await create_db_pool(db_url)
-        async with pool.acquire() as conn:
-            info = await get_scan_repo_info(conn, scan_id)
-            if not info:
-                return {"ok": False, "error": "Scan not found"}
-            if info["status"] != "completed":
-                return {"ok": False, "error": f"Scan status is {info['status']}, must be completed"}
+    async def _load_scan_and_findings(conn):
+        info = await get_scan_repo_info(conn, scan_id)
+        if not info:
+            return None, None, None
+        if info["status"] != "completed":
+            return None, None, f"Scan status is {info['status']}, must be completed"
+        findings, finding_db_ids = await fetch_findings_for_scan(conn, scan_id)
+        if not findings:
+            return None, None, "No findings for this scan"
+        return info, (findings, finding_db_ids), None
 
-            findings, finding_db_ids = await fetch_findings_for_scan(conn, scan_id)
-            if not findings:
-                return {"ok": False, "error": "No findings for this scan"}
+    async def _store_ai_result(conn):
+        return await store_ai_analysis(
+            conn,
+            scan_id,
+            ai_summary["summary"],
+            mapped_recommendations,
+            ai_summary["riskScore"],
+            top_findings_db_ids,
+            ai_summary.get("model", "unknown"),
+            ai_summary.get("modelVersion", "unknown"),
+            ai_summary["tokensUsed"],
+        )
 
+    try:
+        info, findings_result, err = asyncio.run(run_with_db(db_url, _load_scan_and_findings))
+        if err:
+            return {"ok": False, "error": err}
+        if not info or not findings_result:
+            return {"ok": False, "error": "Scan not found"}
+        findings, finding_db_ids = findings_result
         repo_url = info["repo_url"]
-        language_counts = {}  # Not stored per scan; prompt still works without it
+        language_counts = {}
 
         summarizer = AISummarizer()
         ai_summary = await summarizer.generate_summary(
@@ -771,24 +774,9 @@ def generate_ai_analysis(self, scan_id: str) -> Dict[str, Any]:
         else:
             mapped_recommendations = ai_summary.get("recommendations", [])
 
-        pool2 = await create_db_pool(db_url)
-        async with pool2.acquire() as conn:
-            ai_analysis_id = await store_ai_analysis(
-                conn,
-                scan_id,
-                ai_summary["summary"],
-                mapped_recommendations,
-                ai_summary["riskScore"],
-                top_findings_db_ids,
-                ai_summary.get("model", "unknown"),
-                ai_summary.get("modelVersion", "unknown"),
-                ai_summary["tokensUsed"],
-            )
+        ai_analysis_id = asyncio.run(run_with_db(db_url, _store_ai_result))
         logger.info(f"AI analysis generated for scan {scan_id}, id={ai_analysis_id}")
         return {"ok": True, "ai_analysis_id": ai_analysis_id}
-
-    try:
-        return asyncio.run(_run())
     except Exception as e:
         logger.error(f"generate_ai_analysis failed for {scan_id}: {e}", exc_info=True)
         return {"ok": False, "error": str(e)}

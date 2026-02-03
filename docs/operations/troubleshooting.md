@@ -57,6 +57,37 @@ docker compose up -d
 docker compose ps
 ```
 
+## Issue: "sorry, too many clients already" (PostgresError 53300)
+
+### Symptoms
+- Next.js or API logs: `PostgresError: sorry, too many clients already`
+- Scans or pages fail to load when traffic or concurrency is high
+
+### Root Cause
+PostgreSQL's default `max_connections` (typically 100) is exceeded when:
+- Next.js dev runs multiple workers, each with its own DB client
+- The Celery worker opens DB connections per task
+- Connections are not closed after use (pool leak)
+
+### Solution
+
+#### 1. Increase PostgreSQL max_connections (recommended)
+In `docker/docker-compose.yml`, the Postgres service is configured with:
+```yaml
+command: postgres -c max_connections=200
+```
+Restart Postgres for the change to take effect: `docker compose -f docker/docker-compose.yml restart postgres`.
+
+#### 2. Code-level behavior (already applied)
+- **Backend worker**: All DB access uses `run_with_db(db_url, fn)`, which creates a pool, runs the callback, then **closes the pool**. This avoids leaking connections. Do not use `create_db_pool()` in long-lived code without closing the pool.
+- **Frontend**: The DB client uses `max: 1` connection per process and `idle_timeout: 20` so idle connections are released. Each Next.js process still uses one connection; raising `max_connections` in Postgres is the main mitigation.
+
+#### 3. If the error persists
+- Increase `max_connections` further (e.g. 300) in docker-compose.
+- Consider running a connection pooler (e.g. PgBouncer) in front of Postgres for production.
+
+---
+
 ## Issue: Database Connection Failures
 
 ### Symptoms

@@ -56,6 +56,7 @@ export function parseGitHubUrl(
 
 /**
  * Extract owner and repo from a GitHub URL or "owner/repo" string.
+ * Supports https, git@ SSH, and "owner/repo" shorthand.
  * Returns null if input is not a valid GitHub repo reference.
  */
 export function parseGitHubRepo(input: string): ParsedGitHubRepo | null {
@@ -64,8 +65,19 @@ export function parseGitHubRepo(input: string): ParsedGitHubRepo | null {
   }
 
   try {
-    // Shorthand: owner/repo
     const trimmed = input.trim();
+
+    // SSH: git@github.com:owner/repo.git
+    const sshMatch = trimmed.match(/^git@github\.com:([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)(?:\.git)?$/i);
+    if (sshMatch) {
+      const [, owner, repo] = sshMatch;
+      if (owner && repo) {
+        return { owner, repo };
+      }
+      return null;
+    }
+
+    // Shorthand: owner/repo
     if (/^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/.test(trimmed)) {
       const [owner, repo] = trimmed.split("/");
       if (owner && repo) {

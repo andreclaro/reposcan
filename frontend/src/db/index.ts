@@ -18,12 +18,20 @@ function getDb(): Db {
       throw new Error("DATABASE_URL is not set");
     }
   }
-  const client = postgres(connectionString, { max: 1 });
+  const client = postgres(connectionString, {
+    max: 1,
+    idle_timeout: 20,
+    connect_timeout: 10,
+  });
   _db = drizzle(client, { schema });
   return _db;
 }
 
-/** Lazy-initialized so build succeeds without DATABASE_URL; throws at runtime if unset. */
+/**
+ * Lazy-initialized DB client. One connection per Node process (Next.js can run
+ * multiple processes in dev). idle_timeout releases connections when idle;
+ * ensure Postgres max_connections is high enough (e.g. 200 in docker-compose).
+ */
 export const db = new Proxy({} as Db, {
   get(_, prop) {
     return (getDb() as unknown as Record<string | symbol, unknown>)[prop];
