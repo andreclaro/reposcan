@@ -79,16 +79,16 @@ async function applyMigration() {
           await client.unsafe(statement);
           console.log(`✓ [${i + 1}/${statements.length}] Executed statement`);
         } catch (error) {
-          // Ignore "already exists" errors
-          const errorMsg = error.message || String(error);
-          if (
+          // Ignore "already exists" / idempotent errors (safe to re-run 0000_schema on existing DB)
+          const errorMsg = (error.message || String(error)).toLowerCase();
+          const isSkip =
             errorMsg.includes("already exists") ||
-            errorMsg.includes("duplicate") ||
-            errorMsg.includes("column") && errorMsg.includes("already exists")
-          ) {
+            errorMsg.includes("duplicate key") ||
+            errorMsg.includes("violates unique constraint");
+          if (isSkip) {
             console.log(`⚠ [${i + 1}/${statements.length}] Skipped (already exists)`);
           } else {
-            console.error(`✗ [${i + 1}/${statements.length}] Failed:`, errorMsg);
+            console.error(`✗ [${i + 1}/${statements.length}] Failed:`, error.message || error);
             throw error;
           }
         }

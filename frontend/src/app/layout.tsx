@@ -20,6 +20,9 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "SecurityKit - Ship Code with Confidence",
+  icons: {
+    icon: "/icon.svg",
+  },
   description:
     "Automated security scanning for GitHub repositories. Catch vulnerabilities in your code, dependencies, and infrastructure before they reach production.",
   keywords: [

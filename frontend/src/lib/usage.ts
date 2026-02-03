@@ -129,6 +129,16 @@ export async function getOrCreateUsageForPeriod(
     };
   }
 
+  // Ensure user exists (avoid FK violation if session has stale or invalid user id)
+  const [user] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!user) {
+    throw new Error(`User not found: ${userId}. Cannot create usage record.`);
+  }
+
   const scansLimit = await getScansLimitForUser(userId);
   const scansUsed = await getScansUsedInPeriod(userId, periodStart, periodEnd);
   const [inserted] = await db
