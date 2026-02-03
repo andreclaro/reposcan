@@ -9,18 +9,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Running the Tool
 
 ```bash
-# Basic usage (reads repositories.csv from cwd, clones to ./repos/)
-python sec_audit.py path/to/repositories.csv /path/to/clone/dir
+# Basic usage (from repo root with PYTHONPATH=backend/src or pip install -e backend)
+python -m audit path/to/repositories.csv /path/to/clone/dir
 
 # Run specific audits only
-python sec_audit.py path/to/repositories.csv /path/to/clone/dir --audit sast,terraform,dockerfile
+python -m audit path/to/repositories.csv /path/to/clone/dir --audit sast,terraform,dockerfile
 
 # Available audit types: all, sast, terraform, dockerfile, node, go, rust
 ```
 
 **Docker usage:**
 ```bash
-docker build -t sec-audit-repos .
+docker build -f backend/Dockerfile -t sec-audit-repos backend
 docker run --rm \
   -v "$(pwd)/repositories.csv:/work/repositories.csv" \
   -v "$(pwd)/output:/work/output" \
@@ -31,12 +31,12 @@ docker run --rm \
 
 ### Core Modules
 
-- **`sec_audit/cli.py`**: Main CLI entry point, orchestrates the audit workflow
-- **`sec_audit/scanners.py`**: Security scanner integrations (Semgrep, Trivy, tfsec, checkov, tflint)
-- **`sec_audit/ecosystem.py`**: Language-specific audits (Node/npm/pnpm, Go/govulncheck, Rust/cargo-audit)
-- **`sec_audit/repos.py`**: Repository cloning and Git operations
-- **`sec_audit/fs.py`**: File system operations (language detection, Dockerfile finding)
-- **`sec_audit/utils.py`**: Utility functions (CSV normalization, audit selection parsing)
+- **`backend/src/audit/cli.py`**: Main CLI entry point, orchestrates the audit workflow
+- **`backend/src/audit/scanners.py`**: Security scanner integrations (Semgrep, Trivy, tfsec, checkov, tflint)
+- **`backend/src/audit/ecosystem.py`**: Language-specific audits (Node/npm/pnpm, Go/govulncheck, Rust/cargo-audit)
+- **`backend/src/audit/repos.py`**: Repository cloning and Git operations
+- **`backend/src/audit/fs.py`**: File system operations (language detection, Dockerfile finding)
+- **`backend/src/audit/utils.py`**: Utility functions (CSV normalization, audit selection parsing)
 
 ### Workflow
 

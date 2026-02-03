@@ -1,0 +1,82 @@
+# Run from repo root: docker compose -f docker/docker-compose.yml up -d
+# Or from this directory: docker compose -f docker-compose.yml up -d (paths assume cwd is docker/)
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=sec_audit
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../frontend/.env.local
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - RESULTS_DIR=/work/results
+    volumes:
+      - ../backend/src:/work
+      - results_data:/work/results
+    depends_on:
+      redis:
+        condition: service_healthy
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    env_file:
+      - ../frontend/.env.local
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - RESULTS_DIR=/work/results
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/sec_audit
+    volumes:
+      - ../backend/src:/work
+      - results_data:/work/results
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    entrypoint: []
+    command: celery -A worker.scan_worker worker --loglevel=info --concurrency=10
+
+volumes:
+  postgres_data:
+  redis_data:
+  results_data:

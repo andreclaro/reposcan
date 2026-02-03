@@ -14,56 +14,78 @@ Security audit tool for repositories with CLI, API, and web interfaces. Runs SAS
 
 ## Quick Start
 
+All commands below are meant to be run from the **repository root**. You can use the [Makefile](Makefile) for common tasks: run `make help` to list targets.
+
 ### CLI Usage
 
 ```bash
-python sec_audit.py repositories.csv ./output
+# Using Make (default CSV: repositories.csv, output: ./output)
+make audit
+make audit CSV=path/to/repos.csv OUT=./output
+
+# Or run directly
+PYTHONPATH=backend/src python backend/audit.py repositories.csv ./output
+# Or install and use the audit command: pip install -e backend/ && audit repositories.csv ./output
 ```
 
-See [docs/CLI.md](docs/CLI.md) for detailed CLI documentation.
+See [docs/user-guides/CLI.md](docs/user-guides/CLI.md) for detailed CLI documentation.
 
 ### API Usage
 
 ```bash
-# Start services
-docker-compose up -d
+# Start backend stack (postgres, redis, api, worker)
+make docker-up
+# Or: docker compose -f docker/docker-compose.yml up -d
 
 # Queue a scan
 curl -X POST http://localhost:8000/scan \
   -H "Content-Type: application/json" \
   -d '{"repo_url": "https://github.com/user/repo.git", "audit_types": ["sast"]}'
+
+# Stop stack
+make docker-down
 ```
 
-See [docs/API.md](docs/API.md) for API documentation and [docs/DOCKER.md](docs/DOCKER.md) for Docker setup.
+See [docs/user-guides/API.md](docs/user-guides/API.md) for API documentation and [docs/user-guides/DOCKER.md](docs/user-guides/DOCKER.md) for Docker setup.
 
 ### Web Application
 
 ```bash
-cd webapp
+cd frontend
 pnpm install
 pnpm dev
 ```
 
+The frontend expects the API at `http://localhost:8000`. Start the backend with `make docker-up` or `make run-api` (and Redis) first.
+
 ## Documentation
+
+See [docs/README.md](docs/README.md) for the full index. Quick links:
 
 | Document | Description |
 |----------|-------------|
-| [docs/CLI.md](docs/CLI.md) | CLI usage and CSV format |
-| [docs/API.md](docs/API.md) | API endpoints and examples |
-| [docs/DOCKER.md](docs/DOCKER.md) | Docker Compose setup |
-| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Environment variables |
-| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
+| [docs/user-guides/CLI.md](docs/user-guides/CLI.md) | CLI usage and CSV format |
+| [docs/user-guides/API.md](docs/user-guides/API.md) | API endpoints and examples |
+| [docs/user-guides/DOCKER.md](docs/user-guides/DOCKER.md) | Docker Compose setup |
+| [docs/user-guides/CONFIGURATION.md](docs/user-guides/CONFIGURATION.md) | Environment variables |
+| [docs/operations/troubleshooting.md](docs/operations/troubleshooting.md) | Common issues and solutions |
 
 ## Project Structure
 
 ```
 sec-audit-repos/
-├── sec_audit/          # Core scanning logic (Python)
-├── api/                # FastAPI service
-├── tasks/              # Celery workers
-├── webapp/             # Next.js frontend
+├── backend/            # Python backend (audit CLI, API, Celery worker)
+│   ├── src/            # audit, api, worker packages
+│   ├── requirements.txt
+│   └── audit.py        # CLI entry point
+├── docker/             # Docker Compose and Dockerfiles (single location)
+│   ├── docker-compose.yml
+│   ├── Dockerfile      # Worker image
+│   └── Dockerfile.api  # API image
+├── frontend/           # Next.js frontend
+├── infrastructure/     # Deploy, maintenance, monitoring scripts
 ├── docs/               # Documentation
-├── scripts/            # Utility scripts
+├── Makefile            # Common commands (make help)
 └── results/            # Scan results (gitignored)
 ```
 
@@ -81,7 +103,7 @@ sec-audit-repos/
 ### Python Requirements
 
 - Python 3.11+
-- See `requirements.txt` for dependencies
+- See `backend/requirements.txt` for dependencies
 
 ## Configuration
 
@@ -93,13 +115,30 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sec_audit
 RESULTS_DIR=./results
 ```
 
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for complete configuration options.
+See [docs/user-guides/CONFIGURATION.md](docs/user-guides/CONFIGURATION.md) for complete configuration options.
+
+## Development
+
+From the repo root:
+
+| Command | Description |
+|---------|--------------|
+| `make help` | List all Make targets |
+| `make install-backend` | `pip install -e backend/` |
+| `make test` | Run backend tests (no integration) |
+| `make run-api` | Start FastAPI on :8000 (needs Redis) |
+| `make run-worker` | Start Celery worker (needs Redis) |
+| `make docker-build` | Build API and worker images |
+| `make docker-up` | Start full stack (postgres, redis, api, worker) |
+| `make docker-down` | Stop stack |
+| `make docker-logs` | Follow service logs |
+| `make audit` | Run CLI (optional: `CSV=file.csv OUT=./out`) |
 
 ## Design Documents
 
-- [design/DESIGN_v0.md](design/DESIGN_v0.md) - SaaS architecture design
-- [design/DESIGN_v0-AI.md](design/DESIGN_v0-AI.md) - AI integration design
-- [design/DESIGN_SEC_APP_SIMPLE_v0.md](design/DESIGN_SEC_APP_SIMPLE_v0.md) - API backend design
+- [docs/architecture/DESIGN_v0.md](docs/architecture/DESIGN_v0.md) - SaaS architecture design
+- [docs/architecture/DESIGN_v0-AI.md](docs/architecture/DESIGN_v0-AI.md) - AI integration design
+- [docs/architecture/DESIGN_SEC_APP_SIMPLE_v0.md](docs/architecture/DESIGN_SEC_APP_SIMPLE_v0.md) - API backend design
 
 ## License
 
