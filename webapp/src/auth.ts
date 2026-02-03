@@ -5,8 +5,11 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { accounts, sessions, users, verificationTokens } from "@/db/schema";
 import { DEV_BYPASS_AUTH } from "@/lib/dev-auth";
-import { isAdmin } from "@/lib/admin-auth";
+import { getAdminEmails, isAdmin } from "@/lib/admin-auth";
 import { authConfig } from "@/auth.config";
+import { sendEmail } from "@/lib/email";
+import { buildNewUserPendingApprovalEmail } from "@/lib/email-templates/new-user-pending-approval";
+import { logger } from "@/lib/logger.server";
 
 const BETA_MODE_ENABLED = process.env.BETA_MODE_ENABLED === "true";
 
@@ -77,7 +80,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           .update(users)
           .set({ isEnabled: false })
           .where(eq(users.id, user.id));
-        console.log(`[auth] New user ${user.email} created with isEnabled=false (beta mode)`);
+        logger.info("[auth] New user created with isEnabled=false (beta mode)", {
+          email: user.email,
+          userId: user.id,
+        });
+
+        // Notify admins so they can enable the user
+        const adminEmails = getAdminEmails();
+        if (adminEmails.length > 0) {
+          const { subject, html } = buildNewUserPendingApprovalEmail({
+            userName: user.name ?? null,
+            userEmail: user.email,
+          });
+          for (const adminEmail of adminEmails) {
+            const result = await sendEmail({ to: adminEmail, subject, html });
+            if (result.success) {
+              logger.info("[auth] Admin notification sent for new user", {
+                to: adminEmail,
+                newUserEmail: user.email,
+              });
+            } else if ("reason" in result) {
+              logger.warn("[auth] Admin notification skipped", {
+                to: adminEmail,
+                reason: result.reason,
+              });
+            } else {
+              logger.error("[auth] Admin notification failed", {
+                to: adminEmail,
+                error: result.error,
+              });
+            }
+          }
+        }
       }
     }
   }

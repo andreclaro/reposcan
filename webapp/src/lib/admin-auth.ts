@@ -16,3 +16,16 @@ export function isAdmin(email: string | null | undefined): boolean {
 
   return adminList.includes(email.toLowerCase());
 }
+
+/**
+ * Returns the list of admin emails from ADMIN_EMAIL (comma-separated).
+ * Used e.g. to send admin notification emails.
+ */
+export function getAdminEmails(): string[] {
+  const adminEmails = process.env.ADMIN_EMAIL;
+  if (!adminEmails) return [];
+  return adminEmails
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
