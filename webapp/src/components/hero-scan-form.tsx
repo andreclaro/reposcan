@@ -52,11 +52,11 @@ export default function HeroScanForm({ isAuthed }: HeroScanFormProps) {
       }
 
       const payload = await response.json();
-      const scanId = payload.scan?.scanId;
 
-      // Redirect to scan results
-      if (scanId) {
-        router.push(`/app/scans/${scanId}`);
+      // Redirect to "Your scans" page
+      if (payload.scan?.scanId) {
+        // Add repo URL as query param to highlight the new scan
+        router.push(`/app?repoUrl=${encodeURIComponent(repoUrl.trim())}`);
       } else {
         router.push("/app");
       }

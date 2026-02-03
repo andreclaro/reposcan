@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ExternalLink,
@@ -61,6 +61,22 @@ function formatDate(value?: string | null) {
     day: "numeric",
     year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
   });
+}
+
+// Client-only date component to avoid hydration mismatch
+function RelativeDate({ value }: { value?: string | null }) {
+  const [formatted, setFormatted] = useState<string>("");
+  
+  useEffect(() => {
+    setFormatted(formatDate(value));
+  }, [value]);
+  
+  // Render a placeholder during SSR that matches the initial client render
+  if (!formatted) {
+    return <span className="opacity-0">—</span>;
+  }
+  
+  return <span>{formatted}</span>;
 }
 
 function getGitHubUrl(repoUrl: string, branch?: string | null): string | null {
@@ -172,7 +188,7 @@ export function ScanListItem({
               )}
               <div className="flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5" />
-                <span>{formatDate(scan.createdAt)}</span>
+                <RelativeDate value={scan.createdAt} />
               </div>
             </div>
 
