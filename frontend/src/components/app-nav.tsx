@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CreditCard, Users, Scan } from "lucide-react";
+import { CreditCard, Users, Scan, Wrench } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -27,6 +27,7 @@ export default function AppNav({ isAdmin }: AppNavProps) {
   const isOnAdmin = pathname.startsWith("/app/admin");
   const isOnPlans = pathname === "/plans";
   const isOnContact = pathname === "/contact";
+  const isOnTools = pathname === "/app/tools";
 
   return (
     <nav className="flex items-center gap-4 text-sm">
@@ -62,6 +63,17 @@ export default function AppNav({ isAdmin }: AppNavProps) {
         )}
       >
         Contact
+      </Link>
+      <Link
+        href="/app/tools"
+        className={cn(
+          "transition-colors",
+          isOnTools
+            ? "text-foreground font-medium"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        Tools
       </Link>
       {isAdmin && (
         <>

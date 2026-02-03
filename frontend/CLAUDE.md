@@ -41,7 +41,7 @@ src/
 │   │   ├── scans/        # User scan list and details
 │   │   ├── admin/        # Admin dashboard (users, plans, all scans)
 │   │   ├── profile/      # User profile
-│   │   └── batch/        # Batch CSV upload
+│   │   └── tools/        # Batch scanning tools (GitHub org/user scanner, batch upload)
 │   ├── api/              # API routes
 │   │   ├── scan/         # Scan creation and status
 │   │   ├── scans/        # Per-scan endpoints (findings, AI, share)

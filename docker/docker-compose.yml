@@ -74,7 +74,7 @@ services:
       - 8.8.8.8
       - 8.8.4.4
     entrypoint: []
-    command: celery -A worker.scan_worker worker --loglevel=info --concurrency=10
+    command: celery -A worker.scan_worker worker --loglevel=info --concurrency=20
 
 volumes:
   postgres_data:
