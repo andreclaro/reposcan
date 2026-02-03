@@ -749,8 +749,10 @@ def generate_ai_analysis(self, scan_id: str) -> Dict[str, Any]:
         language_counts = {}
 
         summarizer = AISummarizer()
-        ai_summary = await summarizer.generate_summary(
-            scan_id, findings, repo_url, language_counts
+        ai_summary = asyncio.run(
+            summarizer.generate_summary(
+                scan_id, findings, repo_url, language_counts
+            )
         )
 
         top_findings_db_ids = []
