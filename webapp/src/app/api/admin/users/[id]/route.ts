@@ -112,9 +112,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     );
   }
 
-  // Detect if this is a transition from disabled to enabled
+  // Detect if this is a transition from disabled to enabled (treat non-true as disabled for robustness)
   const isApprovalTransition =
-    existingUser.isEnabled === false && body.isEnabled === true;
+    existingUser.isEnabled !== true && body.isEnabled === true;
 
   // Update user
   const [updatedUser] = await db
@@ -130,8 +130,18 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   // Send approval email if transitioning from disabled to enabled
   let emailSent = false;
   let emailError: string | undefined;
+  let emailSkipReason: string | undefined;
 
-  if (isApprovalTransition && existingUser.email) {
+  if (!isApprovalTransition) {
+    logger.debug("Approval email not sent: not an approval transition", {
+      userId: id,
+      previousEnabled: existingUser.isEnabled,
+      requestedEnabled: body.isEnabled,
+    });
+  } else if (!existingUser.email) {
+    logger.warn("Approval email not sent: user has no email", { userId: id });
+    emailSkipReason = "User has no email";
+  } else {
     logger.info("Sending account approval email", { userId: id, email: existingUser.email });
     const { subject, html } = buildAccountApprovedEmail({
       userName: existingUser.name,
@@ -142,11 +152,12 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       html,
     });
 
-    if ("success" in result && result.success) {
+    if (result.success === true) {
       emailSent = true;
-    } else if ("skipped" in result && result.skipped) {
+    } else if (result.skipped === true) {
+      emailSkipReason = result.reason;
       logger.warn("Account approval email skipped", { reason: result.reason });
-    } else if ("success" in result && !result.success) {
+    } else {
       emailError = result.error;
       logger.error("Account approval email failed", { error: result.error });
     }
@@ -155,6 +166,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   return NextResponse.json({
     user: updatedUser,
     emailSent,
+    ...(emailSkipReason && { emailSkipReason }),
     ...(emailError && { emailError }),
   });
 }

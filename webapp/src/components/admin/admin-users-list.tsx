@@ -38,6 +38,7 @@ export default function AdminUsersList() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [userToDelete, setUserToDelete] = useState<UserRow | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [emailStatus, setEmailStatus] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/users")
@@ -51,6 +52,7 @@ export default function AdminUsersList() {
   }, []);
 
   const toggleEnabled = async (userId: string, currentEnabled: boolean) => {
+    setEmailStatus(null);
     setUpdating(userId);
     try {
       const res = await fetch(`/api/admin/users/${userId}`, {
@@ -59,8 +61,8 @@ export default function AdminUsersList() {
         body: JSON.stringify({ isEnabled: !currentEnabled })
       });
 
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || "Failed to update user");
       }
 
@@ -70,6 +72,15 @@ export default function AdminUsersList() {
           u.id === userId ? { ...u, isEnabled: !currentEnabled } : u
         )
       );
+
+      // Show approval email result when enabling a user
+      if (!currentEnabled && data.emailSent) {
+        setEmailStatus("Approval email sent to user.");
+      } else if (!currentEnabled && data.emailSkipReason) {
+        setEmailStatus(`Approval email not sent: ${data.emailSkipReason}`);
+      } else if (!currentEnabled && data.emailError) {
+        setEmailStatus(`Approval email failed: ${data.emailError}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update");
     } finally {
@@ -114,6 +125,14 @@ export default function AdminUsersList() {
 
   return (
     <>
+      {emailStatus && (
+        <Alert
+          variant={emailStatus.startsWith("Approval email sent") ? "default" : "destructive"}
+          className="mb-4"
+        >
+          <AlertDescription>{emailStatus}</AlertDescription>
+        </Alert>
+      )}
       <div className="rounded-lg border overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
