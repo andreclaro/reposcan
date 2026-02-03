@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { sendEmail, escapeHtml } from "@/lib/email";
+import { buildContactFormEmail } from "@/lib/email-templates/contact-form";
 
 const contactSchema = z.object({
   name: z.string().min(1, "Name is required").max(200),
@@ -45,18 +45,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const html = [
-    "<p><strong>From:</strong> " +
-      escapeHtml(name) +
-      " &lt;" +
-      escapeHtml(email) +
-      "&gt;</p>",
-    "<p><strong>Subject:</strong> " + escapeHtml(subject) + "</p>",
-    "<hr>",
-    '<pre style="white-space: pre-wrap; font-family: inherit;">' +
-      escapeHtml(message) +
-      "</pre>",
-  ].join("\n");
+  // Build the email using the styled template
+  const { subject: emailSubject, html } = buildContactFormEmail({
+    name,
+    email,
+    subject,
+    message,
+  });
 
   // Send to the contact email address using the shared utility
   // Note: sendEmail sends FROM the configured RESEND_FROM address,
@@ -70,7 +65,7 @@ export async function POST(request: Request) {
     from: fromEmail,
     to: [toEmail],
     replyTo: email,
-    subject: `[Contact] ${subject}`,
+    subject: emailSubject,
     html,
   });
 
