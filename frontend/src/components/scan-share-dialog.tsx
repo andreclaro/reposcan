@@ -40,6 +40,16 @@ interface Share {
   createdAt: string;
 }
 
+// Expiration options with their display labels and hours
+const EXPIRE_OPTIONS = [
+  { value: "never", label: "Never", hours: null },
+  { value: "1h", label: "1 hour", hours: 1 },
+  { value: "1d", label: "1 day", hours: 24 },
+  { value: "7d", label: "7 days", hours: 168 },
+  { value: "30d", label: "30 days", hours: 720 },
+  { value: "90d", label: "90 days", hours: 2160 },
+];
+
 interface ScanShareDialogProps {
   scanId: string;
   scanStatus: string;
@@ -62,7 +72,7 @@ export default function ScanShareDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [shareType, setShareType] = useState<"full" | "summary">("full");
-  const [expiresInDays, setExpiresInDays] = useState<string>("never");
+  const [expiresIn, setExpiresIn] = useState<string>("never");
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [internalOpen, setInternalOpen] = useState(false);
@@ -100,11 +110,12 @@ export default function ScanShareDialog({
     setIsCreating(true);
     setError(null);
     try {
-      const body: { shareType: string; expiresInDays?: number } = {
+      const body: { shareType: string; expiresInHours?: number } = {
         shareType
       };
-      if (expiresInDays !== "never") {
-        body.expiresInDays = parseInt(expiresInDays);
+      const selectedOption = EXPIRE_OPTIONS.find((opt) => opt.value === expiresIn);
+      if (selectedOption?.hours) {
+        body.expiresInHours = selectedOption.hours;
       }
 
       const response = await fetch(`/api/scans/${scanId}/share`, {
@@ -232,15 +243,16 @@ export default function ScanShareDialog({
 
                 <div className="flex items-center justify-between">
                   <label className="text-sm text-slate-600">Expires</label>
-                  <Select value={expiresInDays} onValueChange={setExpiresInDays}>
+                  <Select value={expiresIn} onValueChange={setExpiresIn}>
                     <SelectTrigger className="w-32">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="never">Never</SelectItem>
-                      <SelectItem value="7">7 days</SelectItem>
-                      <SelectItem value="30">30 days</SelectItem>
-                      <SelectItem value="90">90 days</SelectItem>
+                      {EXPIRE_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

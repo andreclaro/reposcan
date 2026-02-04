@@ -44,6 +44,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import ScanShareDialog from "@/components/scan-share-dialog";
 import GitHubIssueDialog from "@/components/admin/github-issue-dialog";
+import BulkGitHubIssueDialog from "@/components/admin/bulk-github-issue-dialog";
+import { parseGitHubRepo } from "@/lib/github-url";
 
 type ScanWithUser = {
   id: number;
@@ -144,6 +146,8 @@ function ScanListItem({
   onRescan,
   isRetrying,
   isRescanning,
+  isSelected,
+  onToggleSelect,
 }: {
   scan: ScanWithUser;
   isRefreshing?: boolean;
@@ -153,6 +157,8 @@ function ScanListItem({
   onRescan?: () => void;
   isRetrying?: boolean;
   isRescanning?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmValue, setDeleteConfirmValue] = useState("");
@@ -206,9 +212,21 @@ function ScanListItem({
         className={cn(
           "group relative rounded-xl border bg-white p-5 shadow-sm transition-all",
           "hover:shadow-md hover:border-slate-300",
-          isRefreshing && "opacity-75"
+          isRefreshing && "opacity-75",
+          isSelected && "border-blue-500 ring-1 ring-blue-500"
         )}
       >
+        {/* Selection Checkbox */}
+        {onToggleSelect && scan.status === "completed" && (
+          <div className="absolute left-3 top-5">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={onToggleSelect}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+          </div>
+        )}
         {/* Progress Bar for running scans */}
         {(scan.status === "running" || scan.status === "queued" || scan.status === "retrying") && (
           <div className="absolute bottom-0 left-0 right-0 h-1 overflow-hidden rounded-b-xl">
@@ -225,7 +243,10 @@ function ScanListItem({
           </div>
         )}
 
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className={cn(
+          "flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between",
+          onToggleSelect && scan.status === "completed" && "pl-8"
+        )}>
           {/* Left: Repo Info */}
           <div className="flex-1 min-w-0 space-y-3">
             {/* Repo URL and Status */}
@@ -548,6 +569,10 @@ export default function AdminDashboard({
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("all");
 
+  // Bulk selection
+  const [selectedScans, setSelectedScans] = useState<Set<string>>(new Set());
+  const [showBulkGitHubDialog, setShowBulkGitHubDialog] = useState(false);
+
   // Status counts from current scans
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -595,6 +620,50 @@ export default function AdminDashboard({
     setUserFilter("all");
     setSearchQuery("");
   };
+
+  // Bulk selection handlers
+  const toggleScanSelection = (scanId: string) => {
+    setSelectedScans(prev => {
+      const next = new Set(prev);
+      if (next.has(scanId)) {
+        next.delete(scanId);
+      } else {
+        next.add(scanId);
+      }
+      return next;
+    });
+  };
+
+  const selectAllVisible = () => {
+    const visibleCompleted = filteredScans
+      .filter(s => s.status === "completed")
+      .map(s => s.scanId);
+    setSelectedScans(new Set(visibleCompleted));
+  };
+
+  const clearSelection = () => {
+    setSelectedScans(new Set());
+  };
+
+  const selectedScanData = useMemo(() => {
+    return scans
+      .filter(s => selectedScans.has(s.scanId))
+      .map(s => {
+        const parsed = parseGitHubRepo(s.repoUrl);
+        return {
+          scanId: s.scanId,
+          repoUrl: s.repoUrl,
+          repoName: parsed ? `${parsed.owner}/${parsed.repo}` : s.repoUrl,
+          branch: s.branch,
+          commitHash: s.commitHash,
+          findingsCount: s.findingsCount || 0,
+          criticalCount: s.criticalCount || 0,
+          highCount: s.highCount || 0,
+          mediumCount: s.mediumCount || 0,
+          lowCount: s.lowCount || 0,
+        };
+      });
+  }, [scans, selectedScans]);
 
   const startRefreshing = (scanId: string) => {
     setRefreshingScanIds((prev) => {
@@ -881,6 +950,44 @@ export default function AdminDashboard({
         </Alert>
       )}
 
+      {/* Bulk Actions Bar */}
+      {selectedScans.size > 0 && (
+        <div className="sticky top-16 z-40 rounded-xl border bg-white p-4 shadow-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={true}
+                onChange={clearSelection}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              <span className="font-medium">
+                {selectedScans.size} selected
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearSelection}
+                className="h-7 text-slate-500"
+              >
+                Clear
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBulkGitHubDialog(true)}
+                className="gap-2"
+              >
+                <Github className="h-4 w-4" />
+                Create GitHub Issues
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Scan History */}
       <div>
         <div className="mb-4 flex items-center justify-between">
@@ -893,6 +1000,16 @@ export default function AdminDashboard({
               {hasActiveFilters && " (filtered)"}
             </p>
           </div>
+          {filteredScans.some(s => s.status === "completed") && selectedScans.size === 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={selectAllVisible}
+              className="text-slate-500"
+            >
+              Select all completed
+            </Button>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -906,6 +1023,8 @@ export default function AdminDashboard({
                 key={scan.scanId}
                 scan={scan}
                 isRefreshing={refreshingScanIds.has(scan.scanId)}
+                isSelected={selectedScans.has(scan.scanId)}
+                onToggleSelect={() => toggleScanSelection(scan.scanId)}
                 onRefresh={() => refreshScan(scan.scanId)}
                 onDelete={() => handleDelete(scan.scanId)}
                 onRetry={() => handleRetry(scan.scanId)}
@@ -917,6 +1036,16 @@ export default function AdminDashboard({
           )}
         </div>
       </div>
+
+      {/* Bulk GitHub Issue Dialog */}
+      <BulkGitHubIssueDialog
+        scans={selectedScanData}
+        open={showBulkGitHubDialog}
+        onOpenChange={setShowBulkGitHubDialog}
+        onComplete={() => {
+          clearSelection();
+        }}
+      />
     </div>
   );
 }
