@@ -36,32 +36,13 @@ async def ensure_scan_record(
         audit_types: List of audit types (optional)
         status: Scan status (default: "running")
     """
-    # #region agent log
-    import json as json_lib
-    try:
-        with open('/work/debug.log', 'a') as f:
-            f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"G","location":"storage.py:33","message":"ensure_scan_record called","data":{"scan_id":scan_id},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-    except: pass
-    # #endregion
     # Check if scan exists
     existing = await conn.fetchval(
         "SELECT scan_id FROM scan WHERE scan_id = $1",
         scan_id
     )
-    # #region agent log
-    try:
-        with open('/work/debug.log', 'a') as f:
-            f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"G","location":"storage.py:37","message":"Scan existence check result","data":{"scan_id":scan_id,"existing":existing is not None},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-    except: pass
-    # #endregion
     
     if existing:
-        # #region agent log
-        try:
-            with open('/work/debug.log', 'a') as f:
-                f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"G","location":"storage.py:40","message":"Scan exists, updating status","data":{"scan_id":scan_id,"status":status},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-        except: pass
-        # #endregion
         # Update status if needed
         await conn.execute(
             """
@@ -72,22 +53,10 @@ async def ensure_scan_record(
             status,
             scan_id
         )
-        # #region agent log
-        try:
-            with open('/work/debug.log', 'a') as f:
-                f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"G","location":"storage.py:49","message":"Status update query executed","data":{"scan_id":scan_id},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-        except: pass
-        # #endregion
         return
     
     # Get or create system user for worker-created scans
     # System user email is a special value that identifies automated scans
-    # #region agent log
-    try:
-        with open('/work/debug.log', 'a') as f:
-            f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"storage.py:54","message":"Looking for system user","data":{"scan_id":scan_id},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-    except: pass
-    # #endregion
     system_user_id = await conn.fetchval(
         """
         SELECT id FROM app_user 
@@ -95,12 +64,6 @@ async def ensure_scan_record(
         LIMIT 1
         """
     )
-    # #region agent log
-    try:
-        with open('/work/debug.log', 'a') as f:
-            f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"storage.py:60","message":"System user lookup result","data":{"scan_id":scan_id,"system_user_id":system_user_id},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-    except: pass
-    # #endregion
     
     if not system_user_id:
         # Create system user if it doesn't exist
@@ -131,16 +94,6 @@ async def ensure_scan_record(
         )
     
     # Create scan record
-    # #region agent log
-    try:
-        with open('/work/debug.log', 'a') as f:
-            f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"storage.py:90","message":"Creating new scan record","data":{"scan_id":scan_id,"system_user_id":system_user_id,"status":status,"repo_url":repo_url,"branch":branch},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-    except Exception as log_err:
-        try:
-            with open('/work/debug.log', 'a') as f:
-                f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"storage.py:90","message":"Log write failed","data":{"error":str(log_err)},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-        except: pass
-    # #endregion
     try:
         result = await conn.execute(
             """
@@ -158,32 +111,14 @@ async def ensure_scan_record(
             json.dumps(audit_types) if audit_types else None,
             status
         )
-        # #region agent log
-        try:
-            with open('/work/debug.log', 'a') as f:
-                f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"storage.py:105","message":"Scan record INSERT completed","data":{"scan_id":scan_id,"result":result},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-        except: pass
-        # #endregion
         # Verify the record was created
         verify_scan = await conn.fetchval(
             "SELECT scan_id FROM scan WHERE scan_id = $1",
             scan_id
         )
-        # #region agent log
-        try:
-            with open('/work/debug.log', 'a') as f:
-                f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"storage.py:115","message":"Verification: scan record exists after INSERT","data":{"scan_id":scan_id,"exists":verify_scan is not None},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-        except: pass
-        # #endregion
         if not verify_scan:
             raise RuntimeError(f"Failed to create scan record: INSERT executed but record not found for scan_id={scan_id}")
     except Exception as insert_err:
-        # #region agent log
-        try:
-            with open('/work/debug.log', 'a') as f:
-                f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"storage.py:108","message":"Scan record INSERT failed","data":{"scan_id":scan_id,"error":str(insert_err),"error_type":type(insert_err).__name__},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-        except: pass
-        # #endregion
         raise
 
 
@@ -470,13 +405,6 @@ async def update_scan_status(
         results_path: Optional results path
         branch: Optional branch name (useful when auto-detected)
     """
-    # #region agent log
-    import json as json_lib
-    try:
-        with open('/work/debug.log', 'a') as f:
-            f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"storage.py:302","message":"update_scan_status called","data":{"scan_id":scan_id,"status":status,"progress":progress},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-    except: pass
-    # #endregion
     updates = ["status = $1"]
     params = [status]
     param_idx = 2
@@ -513,19 +441,7 @@ async def update_scan_status(
         SET {', '.join(updates)}
         WHERE scan_id = ${where_param}
     """
-    # #region agent log
-    try:
-        with open('/work/debug.log', 'a') as f:
-            f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"storage.py:340","message":"Executing UPDATE query","data":{"scan_id":scan_id,"query":query,"params_count":len(params)},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-    except: pass
-    # #endregion
     await conn.execute(query, *params)
-    # #region agent log
-    try:
-        with open('/work/debug.log', 'a') as f:
-            f.write(json_lib.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"storage.py:345","message":"UPDATE query executed successfully","data":{"scan_id":scan_id},"timestamp":int(__import__('time').time()*1000)}) + '\n')
-    except: pass
-    # #endregion
 
 
 async def create_db_pool(database_url: str, max_retries: int = 5, retry_delay: float = 2.0) -> asyncpg.Pool:
