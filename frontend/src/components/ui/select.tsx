@@ -17,6 +17,8 @@ const SelectContext = React.createContext<{
   onValueChange: (value: string) => void;
   open: boolean;
   setOpen: (open: boolean) => void;
+  registerItem: (value: string, label: string) => void;
+  getItemLabel: (value: string) => string | undefined;
 } | null>(null);
 
 function Select({
@@ -30,6 +32,7 @@ function Select({
     defaultValue || ""
   );
   const value = controlledValue ?? uncontrolledValue;
+  const itemsRef = React.useRef<Map<string, string>>(new Map());
 
   const handleValueChange = (newValue: string) => {
     setUncontrolledValue(newValue);
@@ -37,9 +40,17 @@ function Select({
     setOpen(false);
   };
 
+  const registerItem = React.useCallback((itemValue: string, label: string) => {
+    itemsRef.current.set(itemValue, label);
+  }, []);
+
+  const getItemLabel = React.useCallback((itemValue: string) => {
+    return itemsRef.current.get(itemValue);
+  }, []);
+
   return (
     <SelectContext.Provider
-      value={{ value, onValueChange: handleValueChange, open, setOpen }}
+      value={{ value, onValueChange: handleValueChange, open, setOpen, registerItem, getItemLabel }}
     >
       {children}
     </SelectContext.Provider>
@@ -80,9 +91,9 @@ function SelectValue({
   const context = React.useContext(SelectContext);
   if (!context) throw new Error("SelectValue must be used within Select");
 
-  const [label, setLabel] = React.useState(placeholder);
+  const label = context.getItemLabel(context.value);
 
-  return <span className="truncate">{label || placeholder}</span>;
+  return <span className="truncate">{label || placeholder || context.value}</span>;
 }
 
 function SelectContent({
@@ -139,6 +150,12 @@ function SelectItem({
   if (!context) throw new Error("SelectItem must be used within Select");
 
   const isSelected = context.value === value;
+
+  // Register this item's label on mount
+  React.useEffect(() => {
+    const label = typeof children === "string" ? children : value;
+    context.registerItem(value, label);
+  }, [value, children, context]);
 
   return (
     <button
