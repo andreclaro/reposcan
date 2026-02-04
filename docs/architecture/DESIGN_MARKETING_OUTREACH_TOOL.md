@@ -2,272 +2,121 @@
 
 ## Overview
 
-A powerful marketing tool for admins to promote the SecurityKit service by leveraging existing scan results. This tool enables admins to:
+A lightweight marketing tool for admins to promote SecurityKit by leveraging existing scan results. This MVP enables admins to create shareable scan reports and open GitHub issues on scanned repositories.
 
-1. **Create shareable scan reports** (summary or full) from completed scans
-2. **Open GitHub issues** on scanned repositories to notify maintainers about security findings
-3. **Bulk operations** for efficient outreach campaigns
-4. **Track outreach effectiveness** through click analytics
+## MVP Implementation Status
 
-## Goals
+### ✅ Completed Features
 
-- Drive organic growth through security-conscious repository maintainers
-- Provide value upfront (free security insights) to potential customers
-- Create viral loops via shareable scan reports
-- Establish SecurityKit as an authority in open-source security
+1. **Share Scan Reports** - Create public share links from admin dashboard
+   - Summary or Full Report options
+   - Configurable expiration (7/30/90 days or never)
+   - Existing share links reused in GitHub issues
+
+2. **Open GitHub Issues** - One-click issue creation
+   - Auto-generated issue title and body
+   - Pre-filled with finding counts by severity
+   - Optional share link inclusion
+   - Records outreach activity for tracking
+
+3. **Admin Integration** - Built into existing admin scans dashboard
+   - Share button for completed scans
+   - GitHub button for completed scans  
+   - No separate page needed
+
+### 📁 Files Added/Modified
+
+| File | Purpose |
+|------|---------|
+| `frontend/src/components/admin/github-issue-dialog.tsx` | GitHub issue preview & creation |
+| `frontend/src/components/ui/textarea.tsx` | UI component for issue body preview |
+| `frontend/src/components/scan-share-dialog.tsx` | Modified for controlled mode |
+| `frontend/src/components/admin/admin-dashboard.tsx` | Added Share/GitHub buttons |
+| `frontend/src/app/api/admin/marketing/outreach/route.ts` | API to record outreach |
+| `frontend/src/db/schema.ts` | Added `outreachActivity` table |
+| `frontend/drizzle/0008_add_outreach_activity.sql` | Migration SQL |
 
 ---
 
 ## User Flow
 
-### 1. Admin Accesses Marketing Tool
-
 ```
-Admin Dashboard → Marketing Outreach (new tab)
+Admin Dashboard → Scans → [Completed Scan] → [Share] or [GitHub]
 ```
 
-### 2. Scan Selection
+### Creating a Share Link
 
-Admin is presented with a filtered list of **completed scans** that are:
-- From public GitHub repositories
-- Have at least one finding (critical/high/medium recommended)
-- Not previously used for outreach (optional filter)
-- Sorted by finding severity or repo popularity
+1. Find a completed scan with findings
+2. Click **Share** button
+3. Choose **Summary** or **Full Report**
+4. Set expiration
+5. Copy share URL
 
-### 3. Outreach Actions
+### Opening a GitHub Issue
 
-For each selected scan, admin can:
-
-#### Option A: Create Share Link
-- Choose **Summary** (finding counts, risk score) or **Full Report** (all details)
-- Set expiration (7/30/90 days or never)
-- Get shareable URL: `https://securitykit.dev/share/{token}`
-
-#### Option B: Open GitHub Issue
-- Preview auto-generated issue content
-- Customize title and body
-- One-click open in new tab with pre-filled GitHub issue form
-
-#### Option C: Both
-- Create share link + include it in GitHub issue body
+1. Find a completed scan (preferably with Critical/High findings)
+2. Click **GitHub** button
+3. Preview auto-generated issue:
+   - Title: "Security scan findings (branch · commit)"
+   - Body: Finding counts, scan details, optional share link
+4. Click **Open GitHub Issue** → opens pre-filled GitHub form in new tab
+5. Outreach activity is recorded automatically
 
 ---
 
-## UI Design
+## UI Screenshots
 
-### Marketing Outreach Page
+### Admin Dashboard with Marketing Buttons
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Marketing Outreach Tool                                        [Help] [?]  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │  📊 Outreach Stats          │  🎯 Quick Actions                      │  │
-│  │  ───────────────────────────────────────────────────────────────────  │  │
-│  │  Links Created: 128         │  [Create Bulk Shares]                  │  │
-│  │  Issues Opened: 45          │  [Open GitHub Issues]                  │  │
-│  │  Click-through: 32%         │  [View Analytics]                      │  │
-│  └───────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │  🔍 Filters                                                           │  │
-│  │  [Search repos...] [Status: Completed ▼] [Has Findings: Yes ▼]        │  │
-│  │  [Min Severity: High ▼] [Repository: Public ▼] [Not Contacted ✓]      │  │
-│  └───────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │  Selected: 3 scans    [Create Shares] [Open GitHub Issues]            │  │
-│  └───────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  □  facebook/react                                                   │    │
-│  │      ├─ 12 findings (2 Critical, 5 High)                            │    │
-│  │      ├─ Branch: main @ a1b2c3d                                      │    │
-│  │      ├─ Scanned: 2 hours ago                                        │    │
-│  │      └─ Actions: [Share] [GitHub Issue] [Both]                      │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  □  kubernetes/kubernetes                                            │    │
-│  │      ├─ 8 findings (1 Critical, 3 High)                             │    │
-│  │      ├─ Branch: master @ e5f6g7h                                    │    │
-│  │      ├─ Scanned: 5 hours ago                                        │    │
-│  │      └─ Actions: [Share ✓] [GitHub Issue] [Both]                    │    │
-│  │         └─ Share link created: /share/abc123 (32 clicks)            │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  □  vercel/next.js                                                   │    │
-│  │      ├─ 5 findings (2 High, 3 Medium)                               │    │
-│  │      ├─ Branch: canary @ i9j0k1l                                    │    │
-│  │      ├─ Scanned: 1 day ago                                          │    │
-│  │      └─ Actions: [Share] [GitHub Issue ✓] [Both]                    │    │
-│  │         └─ Issue opened: #12345                                     │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  facebook/react                                              │
+│  🔴 12 findings (2 Critical, 5 High, 3 Medium, 2 Low)       │
+│  Branch: main @ a1b2c3d                                     │
+│  Scanned: 2 hours ago                                       │
+│                                                              │
+│  Actions: [View] [Retry] [Rescan] [Refresh] [Share] [GitHub]│
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Create Share Dialog
+### GitHub Issue Dialog
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Create Share Link                             [X]      │
+│  Open GitHub Issue                               [X]    │
 ├─────────────────────────────────────────────────────────┤
-│                                                         │
 │  Repository: facebook/react                             │
-│  Findings: 12 (2 Critical, 5 High, 3 Medium, 2 Low)    │
 │                                                         │
-│  Share Type:                                            │
-│  ○ Summary Only (finding counts, risk score)           │
-│  ● Full Report (all findings with details)             │
-│                                                         │
-│  Expiration:                                            │
-│  [Never ▼]                                              │
-│                                                         │
-│  Marketing Options:                                     │
-│  [✓] Include CTA to try SecurityKit                     │
-│  [✓] Track clicks for analytics                        │
-│                                                         │
-│  Preview:                                               │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │  🔒 Security Scan Report for facebook/react      │   │
-│  │                                                  │   │
-│  │  Risk Score: 72/100 (High)                       │   │
-│  │  Findings: 12 vulnerabilities found              │   │
-│  │                                                  │   │
-│  │  [View Full Report]  [Scan Your Own Repo]        │   │
-│  └─────────────────────────────────────────────────┘   │
-│                                                         │
-│              [Cancel]  [Create Share Link]              │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
-```
-
-### GitHub Issue Preview Dialog
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Open GitHub Issue                             [X]      │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  Repository: facebook/react                             │
-│  Target: https://github.com/facebook/react/issues/new   │
+│  [✓] Include share link                                 │
 │                                                         │
 │  Issue Title:                                           │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │ Security scan findings (main · a1b2c3d)         │   │
-│  └─────────────────────────────────────────────────┘   │
+│  Security scan findings (main · a1b2c3d)               │
 │                                                         │
-│  Issue Body:                                            │
+│  Issue Body:                              [Copy]        │
 │  ┌─────────────────────────────────────────────────┐   │
 │  │ ## 🔒 Security Scan Report                       │   │
 │  │                                                  │   │
-│  │ A security scan of this repository identified   │   │
-│  │ **12 potential vulnerabilities**:               │   │
+│  │ A security scan identified **12 vulnerabilities**:│   │
 │  │                                                  │   │
 │  │ - 🔴 Critical: 2                                │   │
 │  │ - 🟠 High: 5                                    │   │
 │  │ - 🟡 Medium: 3                                  │   │
-│  │ - 🔵 Low: 2                                     │   │
 │  │                                                  │   │
-│  │ 📊 **View detailed report:**                    │   │
-│  │ https://securitykit.dev/share/xyz789            │   │
-│  │                                                  │   │
-│  │ ---                                              │   │
-│  │ *Generated by [SecurityKit](https://securitykit..│   │
+│  │ 📊 **Detailed Report:**                          │   │
+│  │ https://securitykit.dev/share/abc123            │   │
 │  └─────────────────────────────────────────────────┘   │
 │                                                         │
-│  Options:                                               │
-│  [✓] Include share link in issue                        │
-│  [✓] Add "good first issue" label suggestion           │
+│  Findings: [2 Critical] [5 High] [3 Medium] [2 Low]     │
 │                                                         │
-│         [Cancel]  [Open GitHub Issue →]                 │
-│                                                         │
+│           [Cancel]  [Open GitHub Issue →]               │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## API Design
+## API Endpoints
 
-### New Endpoints
-
-#### 1. List Scans for Outreach
-```
-GET /api/admin/marketing/scans
-```
-
-Query Parameters:
-- `status` - Filter by scan status (default: "completed")
-- `hasFindings` - boolean (default: true)
-- `minSeverity` - "critical" | "high" | "medium" | "low"
-- `onlyPublic` - boolean (default: true)
-- `notContacted` - boolean (filter out previously contacted repos)
-- `search` - string (repo name/URL search)
-- `limit` - number (default: 50)
-- `offset` - number
-
-Response:
-```json
-{
-  "scans": [
-    {
-      "scanId": "uuid",
-      "repoUrl": "https://github.com/facebook/react",
-      "repoName": "facebook/react",
-      "branch": "main",
-      "commitHash": "a1b2c3d...",
-      "findingsCount": 12,
-      "criticalCount": 2,
-      "highCount": 5,
-      "mediumCount": 3,
-      "lowCount": 2,
-      "createdAt": "2026-02-04T10:00:00Z",
-      "outreachStatus": {
-        "shareCreated": true,
-        "shareToken": "abc123",
-        "shareClicks": 32,
-        "issueOpened": false
-      }
-    }
-  ],
-  "total": 128
-}
-```
-
-#### 2. Bulk Create Share Links
-```
-POST /api/admin/marketing/shares
-```
-
-Body:
-```json
-{
-  "scanIds": ["uuid1", "uuid2"],
-  "shareType": "summary" | "full",
-  "expiresInDays": 30 | null,
-  "includeBranding": true
-}
-```
-
-Response:
-```json
-{
-  "shares": [
-    {
-      "scanId": "uuid1",
-      "token": "abc123",
-      "url": "https://securitykit.dev/share/abc123",
-      "created": true
-    }
-  ],
-  "errors": []
-}
-```
-
-#### 3. Record Outreach Activity
+### Record Outreach Activity
 ```
 POST /api/admin/marketing/outreach
 ```
@@ -276,63 +125,32 @@ Body:
 ```json
 {
   "scanId": "uuid",
-  "type": "github_issue",
+  "type": "github_issue_opened",
   "metadata": {
-    "issueUrl": "https://github.com/facebook/react/issues/12345",
-    "shareToken": "abc123"  // optional, if included in issue
+    "issueUrl": "https://github.com/owner/repo/issues/new?...",
+    "shareToken": "abc123"
   }
 }
 ```
 
-#### 4. Get Outreach Analytics
+### Get Outreach Activity (for a scan)
 ```
-GET /api/admin/marketing/analytics
-```
-
-Query Parameters:
-- `period` - "7d" | "30d" | "90d" | "all"
-
-Response:
-```json
-{
-  "summary": {
-    "sharesCreated": 128,
-    "issuesOpened": 45,
-    "totalClicks": 412,
-    "uniqueVisitors": 298,
-    "ctr": 0.32
-  },
-  "topPerforming": [
-    {
-      "repo": "facebook/react",
-      "clicks": 45,
-      "shareUrl": "https://securitykit.dev/share/abc123"
-    }
-  ],
-  "timeline": [
-    {
-      "date": "2026-02-01",
-      "sharesCreated": 5,
-      "clicks": 12
-    }
-  ]
-}
+GET /api/admin/marketing/outreach?scanId=uuid
 ```
 
 ---
 
 ## Database Schema
 
-### New Table: `outreach_activity`
+### outreach_activity table
 
 ```sql
 CREATE TABLE outreach_activity (
     id SERIAL PRIMARY KEY,
-    scan_id UUID NOT NULL REFERENCES scans(scan_id) ON DELETE CASCADE,
-    type VARCHAR(50) NOT NULL, -- 'share_created', 'github_issue_opened'
-    share_token VARCHAR(255),  -- reference to scan_shares.token
-    metadata JSONB,            -- issue URL, additional context
-    created_by VARCHAR(255),   -- admin email
+    scan_id TEXT NOT NULL REFERENCES scan(scan_id) ON DELETE CASCADE,
+    type VARCHAR(50) NOT NULL, -- 'github_issue_opened'
+    metadata JSONB DEFAULT '{}', -- issueUrl, shareToken, etc.
+    created_by TEXT NOT NULL, -- admin email
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -341,149 +159,38 @@ CREATE INDEX idx_outreach_activity_type ON outreach_activity(type);
 CREATE INDEX idx_outreach_activity_created_at ON outreach_activity(created_at);
 ```
 
-### Modified Table: `scan_shares`
+---
 
-Add tracking columns:
-```sql
-ALTER TABLE scan_shares ADD COLUMN click_count INTEGER DEFAULT 0;
-ALTER TABLE scan_shares ADD COLUMN unique_visitors INTEGER DEFAULT 0;
-ALTER TABLE scan_shares ADD COLUMN last_clicked_at TIMESTAMP WITH TIME ZONE;
-ALTER TABLE scan_shares ADD COLUMN is_marketing_share BOOLEAN DEFAULT FALSE;
-```
+## Security & Ethics
+
+### Implemented Safeguards
+- **Admin-only access** - Only admins can use marketing features
+- **Manual GitHub issue creation** - Opens browser, doesn't auto-submit via API
+- **Clear branding** - Issues indicate they come from SecurityKit
+- **Opt-out ready** - Easy for maintainers to ignore or request removal
+
+### Rate Limiting (Future)
+- Recommend max 10 GitHub issues per hour per admin
+- Bulk operations limited to 50 scans
 
 ---
 
-## Click Tracking Implementation
+## Future Enhancements (Post-MVP)
 
-### Server-side
-Update click counts when share page is accessed:
+### Phase 2
+- [ ] Bulk operations (multi-select scans)
+- [ ] Outreach analytics dashboard (click tracking, response rates)
+- [ ] Template customization for GitHub issues
 
-```typescript
-// In /share/[token]/page.tsx or middleware
-async function trackShareView(token: string, req: Request) {
-  const ip = req.headers.get('x-forwarded-for') || 'unknown';
-  const userAgent = req.headers.get('user-agent') || '';
-  
-  // Update click count
-  await db.update(scanShares)
-    .set({ 
-      clickCount: sql`${scanShares.clickCount} + 1`,
-      lastClickedAt: new Date()
-    })
-    .where(eq(scanShares.token, token));
-    
-  // Log for unique visitor calculation (can use Redis for dedup)
-  await logShareView(token, ip, userAgent);
-}
-```
-
-### Analytics Aggregation
-Daily job to calculate unique visitors from logs.
-
----
-
-## GitHub Issue Templates
-
-### Template Variables
-
-| Variable | Description |
-|----------|-------------|
-| `{{repoName}}` | Repository name (e.g., "facebook/react") |
-| `{{branch}}` | Scanned branch |
-| `{{commitHash}}` | Short commit hash |
-| `{{findingsCount}}` | Total findings |
-| `{{criticalCount}}` | Critical findings |
-| `{{highCount}}` | High findings |
-| `{{mediumCount}}` | Medium findings |
-| `{{lowCount}}` | Low findings |
-| `{{shareUrl}}` | Share link URL |
-| `{{scanDate}}` | Scan date |
-
-### Default Template
-
-```markdown
-## 🔒 Security Scan Report
-
-A security scan of **{{repoName}}** identified **{{findingsCount}} potential security vulnerabilities**:
-
-{{#if criticalCount}}- 🔴 Critical: {{criticalCount}}{{/if}}
-{{#if highCount}}- 🟠 High: {{highCount}}{{/if}}
-{{#if mediumCount}}- 🟡 Medium: {{mediumCount}}{{/if}}
-{{#if lowCount}}- 🔵 Low: {{lowCount}}{{/if}}
-
-### Scan Details
-- **Branch:** {{branch}}
-- **Commit:** {{commitHash}}
-- **Date:** {{scanDate}}
-
-{{#if shareUrl}}
-### 📊 Detailed Report
-View the complete security analysis with remediation guidance:
-**{{shareUrl}}**
-{{/if}}
-
----
-
-This scan was performed using [SecurityKit](https://securitykit.dev), 
-a free security scanning service for open-source projects.
-
-*This issue was created to help improve the security posture of the project. 
-Feedback is welcome!*
-```
-
----
-
-## Security & Ethical Considerations
-
-### Rate Limiting
-- Max 10 GitHub issues per hour per admin
-- Bulk operations limited to 50 scans at once
-- Cooldown period between outreach to same repository (7 days)
-
-### Privacy
-- Only public repositories are eligible
-- No PII in share links or issue bodies
-- Scans of private repos are excluded from marketing tool
-
-### Anti-Spam
-- Require admin approval before bulk operations
-- Template customization must be reviewed
-- Option for repositories to opt-out via `.securitykit-ignore` file
-
-### GitHub Terms Compliance
-- Issues created manually (opens browser, not API)
-- Clear indication that issue is from automated scan
-- Easy opt-out mechanism
-- No persistent bot accounts
-
----
-
-## Implementation Phases
-
-### Phase 1: Basic Share Creation (MVP)
-- [ ] Marketing Outreach page UI
-- [ ] List scans with filters
-- [ ] Individual share creation
-- [ ] Basic analytics (share count)
-
-### Phase 2: GitHub Integration
-- [ ] GitHub issue preview dialog
-- [ ] Template system
-- [ ] One-click issue creation
-- [ ] Outreach activity tracking
-
-### Phase 3: Bulk Operations & Analytics
-- [ ] Multi-select scans
-- [ ] Bulk share creation
-- [ ] Bulk GitHub issue prep
-- [ ] Click tracking
-- [ ] Analytics dashboard
-
-### Phase 4: Advanced Features
-- [ ] A/B testing for templates
+### Phase 3
+- [ ] Auto-detect repository popularity (stars)
 - [ ] Scheduled outreach campaigns
-- [ ] Repository popularity scoring
-- [ ] Auto-follow-up reminders
+- [ ] A/B testing for issue templates
+
+### Phase 4
+- [ ] Email outreach to maintainers
+- [ ] Twitter/X integration for high-profile findings
+- [ ] ML-powered targeting for conversion likelihood
 
 ---
 
@@ -494,14 +201,52 @@ Feedback is welcome!*
 | Share click-through rate | > 25% |
 | GitHub issue response rate | > 10% |
 | New signups from shares | > 5% of clicks |
-| Repository maintainer engagement | > 15% positive reactions |
 
 ---
 
-## Future Enhancements
+## Migration Instructions
 
-1. **Email Outreach** - Contact maintainers via email when available
-2. **Twitter/X Integration** - Auto-tweet about high-profile security findings
-3. **Badge Program** - "Scanned by SecurityKit" badges for repos
-4. **Bounty Program** - Reward admins for successful conversions
-5. **ML-Powered Targeting** - Identify most likely-to-convert repositories
+To apply the database migration:
+
+```bash
+cd frontend
+# Run the SQL migration
+psql $DATABASE_URL < drizzle/0008_add_outreach_activity.sql
+
+# Or use drizzle-kit if configured
+npx drizzle-kit migrate
+```
+
+---
+
+## Usage Guide for Admins
+
+### Best Practices
+
+1. **Target high-impact repositories**
+   - Look for scans with Critical or High findings
+   - Popular open-source projects get more visibility
+
+2. **Create share link first**
+   - Then include it in the GitHub issue
+   - Gives maintainers detailed remediation guidance
+
+3. **Be respectful**
+   - Don't spam repositories
+   - Focus on actionable security findings
+   - Space out outreach to same organization
+
+### Workflow Example
+
+```
+1. Filter scans by "completed" + "has Critical findings"
+2. Select a well-known repository (e.g., facebook/react)
+3. Click "Share" → Create Full Report link
+4. Click "GitHub" → Include share link → Open GitHub Issue
+5. In GitHub, review and submit the issue
+6. Repeat for other high-value targets
+```
+
+---
+
+*Last updated: 2026-02-04*
