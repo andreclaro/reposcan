@@ -1,11 +1,23 @@
 """FastAPI service for security audit API."""
 import os
 import uuid
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from celery import Celery
 from celery.result import AsyncResult
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from .models import ScanRequest, ScanResponse, ScanStatusResponse, HealthResponse
+
+# Rate limiting configuration
+# Use Redis as storage for rate limits if available, otherwise in-memory
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=REDIS_URL if REDIS_URL else None,
+)
 
 app = FastAPI(
     title="Security Audit API",
@@ -13,9 +25,11 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# Celery configuration
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+# Add rate limiter to app state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# Celery configuration
 celery_app = Celery(
     'audit',
     broker=REDIS_URL,
@@ -33,14 +47,15 @@ celery_app.conf.update(
 
 
 @app.post("/scan", response_model=ScanResponse)
-async def create_scan(request: ScanRequest):
+@limiter.limit("10/minute")  # Rate limit: 10 scans per minute per IP
+async def create_scan(request: Request, scan_request: ScanRequest):
     """Queue a new security scan job."""
     scan_id = str(uuid.uuid4())
     
     # Send task to Celery
     task = celery_app.send_task(
         'tasks.scan_worker.run_scan',
-        args=[scan_id, request.dict()],
+        args=[scan_id, scan_request.dict()],
         task_id=scan_id  # Use scan_id as task_id for easy tracking
     )
     
@@ -48,7 +63,8 @@ async def create_scan(request: ScanRequest):
 
 
 @app.post("/scan/{scan_id}/retry", response_model=ScanResponse)
-async def retry_scan(scan_id: str, request: ScanRequest):
+@limiter.limit("5/minute")  # Rate limit: 5 retries per minute per IP
+async def retry_scan(request: Request, scan_id: str, scan_request: ScanRequest):
     """Queue a retry for an existing scan, reusing the same scan_id."""
     # Validate scan_id is a valid UUID to prevent abuse
     try:
@@ -60,14 +76,15 @@ async def retry_scan(scan_id: str, request: ScanRequest):
     # Send task to Celery using the existing scan_id as task_id
     celery_app.send_task(
         "tasks.scan_worker.run_scan",
-        args=[scan_id_str, request.dict()],
+        args=[scan_id_str, scan_request.dict()],
         task_id=scan_id_str,
     )
 
     return ScanResponse(scan_id=scan_id_str, status="queued")
 
 @app.get("/scan/{scan_id}/status", response_model=ScanStatusResponse)
-async def get_scan_status(scan_id: str):
+@limiter.limit("30/minute")  # Rate limit: 30 status checks per minute per IP
+async def get_scan_status(request: Request, scan_id: str):
     """Get the status of a scan job."""
     task = AsyncResult(scan_id, app=celery_app)
     
@@ -132,7 +149,8 @@ async def get_scan_status(scan_id: str):
 
 
 @app.post("/scan/{scan_id}/generate-ai")
-async def generate_ai_for_scan(scan_id: str):
+@limiter.limit("5/minute")  # Rate limit: 5 AI generations per minute per IP
+async def generate_ai_for_scan(request: Request, scan_id: str):
     """
     Queue generation of AI analysis for an existing completed scan.
 
@@ -154,7 +172,8 @@ async def generate_ai_for_scan(scan_id: str):
 
 
 @app.get("/health", response_model=HealthResponse)
-async def health():
+@limiter.limit("60/minute")  # Rate limit: 60 health checks per minute per IP
+async def health(request: Request):
     """Health check endpoint."""
     return HealthResponse(status="ok")
 
