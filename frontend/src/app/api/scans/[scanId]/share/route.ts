@@ -84,7 +84,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     );
   }
 
-  let body: { shareType?: string; expiresInDays?: number | null };
+  let body: { shareType?: string; expiresInHours?: number | null };
   try {
     body = await request.json();
   } catch {
@@ -92,13 +92,13 @@ export async function POST(request: Request, { params }: RouteParams) {
   }
 
   const shareType = body.shareType === "summary" ? "summary" : "full";
-  const expiresInDays = body.expiresInDays ?? null;
+  const expiresInHours = body.expiresInHours ?? null;
 
   // Calculate expiration date if provided
   let expiresAt: Date | null = null;
-  if (expiresInDays && expiresInDays > 0) {
+  if (expiresInHours && expiresInHours > 0) {
     expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+    expiresAt.setHours(expiresAt.getHours() + expiresInHours);
   }
 
   // Generate unique token
