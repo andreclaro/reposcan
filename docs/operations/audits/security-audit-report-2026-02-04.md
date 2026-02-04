@@ -15,7 +15,7 @@ A comprehensive security review of the `sec-audit-repos` codebase has been condu
 
 | Severity | Count | Status |
 |----------|-------|--------|
-| 🔴 Critical | 0 | All fixed ✅ |
+| 🔴 Critical | 2 | 1 fixed, 2 remaining |
 | 🟠 High | 4 | Address within 1 week |
 | 🟡 Medium | 3 | Address within 1 month |
 | 🟢 Low | 2 | Address when convenient |
