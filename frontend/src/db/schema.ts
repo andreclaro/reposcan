@@ -249,7 +249,10 @@ export const outreachActivity = pgTable(
     type: text("type").notNull(), // 'github_issue_opened'
     metadata: jsonb("metadata").$type<{
       issueUrl?: string;
+      issueNumber?: number;
       shareToken?: string;
+      api?: boolean;
+      bulk?: boolean;
     }>(),
     createdBy: text("created_by").notNull(), // admin email
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow()

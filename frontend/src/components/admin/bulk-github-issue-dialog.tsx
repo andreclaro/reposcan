@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { ExternalLink, Github, Loader2, Check, AlertCircle } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { ExternalLink, Github, Loader2, Check, AlertCircle, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -95,10 +95,21 @@ export default function BulkGitHubIssueDialog({
 }: BulkGitHubIssueDialogProps) {
   const [shareType, setShareType] = useState<"summary" | "full">("summary");
   const [includeShareLink, setIncludeShareLink] = useState(true);
+  const [useApi, setUseApi] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [results, setResults] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const [results, setResults] = useState<{ 
+    success: number; 
+    failed: number; 
+    errors: string[];
+    created: Array<{ repoName: string; issueUrl: string; issueNumber?: number }>;
+  } | null>(null);
   const [createdShares, setCreatedShares] = useState<Record<string, string>>({});
+  const [githubStatus, setGitHubStatus] = useState<{ 
+    configured: boolean; 
+    rateLimit?: { remaining: number; limit: number };
+  } | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
 
   const validScans = scans.filter(scan => {
     const parsed = parseGitHubRepo(scan.repoUrl);
@@ -108,6 +119,34 @@ export default function BulkGitHubIssueDialog({
   const totalFindings = validScans.reduce((sum, s) => sum + s.findingsCount, 0);
   const totalCritical = validScans.reduce((sum, s) => sum + (s.criticalCount || 0), 0);
   const totalHigh = validScans.reduce((sum, s) => sum + (s.highCount || 0), 0);
+
+  // Check GitHub API status when dialog opens
+  useEffect(() => {
+    if (open && useApi) {
+      checkGitHubStatus();
+    }
+  }, [open, useApi]);
+
+  const checkGitHubStatus = async () => {
+    setCheckingStatus(true);
+    try {
+      const response = await fetch("/api/admin/marketing/github-issue");
+      const data = await response.json();
+      setGitHubStatus({
+        configured: data.configured,
+        rateLimit: data.rateLimit
+      });
+      // If not configured, switch to browser mode
+      if (!data.configured) {
+        setUseApi(false);
+      }
+    } catch {
+      setGitHubStatus({ configured: false });
+      setUseApi(false);
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
 
   const handleCreateShare = async (scanId: string, shareType: "summary" | "full"): Promise<string | null> => {
     try {
@@ -130,7 +169,12 @@ export default function BulkGitHubIssueDialog({
     setProgress(0);
     setResults(null);
 
-    const results = { success: 0, failed: 0, errors: [] as string[] };
+    const results = { 
+      success: 0, 
+      failed: 0, 
+      errors: [] as string[],
+      created: [] as Array<{ repoName: string; issueUrl: string; issueNumber?: number }>
+    };
     const shares: Record<string, string> = {};
 
     for (let i = 0; i < validScans.length; i++) {
@@ -146,7 +190,6 @@ export default function BulkGitHubIssueDialog({
           }
         }
 
-        // Build GitHub issue URL
         const parsed = parseGitHubRepo(scan.repoUrl);
         if (!parsed) {
           results.failed++;
@@ -161,29 +204,65 @@ export default function BulkGitHubIssueDialog({
         const title = buildIssueTitle(scan.repoName, scan.branch, scan.commitHash);
         const body = buildIssueBody(scan, shareUrl, includeShareLink);
 
-        const issueUrl = new URL(`https://github.com/${parsed.owner}/${parsed.repo}/issues/new`);
-        issueUrl.searchParams.set("title", title);
-        issueUrl.searchParams.set("body", body);
+        if (useApi && githubStatus?.configured) {
+          // Create issue via API
+          const response = await fetch("/api/admin/marketing/github-issue", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              scanId: scan.scanId,
+              title,
+              body,
+              shareToken
+            })
+          });
 
-        // Record outreach activity
-        await fetch("/api/admin/marketing/outreach", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            scanId: scan.scanId,
-            type: "github_issue_opened",
-            metadata: { 
-              issueUrl: issueUrl.toString(), 
-              shareToken,
-              bulk: true 
+          const data = await response.json();
+
+          if (!response.ok) {
+            // If API fails, fall back to browser
+            if (data.fallback === "browser") {
+              const issueUrl = new URL(`https://github.com/${parsed.owner}/${parsed.repo}/issues/new`);
+              issueUrl.searchParams.set("title", title);
+              issueUrl.searchParams.set("body", body);
+              window.open(issueUrl.toString(), `_blank_${i}`, "noopener,noreferrer");
+              results.success++;
+            } else {
+              throw new Error(data.error || "Failed to create issue");
             }
-          })
-        });
+          } else {
+            results.success++;
+            results.created.push({
+              repoName: scan.repoName,
+              issueUrl: data.issueUrl,
+              issueNumber: data.issueNumber
+            });
+          }
+        } else {
+          // Browser fallback
+          const issueUrl = new URL(`https://github.com/${parsed.owner}/${parsed.repo}/issues/new`);
+          issueUrl.searchParams.set("title", title);
+          issueUrl.searchParams.set("body", body);
+          window.open(issueUrl.toString(), `_blank_${i}`, "noopener,noreferrer");
 
-        // Open GitHub issue in new tab
-        window.open(issueUrl.toString(), `_blank_${i}`, "noopener,noreferrer");
+          // Record outreach
+          await fetch("/api/admin/marketing/outreach", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              scanId: scan.scanId,
+              type: "github_issue_opened",
+              metadata: { 
+                issueUrl: issueUrl.toString(),
+                shareToken,
+                bulk: true,
+                api: false
+              }
+            })
+          });
 
-        results.success++;
+          results.success++;
+        }
       } catch (error) {
         results.failed++;
         results.errors.push(`${scan.repoName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -260,6 +339,42 @@ export default function BulkGitHubIssueDialog({
           {!results && (
             <>
               <div className="space-y-3">
+                {/* API vs Browser toggle */}
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <div className="text-sm font-medium flex items-center gap-2">
+                      Use GitHub API
+                      {checkingStatus && <Loader2 className="h-3 w-3 animate-spin" />}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {githubStatus?.configured 
+                        ? `Rate limit: ${githubStatus.rateLimit?.remaining}/${githubStatus.rateLimit?.limit} remaining`
+                        : "Requires GITHUB_TOKEN environment variable"
+                      }
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {githubStatus?.configured ? (
+                      <Switch
+                        checked={useApi}
+                        onCheckedChange={setUseApi}
+                      />
+                    ) : (
+                      <Badge variant="outline" className="text-xs">Browser only</Badge>
+                    )}
+                  </div>
+                </div>
+
+                {/* Warning if using browser */}
+                {!useApi && (
+                  <Alert className="text-xs">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Browser mode opens tabs for each issue. You&apos;ll need to submit them manually.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div className="space-y-0.5">
                     <div className="text-sm font-medium">Include share link</div>
@@ -337,7 +452,7 @@ export default function BulkGitHubIssueDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-lg border bg-green-50 p-3 text-center">
                   <div className="text-2xl font-bold text-green-600">{results.success}</div>
-                  <div className="text-xs text-green-700">Issues Opened</div>
+                  <div className="text-xs text-green-700">Issues Created</div>
                 </div>
                 {results.failed > 0 && (
                   <div className="rounded-lg border bg-red-50 p-3 text-center">
@@ -346,6 +461,30 @@ export default function BulkGitHubIssueDialog({
                   </div>
                 )}
               </div>
+
+              {/* Created issues list */}
+              {results.created.length > 0 && (
+                <div className="rounded-lg border p-3 max-h-40 overflow-y-auto">
+                  <div className="text-sm font-medium mb-2">Created Issues</div>
+                  <div className="space-y-1">
+                    {results.created.map((item, i) => (
+                      <a
+                        key={i}
+                        href={item.issueUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between text-xs hover:bg-slate-50 p-1 rounded"
+                      >
+                        <span className="truncate">{item.repoName}</span>
+                        <span className="text-blue-600 flex items-center gap-1">
+                          #{item.issueNumber}
+                          <ExternalLink className="h-3 w-3" />
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {includeShareLink && Object.keys(createdShares).length > 0 && (
                 <Alert>
@@ -397,8 +536,17 @@ export default function BulkGitHubIssueDialog({
                     </>
                   ) : (
                     <>
-                      <ExternalLink className="h-4 w-4" />
-                      Open {validScans.length} GitHub Issue{validScans.length !== 1 ? 's' : ''}
+                      {useApi && githubStatus?.configured ? (
+                        <>
+                          <Github className="h-4 w-4" />
+                          Create {validScans.length} Issue{validScans.length !== 1 ? 's' : ''}
+                        </>
+                      ) : (
+                        <>
+                          <ExternalLink className="h-4 w-4" />
+                          Open {validScans.length} Issue{validScans.length !== 1 ? 's' : ''}
+                        </>
+                      )}
                     </>
                   )}
                 </Button>

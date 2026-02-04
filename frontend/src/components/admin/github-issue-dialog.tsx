@@ -1,19 +1,21 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { ExternalLink, Github, Copy, Check } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { ExternalLink, Github, Copy, Check, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { parseGitHubRepo } from "@/lib/github-url";
 
 interface GitHubIssueDialogProps {
@@ -33,6 +35,11 @@ interface GitHubIssueDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRecordOutreach?: (issueUrl: string) => Promise<void>;
+}
+
+interface GitHubStatus {
+  configured: boolean;
+  rateLimit?: { remaining: number; limit: number };
 }
 
 function buildIssueTitle(
@@ -104,8 +111,12 @@ export default function GitHubIssueDialog({
   onRecordOutreach
 }: GitHubIssueDialogProps) {
   const [includeShareLink, setIncludeShareLink] = useState(!!shareToken);
+  const [useApi, setUseApi] = useState(true);
   const [copied, setCopied] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [result, setResult] = useState<{ success?: boolean; issueUrl?: string; issueNumber?: number; error?: string } | null>(null);
+  const [githubStatus, setGitHubStatus] = useState<GitHubStatus | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
 
   const parsed = parseGitHubRepo(scan.repoUrl);
   const repoName = parsed ? `${parsed.owner}/${parsed.repo}` : scan.repoUrl;
@@ -116,6 +127,33 @@ export default function GitHubIssueDialog({
 
   const issueTitle = buildIssueTitle(repoName, scan.branch, scan.commitHash);
   const issueBody = buildIssueBody(scan, shareUrl, includeShareLink);
+
+  // Check GitHub API status when dialog opens
+  useEffect(() => {
+    if (open && useApi) {
+      checkGitHubStatus();
+    }
+  }, [open, useApi]);
+
+  const checkGitHubStatus = async () => {
+    setCheckingStatus(true);
+    try {
+      const response = await fetch("/api/admin/marketing/github-issue");
+      const data = await response.json();
+      setGitHubStatus({
+        configured: data.configured,
+        rateLimit: data.rateLimit
+      });
+      if (!data.configured) {
+        setUseApi(false);
+      }
+    } catch {
+      setGitHubStatus({ configured: false });
+      setUseApi(false);
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
 
   const githubIssueUrl = useCallback(() => {
     if (!parsed) return null;
@@ -135,22 +173,73 @@ export default function GitHubIssueDialog({
     }
   };
 
-  const handleOpenGitHub = async () => {
-    const url = githubIssueUrl();
-    if (!url) return;
+  const handleCreateIssue = async () => {
+    setIsProcessing(true);
+    setResult(null);
 
-    // Record outreach activity
-    if (onRecordOutreach) {
-      setIsRecording(true);
-      try {
-        await onRecordOutreach(url);
-      } finally {
-        setIsRecording(false);
+    try {
+      if (useApi && githubStatus?.configured && parsed) {
+        // Create via API
+        const response = await fetch("/api/admin/marketing/github-issue", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scanId: scan.scanId,
+            title: issueTitle,
+            body: issueBody,
+            shareToken
+          })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          setResult({
+            success: true,
+            issueUrl: data.issueUrl,
+            issueNumber: data.issueNumber
+          });
+        } else if (data.fallback === "browser") {
+          // Fall back to browser
+          const url = githubIssueUrl();
+          if (url) {
+            if (onRecordOutreach) {
+              await onRecordOutreach(url);
+            }
+            window.open(url, "_blank", "noopener,noreferrer");
+            onOpenChange(false);
+          }
+        } else {
+          setResult({
+            success: false,
+            error: data.error || "Failed to create issue"
+          });
+        }
+      } else {
+        // Browser mode
+        const url = githubIssueUrl();
+        if (url) {
+          if (onRecordOutreach) {
+            await onRecordOutreach(url);
+          }
+          window.open(url, "_blank", "noopener,noreferrer");
+          onOpenChange(false);
+        }
       }
+    } catch (error) {
+      setResult({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    } finally {
+      setIsProcessing(false);
     }
+  };
 
-    // Open GitHub
-    window.open(url, "_blank", "noopener,noreferrer");
+  const handleClose = () => {
+    setResult(null);
+    setUseApi(true);
+    onOpenChange(false);
   };
 
   if (!parsed) {
@@ -169,115 +258,192 @@ export default function GitHubIssueDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Github className="h-5 w-5" />
-            Open GitHub Issue
+            {result?.success ? "Issue Created!" : "Create GitHub Issue"}
           </DialogTitle>
           <DialogDescription>
-            Preview and open a GitHub issue for{" "}
-            <span className="font-medium">{repoName}</span>
+            {result?.success 
+              ? "GitHub issue created successfully via API"
+              : `Preview and create a GitHub issue for ${repoName}`
+            }
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Share link toggle */}
-          {shareUrl && (
-            <div className="flex items-center justify-between rounded-lg border bg-slate-50 p-3">
+        {result?.success ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-green-50 p-4 text-center">
+              <Check className="h-8 w-8 text-green-500 mx-auto mb-2" />
+              <div className="text-sm text-green-700">
+                Issue #{result.issueNumber} created successfully
+              </div>
+              <a 
+                href={result.issueUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline text-sm break-all"
+              >
+                {result.issueUrl}
+              </a>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleClose}>Close</Button>
+            </DialogFooter>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* API vs Browser toggle */}
+            <div className="flex items-center justify-between rounded-lg border p-3">
               <div className="space-y-0.5">
-                <div className="text-sm font-medium">Include share link</div>
+                <div className="text-sm font-medium flex items-center gap-2">
+                  Use GitHub API
+                  {checkingStatus && <Loader2 className="h-3 w-3 animate-spin" />}
+                </div>
                 <div className="text-xs text-slate-500">
-                  Add a link to the detailed scan report
+                  {githubStatus?.configured 
+                    ? `Rate limit: ${githubStatus.rateLimit?.remaining}/${githubStatus.rateLimit?.limit} remaining`
+                    : "Requires GITHUB_TOKEN environment variable"
+                  }
                 </div>
               </div>
-              <Switch
-                checked={includeShareLink}
-                onCheckedChange={setIncludeShareLink}
+              <div className="flex items-center gap-2">
+                {githubStatus?.configured ? (
+                  <Switch
+                    checked={useApi}
+                    onCheckedChange={setUseApi}
+                  />
+                ) : (
+                  <Badge variant="outline" className="text-xs">Browser only</Badge>
+                )}
+              </div>
+            </div>
+
+            {!useApi && (
+              <Alert className="text-xs">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Browser mode opens a new tab with pre-filled issue. You&apos;ll need to submit manually.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Share link toggle */}
+            {shareUrl && (
+              <div className="flex items-center justify-between rounded-lg border bg-slate-50 p-3">
+                <div className="space-y-0.5">
+                  <div className="text-sm font-medium">Include share link</div>
+                  <div className="text-xs text-slate-500">
+                    Add a link to the detailed scan report
+                  </div>
+                </div>
+                <Switch
+                  checked={includeShareLink}
+                  onCheckedChange={setIncludeShareLink}
+                />
+              </div>
+            )}
+
+            {/* Issue title */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Issue Title</label>
+              <Input value={issueTitle} readOnly className="bg-slate-50" />
+            </div>
+
+            {/* Issue body */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Issue Body</label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopy}
+                  className="h-7 gap-1"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="h-3.5 w-3.5" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3.5 w-3.5" />
+                      Copy
+                    </>
+                  )}
+                </Button>
+              </div>
+              <Textarea
+                value={issueBody}
+                readOnly
+                className="min-h-[200px] font-mono text-sm bg-slate-50"
               />
             </div>
-          )}
 
-          {/* Issue title */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Issue Title</label>
-            <Input value={issueTitle} readOnly className="bg-slate-50" />
-          </div>
+            {/* Findings summary */}
+            <div className="rounded-lg border p-3">
+              <div className="text-sm font-medium mb-2">Findings Summary</div>
+              <div className="flex flex-wrap gap-2">
+                {scan.criticalCount ? (
+                  <Badge variant="destructive">{scan.criticalCount} Critical</Badge>
+                ) : null}
+                {scan.highCount ? (
+                  <Badge className="bg-orange-500">{scan.highCount} High</Badge>
+                ) : null}
+                {scan.mediumCount ? (
+                  <Badge className="bg-yellow-500">{scan.mediumCount} Medium</Badge>
+                ) : null}
+                {scan.lowCount ? (
+                  <Badge className="bg-blue-500">{scan.lowCount} Low</Badge>
+                ) : null}
+                {scan.infoCount ? (
+                  <Badge variant="secondary">{scan.infoCount} Info</Badge>
+                ) : null}
+              </div>
+            </div>
 
-          {/* Issue body */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Issue Body</label>
+            {result?.error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {result.error}
+              </div>
+            )}
+
+            {/* Actions */}
+            <DialogFooter>
+              <Button variant="outline" onClick={handleClose}>
+                Cancel
+              </Button>
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleCopy}
-                className="h-7 gap-1"
+                onClick={handleCreateIssue}
+                disabled={isProcessing}
+                className="gap-2"
               >
-                {copied ? (
+                {isProcessing ? (
                   <>
-                    <Check className="h-3.5 w-3.5" />
-                    Copied
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creating...
                   </>
                 ) : (
                   <>
-                    <Copy className="h-3.5 w-3.5" />
-                    Copy
+                    {useApi && githubStatus?.configured ? (
+                      <>
+                        <Github className="h-4 w-4" />
+                        Create Issue
+                      </>
+                    ) : (
+                      <>
+                        <ExternalLink className="h-4 w-4" />
+                        Open in Browser
+                      </>
+                    )}
                   </>
                 )}
               </Button>
-            </div>
-            <Textarea
-              value={issueBody}
-              readOnly
-              className="min-h-[300px] font-mono text-sm bg-slate-50"
-            />
+            </DialogFooter>
           </div>
-
-          {/* Findings summary */}
-          <div className="rounded-lg border p-3">
-            <div className="text-sm font-medium mb-2">Findings Summary</div>
-            <div className="flex flex-wrap gap-2">
-              {scan.criticalCount ? (
-                <Badge variant="destructive">{scan.criticalCount} Critical</Badge>
-              ) : null}
-              {scan.highCount ? (
-                <Badge className="bg-orange-500">{scan.highCount} High</Badge>
-              ) : null}
-              {scan.mediumCount ? (
-                <Badge className="bg-yellow-500">{scan.mediumCount} Medium</Badge>
-              ) : null}
-              {scan.lowCount ? (
-                <Badge className="bg-blue-500">{scan.lowCount} Low</Badge>
-              ) : null}
-              {scan.infoCount ? (
-                <Badge variant="secondary">{scan.infoCount} Info</Badge>
-              ) : null}
-            </div>
-          </div>
-
-          {/* Target URL */}
-          <div className="rounded-lg bg-slate-50 p-3 text-sm">
-            <div className="text-slate-500">Target URL:</div>
-            <code className="text-xs break-all">{githubIssueUrl()}</code>
-          </div>
-
-          {/* Actions */}
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleOpenGitHub}
-              disabled={isRecording}
-              className="gap-2"
-            >
-              <ExternalLink className="h-4 w-4" />
-              {isRecording ? "Recording..." : "Open GitHub Issue"}
-            </Button>
-          </div>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
   );
