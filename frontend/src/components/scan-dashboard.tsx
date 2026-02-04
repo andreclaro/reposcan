@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScanListItem } from "./scan-list-item";
 import { parseGitHubRepo } from "@/lib/github-url";
 import { DEFAULT_AUDIT_TYPES } from "@/lib/validators";
+import { HIDE_PLANS } from "@/lib/config";
 import type { ScanRecord } from "@/types/scans";
 
 const activeStatuses = new Set(["queued", "running", "retrying"]);
@@ -460,7 +461,7 @@ export default function ScanDashboard({
                 <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                 <div>
                   <p>{error}</p>
-                  {errorUpgradeUrl && (
+                  {errorUpgradeUrl && !HIDE_PLANS && (
                     <a
                       href={errorUpgradeUrl}
                       className="mt-1 inline-flex items-center gap-1 font-medium underline hover:no-underline"

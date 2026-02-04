@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { User, Trash2, AlertTriangle, CreditCard } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { HIDE_PLANS } from "@/lib/config";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -230,7 +231,7 @@ export default function ProfilePage() {
           </div>
 
           {/* Upgrade button for free plan users */}
-          {!user?.stripeSubscriptionId && (
+          {!user?.stripeSubscriptionId && !HIDE_PLANS && (
             <div className="pt-2 border-t">
               <Button asChild variant="outline" className="w-full sm:w-auto gap-2">
                 <Link href="/plans">

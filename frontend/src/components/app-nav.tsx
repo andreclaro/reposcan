@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { CreditCard, Users, Scan, Wrench, ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { HIDE_PLANS } from "@/lib/config";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,17 +50,19 @@ export default function AppNav({ isAdmin }: AppNavProps) {
       >
         Dashboard
       </Link>
-      <Link
-        href="/plans"
-        className={cn(
-          "transition-colors",
-          isOnPlans
-            ? "text-foreground font-medium"
-            : "text-muted-foreground hover:text-foreground"
-        )}
-      >
-        Plans
-      </Link>
+      {!HIDE_PLANS && (
+        <Link
+          href="/plans"
+          className={cn(
+            "transition-colors",
+            isOnPlans
+              ? "text-foreground font-medium"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Plans
+        </Link>
+      )}
       <Link
         href="/contact"
         className={cn(

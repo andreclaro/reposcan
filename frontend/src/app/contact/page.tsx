@@ -7,6 +7,7 @@ import SignOutButton from "@/components/sign-out-button";
 import { Button } from "@/components/ui/button";
 import { isAdmin } from "@/lib/admin-auth";
 import { getServerAuth } from "@/lib/server-auth";
+import { HIDE_PLANS } from "@/lib/config";
 
 export const metadata = {
   title: "Contact - SecurityKit",
@@ -88,9 +89,11 @@ export default async function ContactPage() {
               <Link href="/terms" className="hover:text-slate-900">
                 Terms of Service
               </Link>
-              <Link href="/plans" className="hover:text-slate-900">
-                Plans
-              </Link>
+              {!HIDE_PLANS && (
+                <Link href="/plans" className="hover:text-slate-900">
+                  Plans
+                </Link>
+              )}
             </div>
           </div>
         </div>

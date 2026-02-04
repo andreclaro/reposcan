@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { HIDE_PLANS } from "@/lib/config";
 import {
   Check,
   Shield,
@@ -133,6 +135,19 @@ export default function PlansPage() {
   const [isYearly, setIsYearly] = useState(true);
   const { data: session, status } = useSession();
   const isAuthenticated = status === "authenticated";
+  const router = useRouter();
+
+  // Redirect if plans are hidden
+  useEffect(() => {
+    if (HIDE_PLANS) {
+      router.replace("/");
+    }
+  }, [router]);
+
+  // Show nothing while redirecting
+  if (HIDE_PLANS) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">

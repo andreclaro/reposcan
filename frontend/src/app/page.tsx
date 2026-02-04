@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { useSession } from "next-auth/react";
+import { HIDE_PLANS } from "@/lib/config";
 import {
   ArrowRight,
   CheckCircle2,
@@ -186,12 +187,14 @@ export default function HomePage() {
             >
               How it works
             </Link>
-            <Link
-              href="/plans"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900"
-            >
-              Pricing
-            </Link>
+            {!HIDE_PLANS && (
+              <Link
+                href="/plans"
+                className="text-sm font-medium text-slate-600 hover:text-slate-900"
+              >
+                Plans
+              </Link>
+            )}
           </nav>
           <div className="flex items-center gap-3">
             {isAuthenticated ? (
@@ -556,7 +559,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Pricing CTA */}
+      {/* Plans CTA */}
       <section className="bg-white py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <ScaleIn>
@@ -588,13 +591,15 @@ export default function HomePage() {
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  className="h-12 border-2 border-white bg-transparent px-8 text-base text-white hover:bg-white/10"
-                >
-                  <Link href="/plans">View pricing</Link>
-                </Button>
+                {!HIDE_PLANS && (
+                  <Button
+                    asChild
+                    size="lg"
+                    className="h-12 border-2 border-white bg-transparent px-8 text-base text-white hover:bg-white/10"
+                  >
+                    <Link href="/plans">View plans</Link>
+                  </Button>
+                )}
               </motion.div>
               <p className="mt-6 text-sm text-blue-200">
                 No credit card required. 5 free scans per month.
@@ -638,14 +643,16 @@ export default function HomePage() {
                     Features
                   </Link>
                 </li>
-                <li>
-                  <Link
-                    href="/plans"
-                    className="text-slate-500 hover:text-slate-900"
-                  >
-                    Pricing
-                  </Link>
-                </li>
+                {!HIDE_PLANS && (
+                  <li>
+                    <Link
+                      href="/plans"
+                      className="text-slate-500 hover:text-slate-900"
+                    >
+                      Plans
+                    </Link>
+                  </li>
+                )}
                 <li>
                   <Link
                     href="/app"
