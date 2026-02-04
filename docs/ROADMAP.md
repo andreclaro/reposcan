@@ -1,0 +1,369 @@
+# SecurityKit (sec-audit-repos) Roadmap
+
+**Version:** 1.0  
+**Last Updated:** 2026-02-04  
+**Status:** Living Document
+
+---
+
+## Overview
+
+This roadmap outlines the planned features and development phases for SecurityKit, a comprehensive security audit SaaS platform. The roadmap is organized by priority and logical dependency order.
+
+---
+
+## Phase 0: Foundation & Security Hardening ✅
+
+**Status:** Complete  
+**Timeline:** Jan 2026 - Feb 2026
+
+### Completed Items
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| CLI Tool | Core security scanning CLI | ✅ |
+| API Backend | FastAPI with async Celery workers | ✅ |
+| Frontend | Next.js with NextAuth authentication | ✅ |
+| Basic Scanners | Semgrep, Trivy, tfsec, checkov | ✅ |
+| Docker Setup | Docker Compose for local development | ✅ |
+| Command Injection Fix | Fixed shell injection in version_manager.py | ✅ |
+| Webhook Security | Stripe webhook signature verification | ✅ |
+| Session Security | Secure cookie configuration | ✅ |
+| trustHost Fix | Production-safe host validation | ✅ |
+
+### Security Audit Results
+- **All 12 security issues fixed** (3 Critical, 4 High, 3 Medium, 2 Low)
+- See: `docs/operations/audits/security-audit-report-2026-02-04.md`
+
+---
+
+## Phase 1: Core Platform (Current Focus) 🚧
+
+**Status:** In Progress  
+**Timeline:** Feb 2026 - Mar 2026  
+**Target:** Production-ready MVP
+
+### 1.1 Secret Scanning (Priority: High) 🚧
+
+| Task | Description | Owner | ETA |
+|------|-------------|-------|-----|
+| Gitleaks Integration | Add secret detection for all tiers | Backend | Week 1 |
+| Secret Parser | Normalize gitleaks output to findings format | Backend | Week 1 |
+| UI Integration | Display secret findings in scan results | Frontend | Week 1 |
+| Git History Scan | Scan commit history (Pro+ tiers) | Backend | Week 2 |
+| Secret Severity | Classify by type (AWS keys = Critical) | Backend | Week 1 |
+
+**Rationale:** Hardcoded secrets are the #1 security risk. Must be available on ALL tiers.
+
+### 1.2 GitHub Repository Integration 🚧
+
+| Task | Description | Owner | ETA |
+|------|-------------|-------|-----|
+| OAuth Scope Upgrade | Add `repo` scope for private repos | Frontend | Week 2 |
+| Token Encryption | AES-256-GCM encryption for GitHub tokens | Backend | Week 2 |
+| Repository Browser | List user's GitHub repos | Frontend | Week 3 |
+| Repo Sync API | `/api/github/repos/sync` endpoint | Backend | Week 2 |
+| Private Repo Cloning | Worker support for authenticated clone | Backend | Week 3 |
+| Repository Caching | Cache repo list in PostgreSQL | Backend | Week 3 |
+| One-Click Scan | Scan directly from repository browser | Frontend | Week 4 |
+
+**Documents:**
+- Design: `docs/architecture/DESIGN_GITHUB_REPOS_INTEGRATION.md`
+
+### 1.3 Billing & Subscription System 📋
+
+| Task | Description | Owner | ETA |
+|------|-------------|-------|-----|
+| Database Schema | Plans, subscriptions, usage tables | Backend | Week 1 |
+| Stripe Integration | Checkout, webhooks, customer portal | Backend | Week 2 |
+| Plan Management | Free, Pro, Custom tiers | Frontend | Week 2 |
+| Usage Tracking | Monthly scan limits | Backend | Week 3 |
+| Feature Gating | Tier-based feature access | Frontend | Week 3 |
+| Trial Management | 14-day trial (no CC) | Backend | Week 3 |
+| Pricing Page | `/plans` with feature comparison | Frontend | Week 2 |
+
+**Pricing Tiers:**
+- **Free:** 5 scans/month, public repos, basic scanners
+- **Pro (€29/mo):** 50 scans/month, private repos, AI analysis, exports
+- **Custom (€500+/mo):** Unlimited, team collaboration, API access
+
+**Documents:**
+- Proposal: `docs/architecture/PRICING_PROPOSAL.md`
+
+### 1.4 Scan Management Enhancements 📋
+
+| Task | Description | Owner | ETA |
+|------|-------------|-------|-----|
+| Scan History | Paginated scan list | Frontend | Week 2 |
+| Scan Details | Detailed findings view | Frontend | Week 2 |
+| Export Reports | PDF/JSON export (Pro feature) | Backend | Week 3 |
+| Email Notifications | Scan completion alerts | Backend | Week 4 |
+| Scheduled Scans | Cron-based recurring scans (Pro) | Backend | Week 4 |
+| Scan Comparison | Compare scan results over time | Frontend | Week 4 |
+
+---
+
+## Phase 2: AI-Powered Analysis (Pro Tier) 📋
+
+**Status:** Planned  
+**Timeline:** Mar 2026 - Apr 2026  
+**Target:** Differentiating Pro feature
+
+### 2.1 Unified LLM Client 📋
+
+| Task | Description | Owner | ETA |
+|------|-------------|-------|-----|
+| Provider Abstraction | Anthropic, OpenAI, Kimi adapters | Backend | Week 1 |
+| Factory Pattern | `LLMClientFactory` for provider switching | Backend | Week 1 |
+| Structured Output | JSON schema validation | Backend | Week 1 |
+| Token Tracking | Cost monitoring per scan | Backend | Week 2 |
+| Retry Logic | Exponential backoff, rate limits | Backend | Week 2 |
+
+### 2.2 Source Code Analysis (AI SAST) 📋
+
+| Task | Description | Owner | ETA |
+|------|-------------|-------|-----|
+| File Prioritization | Security-critical files first | Backend | Week 2 |
+| OWASP Analysis | OWASP Top 10 detection | Backend | Week 3 |
+| Business Logic Flaws | Auth flow, access control | Backend | Week 3 |
+| Token Management | Smart chunking for large files | Backend | Week 3 |
+| Code Chunking | Function-level analysis | Backend | Week 4 |
+| Cross-File Analysis | Multi-file vulnerability patterns | Backend | Week 4 |
+
+**Tier Limits:**
+- Pro: 50 files per scan
+- Team: 100 files per scan  
+- Enterprise: 200 files per scan
+
+### 2.3 Dockerfile & Infrastructure Analysis 📋
+
+| Task | Description | Owner | ETA |
+|------|-------------|-------|-----|
+| Dockerfile Analyzer | CIS Benchmark compliance | Backend | Week 2 |
+| Terraform Analyzer | AWS/Azure/GCP security | Backend | Week 3 |
+| GitHub Actions Scan | Workflow security | Backend | Week 3 |
+| Kubernetes Scan | K8s manifest security | Backend | Week 4 |
+| Docker Compose Scan | Compose file analysis | Backend | Week 4 |
+
+### 2.4 AI Caching & Performance 📋
+
+| Task | Description | Owner | ETA |
+|------|-------------|-------|-----|
+| Redis Caching | Cache analysis results | Backend | Week 4 |
+| Incremental Analysis | Only analyze changed files | Backend | Week 4 |
+| Content Hashing | File content-based cache keys | Backend | Week 4 |
+| Cost Controls | Monthly AI spend limits | Backend | Week 4 |
+
+**Documents:**
+- Design: `docs/architecture/DESIGN_AI_v0.5.md`
+
+---
+
+## Phase 3: Enterprise Features 📋
+
+**Status:** Planned  
+**Timeline:** Q2 2026  
+**Target:** Enterprise readiness
+
+### 3.1 Team Collaboration 📋
+
+| Task | Description | Owner | ETA |
+|------|-------------|-------|-----|
+| Organizations | Multi-user organizations | Backend | Q2 |
+| Role-Based Access | Admin, Member, Viewer roles | Backend | Q2 |
+| Shared Scans | Team-wide scan visibility | Backend | Q2 |
+| Comments & Notes | Annotate findings | Frontend | Q2 |
+| Assignments | Assign findings to team members | Frontend | Q2 |
+
+### 3.2 API & CI/CD Integration 📋
+
+| Task | Description | Owner | ETA |
+|------|-------------|-------|-----|
+| API Keys | Programmatic access | Backend | Q2 |
+| REST API v1 | Full API documentation | Backend | Q2 |
+| GitHub Action | Official GitHub Action | DevOps | Q2 |
+| GitLab CI Integration | GitLab CI/CD template | DevOps | Q2 |
+| Jenkins Plugin | Jenkins integration | DevOps | Q2 |
+| Webhook Improvements | Custom webhook payloads | Backend | Q2 |
+
+### 3.3 Compliance & Reporting 📋
+
+| Task | Description | Owner | ETA |
+|------|-------------|-------|-----|
+| Compliance Frameworks | SOC2, ISO27001, GDPR mappings | Backend | Q2 |
+| Audit Logs | Full activity logging | Backend | Q2 |
+| Custom Reports | Branded PDF reports | Backend | Q2 |
+| Trend Analysis | Security posture over time | Frontend | Q2 |
+| Executive Dashboard | High-level metrics | Frontend | Q2 |
+
+### 3.4 Advanced Scanning 📋
+
+| Task | Description | Owner | ETA |
+|------|-------------|-------|-----|
+| Custom Policies | User-defined scanning rules | Backend | Q2 |
+| False Positive Management | Mark and ignore findings | Frontend | Q2 |
+| Baseline Scanning | Track new vs. existing issues | Backend | Q2 |
+| SARIF Export | Standard format export | Backend | Q2 |
+| JIRA Integration | Auto-create tickets | Backend | Q2 |
+| Slack Notifications | Real-time alerts | Backend | Q2 |
+
+---
+
+## Phase 4: Platform Scale 📋
+
+**Status:** Future  
+**Timeline:** Q3-Q4 2026  
+**Target:** Scale & reliability
+
+### 4.1 Infrastructure 📋
+
+| Task | Description | Owner | ETA |
+|------|-------------|-------|-----|
+| Kubernetes Deployment | K8s manifests | DevOps | Q3 |
+| Auto-Scaling Workers | Dynamic worker pool | DevOps | Q3 |
+| Multi-Region | Regional deployment | DevOps | Q3 |
+| CDN | Static asset delivery | DevOps | Q3 |
+| Database Sharding | Horizontal scaling | Backend | Q4 |
+
+### 4.2 Performance 📋
+
+| Task | Description | Owner | ETA |
+|------|-------------|-------|-----|
+| Scan Caching | Cache scanner results | Backend | Q3 |
+| Incremental Scans | Only changed files | Backend | Q3 |
+| Parallel Scanning | Multi-scanner parallelism | Backend | Q3 |
+| Result Streaming | Real-time findings | Backend | Q3 |
+| GraphQL API | Efficient data fetching | Backend | Q4 |
+
+### 4.3 Security Enhancements 📋
+
+| Task | Description | Owner | ETA |
+|------|-------------|-------|-----|
+| Snyk Integration | Additional dependency scanning | Backend | Q3 |
+| SonarQube Integration | Code quality + security | Backend | Q3 |
+| Container Registry Scan | ECR/ACR/GCR scanning | Backend | Q4 |
+| DAST Support | Dynamic application scanning | Backend | Q4 |
+| Pentest Integration | Manual pentest coordination | Backend | Q4 |
+
+---
+
+## Backlog & Ideas 💡
+
+### Potential Future Features
+
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| **Bug Bounty Integration** | HackerOne/Bugcrowd submission | Medium |
+| **Security Training** | Developer education modules | Low |
+| **Code Review Bot** | GitHub PR security comments | Medium |
+| **Dependency Graph** | Visual dependency analysis | Low |
+| **Risk Scoring** | Portfolio-level risk metrics | Medium |
+| **SSO/SAML** | Enterprise SSO integration | High |
+| **On-Premise** | Self-hosted option | Medium |
+| **White Label** | Branded reseller option | Low |
+| **Mobile Apps** | iOS/Android companion apps | Low |
+| **VS Code Extension** | IDE integration | Medium |
+
+---
+
+## Technical Debt & Maintenance 🔧
+
+### Ongoing Tasks
+
+| Task | Description | Frequency |
+|------|-------------|-----------|
+| Security Updates | Update scanners (Trivy, Semgrep) | Weekly |
+| CVE Database | Update vulnerability feeds | Daily |
+| Dependency Updates | npm/pip package updates | Monthly |
+| Performance Review | Query optimization | Quarterly |
+| Cost Review | AI spend optimization | Monthly |
+| Documentation | Keep docs in sync | Per feature |
+
+### Known Technical Debt
+
+| Issue | Description | Priority |
+|-------|-------------|----------|
+| Docker Socket Mount | Move to DinD for security | High |
+| Root Containers | Run workers as non-root | Medium |
+| Rate Limiting | API endpoint protection | High |
+| Test Coverage | Increase from current baseline | Medium |
+| Error Handling | Standardize error responses | Medium |
+
+---
+
+## Success Metrics 📊
+
+### Key Performance Indicators
+
+| Metric | Current | Target (6mo) | Target (12mo) |
+|--------|---------|--------------|---------------|
+| Free Users | - | 1,500 | 5,000 |
+| Pro Subscribers | - | 80 | 300 |
+| MRR | - | €2,320 | €8,700 |
+| Scan Success Rate | - | 99% | 99.5% |
+| Mean Scan Time | - | <5min | <3min |
+| AI Findings Accuracy | - | 85% | 90% |
+
+### User Experience Goals
+
+- **Time to First Scan:** <2 minutes from signup
+- **Scan Setup:** <30 seconds for returning users
+- **Report Generation:** <1 minute after scan completion
+- **Dashboard Load:** <2 seconds
+
+---
+
+## Resource Requirements
+
+### Development Team
+
+| Role | Current | Needed | Timeline |
+|------|---------|--------|----------|
+| Backend Engineer | 1 | 2 | Q2 2026 |
+| Frontend Engineer | 1 | 1 | - |
+| DevOps Engineer | - | 1 | Q2 2026 |
+| Security Engineer | - | 1 | Q3 2026 |
+| Product Manager | - | 1 | Q2 2026 |
+
+### Infrastructure Costs (Estimated)
+
+| Component | Monthly Cost (Startup) | Monthly Cost (Scale) |
+|-----------|----------------------|---------------------|
+| PostgreSQL | €50 | €500 |
+| Redis | €30 | €200 |
+| Workers (EC2) | €100 | €1,000 |
+| S3 Storage | €20 | €200 |
+| AI API Costs | €500 | €5,000 |
+| **Total** | **€700** | **€6,900** |
+
+---
+
+## Decision Log
+
+| Date | Decision | Context | Status |
+|------|----------|---------|--------|
+| 2026-02 | AI Analysis = Pro tier only | Cost management | Approved |
+| 2026-02 | Secret Scanning = All tiers | Security first | Approved |
+| 2026-02 | GitHub OAuth over App | Simpler integration | Approved |
+| 2026-02 | Stripe for billing | Existing patterns | Approved |
+| 2026-02 | Redis for caching | Existing infra | Approved |
+
+---
+
+## Related Documents
+
+| Document | Purpose |
+|----------|---------|
+| `DESIGN_v0.md` | Core architecture |
+| `DESIGN_AI_v0.5.md` | AI analysis design |
+| `DESIGN_GITHUB_REPOS_INTEGRATION.md` | GitHub integration |
+| `PRICING_PROPOSAL.md` | Business model |
+| `security-audit-report-2026-02-04.md` | Security status |
+| `AGENTS.md` | Development guide |
+
+---
+
+**Document Maintenance:**
+- Review monthly
+- Update on major feature completion
+- Version bump on significant changes
