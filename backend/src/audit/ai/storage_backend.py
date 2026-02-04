@@ -1,8 +1,41 @@
 """Storage backend abstraction for local and S3 storage."""
 import os
+import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
+
+
+# Allowed characters for remote paths (prevent path traversal)
+SAFE_PATH_PATTERN = re.compile(r'^[a-zA-Z0-9_\-/\.]+$')
+
+
+def sanitize_remote_path(remote_path: str) -> str:
+    """
+    Sanitize remote path to prevent path traversal attacks.
+    
+    Args:
+        remote_path: The remote path to sanitize
+        
+    Returns:
+        Sanitized path
+        
+    Raises:
+        ValueError: If path contains path traversal sequences or invalid characters
+    """
+    # Reject paths with path traversal sequences
+    if '..' in remote_path:
+        raise ValueError(f"Path traversal detected in remote_path: {remote_path}")
+    
+    # Reject absolute paths
+    if remote_path.startswith('/'):
+        raise ValueError(f"Absolute paths not allowed: {remote_path}")
+    
+    # Validate path characters (alphanumeric, underscore, hyphen, slash, dot)
+    if not SAFE_PATH_PATTERN.match(remote_path):
+        raise ValueError(f"Invalid characters in remote_path: {remote_path}")
+    
+    return remote_path
 
 
 class StorageBackend(ABC):
@@ -56,10 +89,40 @@ class LocalStorageBackend(StorageBackend):
     def __init__(self, base_path: Optional[str] = None):
         self.base_path = Path(base_path or os.getenv("STORAGE_BASE_PATH", "./results"))
         self.base_path.mkdir(parents=True, exist_ok=True)
+        # Store resolved base path for path traversal checking
+        self._resolved_base = self.base_path.resolve()
+    
+    def _validate_path(self, remote_path: str) -> Path:
+        """
+        Validate and resolve remote path, ensuring it's within base directory.
+        
+        Args:
+            remote_path: The remote path to validate
+            
+        Returns:
+            Resolved Path object
+            
+        Raises:
+            ValueError: If path traversal is detected
+        """
+        # Sanitize the path
+        sanitized = sanitize_remote_path(remote_path)
+        
+        # Resolve the full path
+        full_path = (self.base_path / sanitized).resolve()
+        
+        # Ensure the resolved path is within the base directory
+        try:
+            full_path.relative_to(self._resolved_base)
+        except ValueError:
+            raise ValueError(f"Path traversal detected: {remote_path} resolves outside base directory")
+        
+        return full_path
     
     def upload_file(self, local_path: Path, remote_path: str) -> str:
         """Copy file to local storage directory."""
-        remote_full_path = self.base_path / remote_path
+        # Validate path to prevent traversal
+        remote_full_path = self._validate_path(remote_path)
         remote_full_path.parent.mkdir(parents=True, exist_ok=True)
         
         # Copy file
@@ -70,16 +133,21 @@ class LocalStorageBackend(StorageBackend):
     
     def get_url(self, remote_path: str, expires_in: int = 3600) -> str:
         """Return absolute file path."""
-        remote_full_path = self.base_path / remote_path
-        return str(remote_full_path.resolve())
+        # Validate path to prevent traversal
+        remote_full_path = self._validate_path(remote_path)
+        return str(remote_full_path)
     
     def delete_file(self, remote_path: str) -> bool:
         """Delete file from local storage."""
-        remote_full_path = self.base_path / remote_path
         try:
+            # Validate path to prevent traversal
+            remote_full_path = self._validate_path(remote_path)
             if remote_full_path.exists():
                 remote_full_path.unlink()
             return True
+        except ValueError:
+            # Path validation failed
+            return False
         except Exception:
             return False
 
@@ -106,26 +174,32 @@ class S3StorageBackend(StorageBackend):
     
     def upload_file(self, local_path: Path, remote_path: str) -> str:
         """Upload file to S3."""
+        # Sanitize path (S3 is less vulnerable but still good practice)
+        sanitized = sanitize_remote_path(remote_path)
         self.s3_client.upload_file(
             str(local_path),
             self.bucket,
-            remote_path
+            sanitized
         )
-        return f"s3://{self.bucket}/{remote_path}"
+        return f"s3://{self.bucket}/{sanitized}"
     
     def get_url(self, remote_path: str, expires_in: int = 3600) -> str:
         """Generate pre-signed URL for S3 object."""
+        sanitized = sanitize_remote_path(remote_path)
         return self.s3_client.generate_presigned_url(
             'get_object',
-            Params={'Bucket': self.bucket, 'Key': remote_path},
+            Params={'Bucket': self.bucket, 'Key': sanitized},
             ExpiresIn=expires_in
         )
     
     def delete_file(self, remote_path: str) -> bool:
         """Delete file from S3."""
         try:
-            self.s3_client.delete_object(Bucket=self.bucket, Key=remote_path)
+            sanitized = sanitize_remote_path(remote_path)
+            self.s3_client.delete_object(Bucket=self.bucket, Key=sanitized)
             return True
+        except ValueError:
+            return False
         except Exception:
             return False
 
