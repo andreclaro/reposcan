@@ -17,7 +17,6 @@ A comprehensive security review of the `sec-audit-repos` codebase has been condu
 |----------|-------|--------|
 | 🔴 Critical | 0 | All fixed ✅ |
 | 🟠 High | 4 | Address within 1 week |
-
 | 🟡 Medium | 3 | Address within 1 month |
 | 🟢 Low | 2 | Address when convenient |
 
@@ -638,7 +637,7 @@ After implementing fixes, verify with:
 - [x] ~~Command injection test with malicious `.nvmrc`~~ ✅ FIXED
 - [x] ~~Webhook signature verification test~~ ✅ FIXED
 - [x] ~~trustHost host header validation test~~ ✅ FIXED
-- [ ] Session cookie security test (secure flag, httpOnly)
+- [x] ~~Session cookie security test (secure flag, httpOnly)~~ ✅ FIXED
 - [ ] Path traversal test with malicious repo names
 - [ ] Container security scan with Trivy/Grype
 - [ ] Network policy validation
