@@ -2,6 +2,7 @@
 
 import os
 import re
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -183,11 +184,13 @@ def get_node_version_shell(repo_dir: Path) -> str:
 
     # Prefer NVM_DIR from environment (e.g. Docker /root/.nvm); fallback for compatibility
     nvm_dir = os.environ.get("NVM_DIR", "/root/.nvm")
-    version_escaped = version.replace('"', '\\"').replace("'", "\\'")
+    # Use shlex.quote to prevent command injection from malicious .nvmrc files
+    version_escaped = shlex.quote(version)
+    nvm_dir_escaped = shlex.quote(nvm_dir)
     return f"""
-export NVM_DIR="{nvm_dir}"
+export NVM_DIR={nvm_dir_escaped}
 [ -s "$NVM_DIR/nvm.sh" ] && \\. "$NVM_DIR/nvm.sh"
-nvm use "{version_escaped}" 2>/dev/null || (nvm install "{version_escaped}" && nvm use "{version_escaped}") || echo "Node {version_escaped} not available, using default"
+nvm use {version_escaped} 2>/dev/null || (nvm install {version_escaped} && nvm use {version_escaped}) || echo "Node version not available, using default"
 """
 
 
@@ -211,10 +214,13 @@ def get_go_version_shell(repo_dir: Path) -> str:
 
     # Prefer GVM_ROOT from environment; fallback for compatibility
     gvm_root = os.environ.get("GVM_ROOT", "/root/.gvm")
+    # Use shlex.quote to prevent command injection from malicious go.mod files
+    gvm_root_escaped = shlex.quote(gvm_root)
+    go_version_escaped = shlex.quote(go_version_str)
     return f"""
-export GVM_ROOT="{gvm_root}"
+export GVM_ROOT={gvm_root_escaped}
 [ -s "$GVM_ROOT/scripts/gvm" ] && source "$GVM_ROOT/scripts/gvm"
-gvm use {go_version_str} --default 2>/dev/null || (gvm install {go_version_str} -B && gvm use {go_version_str} --default) || echo "Go {go_version_str} not available, using default"
+gvm use {go_version_escaped} --default 2>/dev/null || (gvm install {go_version_escaped} -B && gvm use {go_version_escaped} --default) || echo "Go version not available, using default"
 """
 
 
@@ -234,9 +240,12 @@ def get_rust_version_shell(repo_dir: Path) -> str:
     cargo_bin = os.environ.get("CARGO_HOME", "/root/.cargo")
     if not cargo_bin.endswith("/bin"):
         cargo_bin = f"{cargo_bin}/bin"
+    # Use shlex.quote to prevent command injection from malicious rust-toolchain files
+    cargo_bin_escaped = shlex.quote(cargo_bin)
+    version_escaped = shlex.quote(version)
     return f"""
-export PATH="{cargo_bin}:$PATH"
-rustup override set {version} 2>/dev/null || rustup toolchain install {version} && rustup override set {version}
+export PATH={cargo_bin_escaped}:$PATH
+rustup override set {version_escaped} 2>/dev/null || rustup toolchain install {version_escaped} && rustup override set {version_escaped}
 """
 
 
