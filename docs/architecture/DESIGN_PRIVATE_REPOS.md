@@ -4,6 +4,8 @@
 
 This document outlines the architecture and implementation plan for adding **private repository scanning** support to the `sec-audit-repos` platform. Currently, only public GitHub repositories can be scanned. This feature will enable users to scan their private repositories by leveraging their existing GitHub OAuth authentication.
 
+**Recommended Approach**: **Ephemeral Token Pass-Through** - Tokens are encrypted and passed directly to workers via the queue, never stored in the database. This is simpler and more secure than persistent token storage.
+
 ## Current State
 
 ### Existing Authentication Flow
@@ -26,191 +28,126 @@ GET /api/github/repos?owner=username
 
 ---
 
-## Proposed Architecture
+## Recommended Approach: Ephemeral Token Pass-Through
 
 ### Overview
 
+Tokens are extracted from the user's session, encrypted with a shared key, passed through the queue to the worker, used once for cloning, and immediately discarded. **No persistent token storage required.**
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Private Repository Flow                              │
+│                    Ephemeral Token Flow (RECOMMENDED)                        │
 │                                                                              │
 │  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐                │
-│  │   Frontend   │────▶│   Backend    │────▶│   Worker     │                │
-│  │  (Next.js)   │     │   (Python)   │     │  (Celery)    │                │
+│  │   Frontend   │────▶│    Redis     │────▶│   Worker     │                │
+│  │  (Next.js)   │     │    Queue     │     │  (Celery)    │                │
 │  └──────────────┘     └──────────────┘     └──────────────┘                │
-│         │                   │                    │                          │
-│         ▼                   ▼                    ▼                          │
-│  ┌────────────────────────────────────────────────────────────────────┐   │
-│  │                    GitHub OAuth Token Flow                          │   │
-│  │                                                                     │   │
-│  │  1. User signs in with GitHub (already implemented)                │   │
-│  │  2. Token stored in accounts.access_token                         │   │
-│  │  3. Token passed to worker via encrypted queue                      │   │
-│  │  4. Worker uses token for git operations                            │   │
-│  │                                                                     │   │
-│  └────────────────────────────────────────────────────────────────────┘   │
+│         │                                          │                         │
+│         │                                          ▼                         │
+│         │                                   ┌──────────────┐                │
+│         │                                   │   Decrypt    │                │
+│         │                                   │   & Clone    │                │
+│         │                                   │  (one-time)  │                │
+│         │                                   └──────────────┘                │
+│         │                                          │                         │
+│         │                                          ▼                         │
+│         │                                   ┌──────────────┐                │
+│         └──────────────────────────────────▶│   Discard    │                │
+│                                             │    Token     │                │
+│                                             └──────────────┘                │
 └─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Token Lifecycle
+
+| Phase | Location | Encryption | Duration |
+|-------|----------|------------|----------|
+| User Session | Frontend memory | None (HTTPS) | Session lifetime |
+| Request Handler | API route | AES-256-GCM | Milliseconds |
+| Queue (Redis) | Celery task | AES-256-GCM | 5-60 minutes (queue TTL) |
+| Worker Memory | Python process | Decrypted | Seconds (clone only) |
+| Post-Clone | N/A | N/A | **Immediately discarded** |
+
+### Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend as Next.js API
+    participant Redis as Redis Queue
+    participant Worker as Celery Worker
+    participant GitHub
+
+    User->>Frontend: POST /api/scan (isPrivate=true)
+    Note over Frontend: 1. Extract token from session
+    Frontend->>Frontend: 2. Encrypt with shared key
+    Frontend->>Redis: 3. Queue task + encrypted token
+    Note over Redis: Token encrypted at rest
+    
+    Worker->>Redis: 4. Dequeue task
+    Worker->>Worker: 5. Decrypt (memory only)
+    Worker->>GitHub: 6. git clone with token
+    Worker->>Worker: 7. Discard token
+    Worker->>User: 8. Return results
 ```
 
 ---
 
-## Implementation Components
+## Implementation: Ephemeral Pass-Through
 
-### 1. Database Schema Changes
+### 1. Shared Encryption Key
 
-#### 1.1 Repository Access Tracking (Optional Enhancement)
+Both frontend and worker share a single encryption key via environment variables.
 
-```typescript
-// New table: user_repositories
-// Tracks which repos user has granted access to
+```bash
+# .env.local (Frontend)
+WORKER_ENCRYPTION_SECRET=<base64-encoded-32-byte-key>
 
-export const userRepositories = pgTable(
-  "user_repository",
-  {
-    id: serial("id").primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    repoUrl: text("repo_url").notNull(), // Normalized URL
-    repoName: text("repo_name").notNull(), // owner/repo format
-    isPrivate: boolean("is_private").notNull().default(false),
-    // Permission level GitHub granted
-    permissions: jsonb("permissions").$type<{
-      admin: boolean;
-      push: boolean;
-      pull: boolean;
-    }>(),
-    // Encrypted credential reference (not the actual token)
-    credentialRef: text("credential_ref"), // Reference to secure token storage
-    lastAccessedAt: timestamp("last_accessed_at", { mode: "date" }),
-    createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
-  },
-  (table) => [
-    unique("user_repo_unique").on(table.userId, table.repoUrl),
-    index("idx_user_repos_user_id").on(table.userId),
-    index("idx_user_repos_url").on(table.repoUrl),
-  ]
-);
+# .env (Backend Worker)
+WORKER_ENCRYPTION_SECRET=<same-base64-encoded-32-byte-key>
 ```
 
-#### 1.2 Scan Request Enhancement
-
-```typescript
-// Existing scans table - add credential reference
-export const scans = pgTable("scan", {
-  // ... existing fields ...
-  
-  // NEW: Credential reference for private repo access
-  credentialRef: text("credential_ref"), // Encrypted token reference
-  repoVisibility: text("repo_visibility").default("public"), // 'public' | 'private'
-  
-  // ... rest of fields ...
-});
+Generate:
+```bash
+openssl rand -base64 32
 ```
 
-### 2. Token Management Architecture
-
-#### 2.1 Token Encryption Strategy
+### 2. Frontend: Token Encryption
 
 ```typescript
-// lib/token-vault.ts
-// Secure token storage and retrieval
+// lib/token-ephemeral.ts
+import { createCipheriv, randomBytes, scryptSync } from 'crypto';
 
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto';
-
-const ENCRYPTION_KEY = scryptSync(
-  process.env.TOKEN_ENCRYPTION_SECRET!,
+const WORKER_KEY = scryptSync(
+  process.env.WORKER_ENCRYPTION_SECRET!,
   'salt',
   32
 );
 
-export interface TokenVault {
-  // Store token, return reference ID
-  storeToken(userId: string, token: string): Promise<string>;
+/**
+ * Encrypt a GitHub token for one-time worker use.
+ * Format: iv:authTag:ciphertext (all hex encoded)
+ */
+export function encryptTokenForWorker(token: string): string {
+  const iv = randomBytes(16);
+  const cipher = createCipheriv('aes-256-gcm', WORKER_KEY, iv);
   
-  // Retrieve token by reference
-  retrieveToken(credentialRef: string): Promise<string | null>;
+  let encrypted = cipher.update(token, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
   
-  // Delete token
-  deleteToken(credentialRef: string): Promise<void>;
+  const authTag = cipher.getAuthTag();
   
-  // Rotate encryption keys
-  rotateKey(oldKey: string, newKey: string): Promise<void>;
-}
-
-// Implementation using AES-256-GCM
-export class SecureTokenVault implements TokenVault {
-  async storeToken(userId: string, token: string): Promise<string> {
-    const iv = randomBytes(16);
-    const cipher = createCipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
-    
-    let encrypted = cipher.update(token, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    
-    const authTag = cipher.getAuthTag();
-    const ref = generateSecureRef();
-    
-    // Store in database
-    await db.insert(encryptedTokens).values({
-      ref,
-      userId,
-      encryptedData: encrypted,
-      iv: iv.toString('hex'),
-      authTag: authTag.toString('hex'),
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-    });
-    
-    return ref;
-  }
-  
-  async retrieveToken(credentialRef: string): Promise<string | null> {
-    const record = await db.query.encryptedTokens.findFirst({
-      where: eq(encryptedTokens.ref, credentialRef),
-    });
-    
-    if (!record || record.expiresAt < new Date()) {
-      return null;
-    }
-    
-    const decipher = createDecipheriv(
-      'aes-256-gcm',
-      ENCRYPTION_KEY,
-      Buffer.from(record.iv, 'hex')
-    );
-    decipher.setAuthTag(Buffer.from(record.authTag, 'hex'));
-    
-    let decrypted = decipher.update(record.encryptedData, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    
-    return decrypted;
-  }
+  // iv:authTag:ciphertext
+  return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
 }
 ```
 
-#### 2.2 Environment Variables
-
-```bash
-# .env.local / .env.example
-
-# Token encryption (required for private repo support)
-TOKEN_ENCRYPTION_SECRET=<32-byte-random-string>
-
-# Optional: Token expiration (default: 24 hours)
-TOKEN_EXPIRY_HOURS=24
-
-# Optional: Redis for token caching
-REDIS_TOKEN_CACHE_URL=redis://localhost:6379/1
-```
-
-### 3. API Layer Changes
-
-#### 3.1 Frontend API Route Updates
+### 3. Scan API Route
 
 ```typescript
 // app/api/scan/route.ts
-
+import { encryptTokenForWorker } from "@/lib/token-ephemeral";
 import { getUserGitHubToken } from "@/lib/github-token";
-import { SecureTokenVault } from "@/lib/token-vault";
 
 export async function POST(request: Request) {
   const session = await getServerAuth();
@@ -219,23 +156,22 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { repoUrl, branch, auditTypes, forceRescan, isPrivate } = body;
+  const { repoUrl, branch, auditTypes, isPrivate } = body;
 
-  // Check if this is a private repository request
-  let credentialRef: string | undefined;
-  
+  let encryptedToken: string | undefined;
+
   if (isPrivate) {
-    // Get user's GitHub token
-    const githubToken = await getUserGitHubToken(session.user.id);
-    if (!githubToken) {
+    // Extract token from user's OAuth session
+    const token = await getUserGitHubToken(session.user.id);
+    if (!token) {
       return NextResponse.json(
         { error: "GitHub authentication required for private repositories" },
         { status: 403 }
       );
     }
 
-    // Verify user has access to this private repo
-    const hasAccess = await verifyRepoAccess(githubToken, repoUrl);
+    // Verify user has access to this repo
+    const hasAccess = await verifyRepoAccess(token, repoUrl);
     if (!hasAccess) {
       return NextResponse.json(
         { error: "You do not have access to this repository" },
@@ -243,255 +179,134 @@ export async function POST(request: Request) {
       );
     }
 
-    // Store token securely and get reference
-    const vault = new SecureTokenVault();
-    credentialRef = await vault.storeToken(session.user.id, githubToken);
+    // Encrypt for worker - NEVER store in database
+    encryptedToken = encryptTokenForWorker(token);
   }
 
-  // Pass credential reference to backend
   const payload = {
     repo_url: repoUrl,
     branch,
-    audit_types: auditTypes,
-    force_rescan: forceRescan,
-    credential_ref: credentialRef, // NEW
-    repo_visibility: isPrivate ? "private" : "public", // NEW
+    audit_types: auditTypes ?? ["all"],
+    is_private: isPrivate,
+    encrypted_token: encryptedToken, // Ephemeral only
   };
 
-  // ... rest of the scan logic ...
-}
-```
-
-#### 3.2 GitHub Repository Listing (Updated)
-
-```typescript
-// app/api/github/repos/route.ts
-
-export async function GET(request: Request) {
-  // ... existing auth checks ...
-
-  // NEW: Support fetching private repos
-  const { searchParams } = new URL(request.url);
-  const includePrivate = searchParams.get("include_private") === "true";
-
-  let token = await getUserGitHubToken(session.user.id);
-  
-  if (includePrivate && !token) {
-    return NextResponse.json(
-      { error: "GitHub OAuth required for private repositories" },
-      { status: 403 }
-    );
-  }
-
-  // ... existing token fallback logic ...
-
-  // UPDATED: Fetch private repos if requested and authorized
-  const reposUrl = includePrivate
-    ? `https://api.github.com/user/repos?affiliation=owner,collaborator&sort=updated&direction=desc&page=${page}&per_page=${perPage}`
-    : `https://api.github.com/users/${encodeURIComponent(owner)}/repos?type=all&sort=updated&direction=desc&page=${page}&per_page=${perPage}`;
-
-  const response = await fetch(reposUrl, { headers });
-  
-  // UPDATED: Return both public and private repos (filtered by visibility)
-  const repos = data.map((repo: any) => ({
-    url: repo.html_url,
-    name: repo.full_name,
-    stars: repo.stargazers_count || 0,
-    private: repo.private, // NEW
-    permissions: repo.permissions, // NEW
-  }));
-
-  // Filter based on includePrivate flag
-  const filteredRepos = includePrivate 
-    ? repos 
-    : repos.filter((r: any) => !r.private);
-
-  return NextResponse.json({
-    repositories: filteredRepos,
-    count: filteredRepos.length,
-    owner,
-    includePrivate: !!includePrivate,
+  // Queue scan - encrypted token travels through Redis
+  const fastApiBase = process.env.FASTAPI_BASE_URL ?? "http://localhost:8000";
+  const scanResponse = await fetch(`${fastApiBase}/scan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
+
+  // ... rest of scan logic
 }
 ```
 
-### 4. Backend Changes
-
-#### 4.1 API Models Update
+### 4. Backend: Token Decryption
 
 ```python
-# backend/src/api/models.py
-
-from typing import Optional
-from pydantic import BaseModel, Field
-
-class ScanRequest(BaseModel):
-    repo_url: str = Field(..., description="Repository URL to scan")
-    branch: Optional[str] = Field(None, description="Branch to scan (default: auto-detect)")
-    audit_types: List[str] = Field(default=["all"], description="List of audit types")
-    credential_ref: Optional[str] = Field(None, description="Reference to encrypted Git token")
-    repo_visibility: str = Field("public", description="Repository visibility: public or private")
-    force_rescan: bool = Field(False, description="Force rescan even if cached")
-    skip_lfs: bool = Field(False, description="Skip Git LFS files")
-```
-
-#### 4.2 Token Retrieval Service
-
-```python
-# backend/src/audit/token_vault.py
-
+# backend/src/audit/token_ephemeral.py
 import os
-import json
 import base64
 from typing import Optional
-from datetime import datetime, timedelta
-import httpx
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-class TokenVaultClient:
-    """Client to retrieve encrypted tokens from frontend API."""
-    
-    def __init__(self):
-        self.frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-        self.api_secret = os.getenv("WORKER_API_SECRET")  # Shared secret
-    
-    async def get_token(self, credential_ref: str) -> Optional[str]:
-        """
-        Retrieve decrypted token from frontend API.
-        
-        Security: Uses shared secret authentication between worker and frontend.
-        Tokens are never stored in the worker or passed in Celery tasks.
-        """
-        if not credential_ref:
-            return None
-        
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.frontend_url}/api/internal/token",
-                headers={
-                    "Authorization": f"Bearer {self.api_secret}",
-                    "Content-Type": "application/json",
-                },
-                json={"credential_ref": credential_ref},
-                timeout=10.0,
-            )
-            
-            if response.status_code != 200:
-                return None
-            
-            data = response.json()
-            return data.get("token")
+_WORKER_KEY: Optional[bytes] = None
 
-# Alternative: Direct Redis token cache (if implemented)
-class RedisTokenCache:
-    """Direct Redis access for token retrieval (faster)."""
+def _get_key() -> bytes:
+    """Lazy load and cache encryption key."""
+    global _WORKER_KEY
+    if _WORKER_KEY is None:
+        key_b64 = os.getenv("WORKER_ENCRYPTION_SECRET")
+        if not key_b64:
+            raise RuntimeError("WORKER_ENCRYPTION_SECRET not configured")
+        _WORKER_KEY = base64.b64decode(key_b64)
+    return _WORKER_KEY
+
+
+def decrypt_token(encrypted_payload: str) -> str:
+    """
+    Decrypt token that was encrypted by frontend.
+    Format: iv:authTag:ciphertext (hex encoded)
     
-    def __init__(self, redis_url: str):
-        import redis
-        self.client = redis.from_url(redis_url, decode_responses=True)
-        self.encryption_key = os.getenv("TOKEN_ENCRYPTION_SECRET")
-    
-    def get_token(self, credential_ref: str) -> Optional[str]:
-        """Retrieve and decrypt token from Redis cache."""
-        encrypted = self.client.get(f"token:{credential_ref}")
-        if not encrypted:
-            return None
+    Args:
+        encrypted_payload: The encrypted token string
         
-        # Decrypt token
-        return decrypt_token(encrypted, self.encryption_key)
+    Returns:
+        Decrypted token
+        
+    Raises:
+        RuntimeError: If decryption fails
+    """
+    try:
+        iv_hex, auth_tag_hex, ciphertext_hex = encrypted_payload.split(":")
+        
+        iv = bytes.fromhex(iv_hex)
+        auth_tag = bytes.fromhex(auth_tag_hex)
+        ciphertext = bytes.fromhex(ciphertext_hex)
+        
+        # AES-256-GCM decryption
+        aesgcm = AESGCM(_get_key())
+        plaintext = aesgcm.decrypt(iv, ciphertext + auth_tag, None)
+        
+        return plaintext.decode("utf-8")
+    except Exception as e:
+        raise RuntimeError("Failed to decrypt authentication token") from e
 ```
 
-#### 4.3 Enhanced Repository Cloning
+### 5. Worker: Authenticated Clone
 
 ```python
 # backend/src/audit/repos.py
-
 import os
 import tempfile
-from typing import Optional
-from pathlib import Path
 import subprocess
+from pathlib import Path
+from typing import Optional
+from urllib.parse import urlparse
 
-async def clone_repo_with_auth(
+async def clone_repo_with_token(
     repo: str,
     dest_dir: Path,
     branch: Optional[str],
     skip_lfs: bool,
-    credential_ref: Optional[str] = None,
-    token_vault: Optional[TokenVaultClient] = None,
+    token: str,
 ) -> str:
     """
-    Clone a Git repository with optional authentication.
-    
-    Args:
-        repo: Repository URL
-        dest_dir: Destination directory
-        branch: Branch to clone
-        skip_lfs: Skip Git LFS files
-        credential_ref: Reference to encrypted token
-        token_vault: Token vault client for retrieving credentials
-    
-    Returns:
-        Branch name that was cloned
+    Clone a private repository using an OAuth token.
+    Token is used once and never stored.
     """
-    # Validate URL
     _validate_repo_url_ssrf(repo)
     
-    # Get token if credential reference provided
-    token = None
-    if credential_ref and token_vault:
-        token = await token_vault.get_token(credential_ref)
-        if not token:
-            raise RuntimeError("Failed to retrieve authentication credentials")
+    # Build authenticated URL
+    parsed = urlparse(repo)
+    host = parsed.hostname or "github.com"
     
-    # Configure git credential helper
+    # Format: https://oauth:TOKEN@github.com/owner/repo.git
+    auth_url = f"https://oauth:{token}@{host}{parsed.path}"
+    
+    # Set up git environment
     env = os.environ.copy()
-    git_config_dir = None
+    # Prevent token from appearing in process lists
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    
+    git_cmd = ["git"]
+    if skip_lfs:
+        git_cmd.extend([
+            "-c", "filter.lfs.smudge=",
+            "-c", "filter.lfs.process=",
+            "-c", "filter.lfs.required=false",
+        ])
+    
+    git_cmd.extend(["clone", "--depth", "1"])
+    
+    if branch:
+        git_cmd.extend(["--branch", branch])
+    
+    git_cmd.extend([auth_url, str(dest_dir)])
     
     try:
-        if token:
-            # Create temporary git credential helper
-            git_config_dir = Path(tempfile.mkdtemp(prefix="git_cred_"))
-            credential_helper = git_config_dir / "git-credential-helper.sh"
-            
-            # Parse URL to extract host
-            parsed = urlparse(repo)
-            host = parsed.hostname or "github.com"
-            
-            # Write credential helper script
-            credential_helper.write_text(
-                f'#!/bin/sh\necho "username=oauth\npassword={token}"\n',
-                encoding="utf-8"
-            )
-            credential_helper.chmod(0o700)
-            
-            # Configure git to use helper
-            env["GIT_CONFIG_GLOBAL"] = str(git_config_dir / ".gitconfig")
-            gitconfig = git_config_dir / ".gitconfig"
-            gitconfig.write_text(f"""[credential]
-    helper = {credential_helper}
-[credential "https://{host}"]
-    username = oauth
-""")
-        
-        # Build git clone command
-        git_cmd = ["git"]
-        if skip_lfs:
-            git_cmd.extend([
-                "-c", "filter.lfs.smudge=",
-                "-c", "filter.lfs.process=",
-                "-c", "filter.lfs.required=false",
-            ])
-        
-        git_cmd.append("clone")
-        
-        # Detect default branch if not specified
-        if not branch:
-            branch = await get_default_branch(repo, token)
-        
-        git_cmd.extend(["--branch", branch])
-        git_cmd.extend([repo, str(dest_dir)])
-        
-        # Execute clone
         result = subprocess.run(
             git_cmd,
             check=True,
@@ -500,113 +315,94 @@ async def clone_repo_with_auth(
             timeout=CLONE_TIMEOUT,
             env=env,
         )
-        
-        return branch
+        return branch or "main"
         
     except subprocess.CalledProcessError as e:
-        # Check for authentication errors
         error_msg = e.stderr or e.stdout or str(e)
+        
+        # Mask token in error messages
+        safe_error = error_msg.replace(token, "***")
+        
         if "Authentication failed" in error_msg or "403" in error_msg:
             raise RuntimeError(
-                "Authentication failed. Please ensure you have access to this repository "
-                "and your GitHub token has not expired."
+                "Authentication failed. Token may have expired or "
+                "you may not have access to this repository."
             ) from e
-        raise RuntimeError(f"Failed to clone repository: {error_msg}") from e
-        
-    finally:
-        # Cleanup credential helper
-        if git_config_dir and git_config_dir.exists():
-            import shutil
-            shutil.rmtree(git_config_dir, ignore_errors=True)
-
-
-async def get_default_branch(repo: str, token: Optional[str] = None) -> str:
-    """
-    Detect default branch with optional authentication.
-    """
-    env = os.environ.copy()
-    
-    if token:
-        # Create Authorization header for git ls-remote
-        import base64
-        auth = base64.b64encode(f"oauth:{token}".encode()).decode()
-        env["GIT_ASKPASS"] = "echo"
-        env["GIT_USERNAME"] = "oauth"
-        env["GIT_PASSWORD"] = token
-    
-    # ... rest of implementation ...
+        raise RuntimeError(f"Clone failed: {safe_error}") from e
 ```
 
-### 5. Worker Integration
+### 6. Worker Integration
 
 ```python
 # backend/src/worker/scan_worker.py
+from audit.token_ephemeral import decrypt_token
+from audit.repos import clone_repo_with_token
 
-from audit.token_vault import TokenVaultClient
-
-@celery_app.task(bind=True, name='tasks.scan_worker.run_scan', max_retries=3)
+@celery_app.task(bind=True, name='tasks.scan_worker.run_scan', max_retries=2)
 def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]:
     repo_url = request_data['repo_url']
     branch = request_data.get('branch')
-    audit_types = request_data.get('audit_types', [])
-    credential_ref = request_data.get('credential_ref')  # NEW
-    repo_visibility = request_data.get('repo_visibility', 'public')  # NEW
+    is_private = request_data.get('is_private', False)
+    encrypted_token = request_data.get('encrypted_token')
     
-    # Initialize token vault client for private repos
-    token_vault = None
-    if repo_visibility == 'private' and credential_ref:
-        token_vault = TokenVaultClient()
-    
-    # ... existing setup code ...
+    # Token exists only in this scope
+    git_token: Optional[str] = None
     
     try:
-        # Clone repository with authentication if needed
         with tempfile.TemporaryDirectory(prefix=f"scan_{scan_id}_") as tmpdir:
             tmpdir_path = Path(tmpdir)
             repo_path = tmpdir_path / safe_repo_slug(repo_url)
             
-            # UPDATED: Use authenticated clone for private repos
-            if credential_ref:
-                from audit.repos import clone_repo_with_auth
-                actual_branch = await clone_repo_with_auth(
-                    repo_url,
-                    repo_path,
-                    branch,
-                    skip_lfs,
-                    credential_ref=credential_ref,
-                    token_vault=token_vault,
+            if is_private and encrypted_token:
+                # Decrypt token for one-time use
+                git_token = decrypt_token(encrypted_token)
+                
+                # Clone with authentication
+                actual_branch = await clone_repo_with_token(
+                    repo_url, repo_path, branch, skip_lfs, git_token
                 )
             else:
+                # Public repo - no auth needed
                 actual_branch = clone_repo(repo_url, repo_path, branch, skip_lfs)
             
-            # ... rest of scan logic ...
+            # Run security scans...
+            # Token is no longer needed after clone
             
     except Exception as exc:
-        # Handle authentication errors specifically
+        # Don't retry auth failures
         if "Authentication failed" in str(exc):
-            # Don't retry auth failures
             raise exc
         raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+        
+    finally:
+        # CRITICAL: Ensure token is cleared from memory
+        git_token = None
+        request_data.pop('encrypted_token', None)
 ```
 
-### 6. Frontend UI Components
+---
 
-#### 6.1 Repository Selector (Enhanced)
+## Frontend UI Components
+
+### Repository Selector (Enhanced)
 
 ```typescript
 // components/repo-selector.tsx
-
 import { useState } from "react";
 import { useSession } from "next-auth/react";
+import { Lock, Globe } from "lucide-react";
 
-interface RepoSelectorProps {
-  onSelect: (repo: { url: string; name: string; private: boolean }) => void;
+interface Repo {
+  url: string;
+  name: string;
+  private: boolean;
+  stars: number;
 }
 
-export function RepoSelector({ onSelect }: RepoSelectorProps) {
+export function RepoSelector({ onSelect }: { onSelect: (repo: Repo) => void }) {
   const { data: session } = useSession();
   const [includePrivate, setIncludePrivate] = useState(false);
-  const [repos, setRepos] = useState([]);
+  const [repos, setRepos] = useState<Repo[]>([]);
   
   const fetchRepos = async () => {
     const response = await fetch(
@@ -617,40 +413,45 @@ export function RepoSelector({ onSelect }: RepoSelectorProps) {
   };
   
   return (
-    <div>
-      <div className="flex items-center gap-4 mb-4">
-        <label className="flex items-center gap-2">
+    <div className="space-y-4">
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
             checked={includePrivate}
             onChange={(e) => setIncludePrivate(e.target.checked)}
             disabled={!session?.user}
+            className="rounded"
           />
-          Include private repositories
+          <span>Include private repositories</span>
         </label>
+        
         {!session?.user && (
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-amber-600">
             Sign in with GitHub to access private repos
           </span>
         )}
       </div>
       
-      <div className="repo-list">
+      <div className="border rounded divide-y">
         {repos.map((repo) => (
           <button
             key={repo.name}
             onClick={() => onSelect(repo)}
-            className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded"
+            className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 text-left"
           >
-            {repo.private && (
+            {repo.private ? (
               <Lock className="w-4 h-4 text-amber-500" />
+            ) : (
+              <Globe className="w-4 h-4 text-slate-400" />
             )}
-            <span>{repo.name}</span>
+            <span className="flex-1">{repo.name}</span>
             {repo.private && (
               <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
                 Private
               </span>
             )}
+            <span className="text-sm text-slate-500">⭐ {repo.stars}</span>
           </button>
         ))}
       </div>
@@ -659,218 +460,172 @@ export function RepoSelector({ onSelect }: RepoSelectorProps) {
 }
 ```
 
-#### 6.2 Scan Form (Updated)
+---
 
-```typescript
-// components/scan-form.tsx
+## Environment Configuration
 
-export function ScanForm() {
-  const [repoUrl, setRepoUrl] = useState("");
-  const [isPrivate, setIsPrivate] = useState(false);
+### Required Variables
+
+```bash
+# Frontend (.env.local)
+WORKER_ENCRYPTION_SECRET=<base64-32-byte-key>
+
+# Backend (.env)
+WORKER_ENCRYPTION_SECRET=<same-base64-32-byte-key>
+
+# Optional: Celery task timeout (default: 1 hour)
+CELERY_TASK_EXPIRY=3600
+```
+
+### Docker Compose Updates
+
+```yaml
+# docker/docker-compose.yml
+services:
+  api:
+    environment:
+      - WORKER_ENCRYPTION_SECRET=${WORKER_ENCRYPTION_SECRET}
   
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const response = await fetch("/api/scan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        repoUrl,
-        isPrivate, // Pass visibility to backend
-        auditTypes: ["all"],
-      }),
-    });
-    
-    // ... handle response ...
-  };
-  
-  return (
-    <form onSubmit={handleSubmit}>
-      <input
-        value={repoUrl}
-        onChange={(e) => setRepoUrl(e.target.value)}
-        placeholder="https://github.com/owner/repo"
-      />
-      
-      <label className="flex items-center gap-2 mt-4">
-        <input
-          type="checkbox"
-          checked={isPrivate}
-          onChange={(e) => setIsPrivate(e.target.checked)}
-        />
-        This is a private repository
-      </label>
-      
-      <button type="submit">Start Scan</button>
-    </form>
-  );
-}
+  worker:
+    environment:
+      - WORKER_ENCRYPTION_SECRET=${WORKER_ENCRYPTION_SECRET}
 ```
 
 ---
 
-## Security Considerations
+## Alternative A: Token Vault Service (Not Recommended)
 
-### 1. Token Security
+For reference, here's the more complex alternative that uses persistent token storage. This may be useful for specific use cases like long-running background scans or multi-stage pipelines.
 
-| Layer | Protection |
-|-------|------------|
-| **At Rest** | AES-256-GCM encryption in database |
-| **In Transit** | HTTPS only, TLS 1.3 |
-| **In Memory** | Cleared immediately after use |
-| **Expiration** | 24-hour TTL on encrypted tokens |
-| **Audit** | Log all token access with user/session |
+### Architecture
 
-### 2. Access Control
-
-```typescript
-// Verify user has access to private repo
-async function verifyRepoAccess(
-  token: string, 
-  repoUrl: string
-): Promise<boolean> {
-  const { owner, repo } = parseGitHubRepo(repoUrl);
-  
-  const response = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github.v3+json",
-      },
-    }
-  );
-  
-  if (!response.ok) {
-    return false;
-  }
-  
-  const data = await response.json();
-  
-  // Verify user has pull access
-  return data.permissions?.pull === true;
-}
+```
+Frontend → Encrypt Token → Store in DB → Return Reference
+                                    ↓
+Worker → Fetch Reference → Call API → Get Decrypted Token → Clone
 ```
 
-### 3. Audit Logging
+### When to Consider This Approach
 
-```typescript
-// Log all private repo access
-async function logPrivateRepoAccess({
-  userId,
-  repoUrl,
-  action, // 'clone', 'scan', 'view'
-  success,
-  error,
-}: LogEntry) {
-  await db.insert(auditLogs).values({
-    userId,
-    repoUrl,
-    action,
-    success,
-    error,
-    ipAddress: request.ip,
-    userAgent: request.headers.get('user-agent'),
-    timestamp: new Date(),
-  });
-}
-```
+| Use Case | Recommendation |
+|----------|---------------|
+| Scans that may retry hours later | Consider Token Vault |
+| Multi-stage scans needing token reuse | Consider Token Vault |
+| Compliance requiring audit trail | Consider Token Vault |
+| Standard on-demand scans | **Use Ephemeral (Recommended)** |
+
+### Implementation
+
+See Appendix A for full Token Vault implementation details.
 
 ---
 
-## Implementation Phases
+## Security Analysis
 
-### Phase 1: Foundation (Week 1)
+### Threat Model
 
-**Tasks**:
-1. Database migrations
-   - Create `encrypted_tokens` table
-   - Add `credential_ref` and `repo_visibility` to `scans` table
-   - Optional: Create `user_repositories` table
+| Threat | Mitigation |
+|--------|------------|
+| Token intercepted in transit | HTTPS/TLS 1.3 for all communications |
+| Token extracted from Redis | AES-256-GCM encryption, key only in workers |
+| Token in logs | Token masked in all log output |
+| Token in memory dump | Token cleared immediately after clone |
+| Worker compromised | Attacker needs both Redis access AND encryption key |
+| Replay attack | Encrypted payload can only be consumed once (queue) |
 
-2. Token vault implementation
-   - Encryption/decryption service
-   - Token storage and retrieval API
-   - Expiration and cleanup logic
+### Comparison: Ephemeral vs Token Vault
 
-3. Environment setup
-   - Add `TOKEN_ENCRYPTION_SECRET` to config
-   - Update Docker Compose for local dev
+| Aspect | Ephemeral (Recommended) | Token Vault |
+|--------|------------------------|-------------|
+| **Token Storage** | Redis only (encrypted) | Database + Redis |
+| **Token Lifetime** | Minutes (queue TTL) | Hours (configurable) |
+| **Complexity** | Low | High |
+| **Components** | Shared encryption key | Token vault service, DB table, API |
+| **Retry Support** | Requires re-submit | Can retry with stored token |
+| **Audit Trail** | Scan logs only | Full token access audit log |
+| **Memory Exposure** | Seconds | Minutes to hours |
+| **Implementation Time** | 2-3 days | 1-2 weeks |
 
-**Deliverables**:
-- Token vault operational
-- Secure token storage/retrieval working
+### Recommendation
 
----
+**Use Ephemeral Pass-Through for initial implementation** because:
+1. Simpler = fewer bugs = more secure
+2. Shorter exposure window
+3. No persistent sensitive data
+4. Easier to reason about security
 
-### Phase 2: Backend Integration (Week 2)
-
-**Tasks**:
-1. Update Python backend
-   - Add `credential_ref` to API models
-   - Implement `TokenVaultClient`
-   - Create `clone_repo_with_auth()` function
-   - Update worker to handle private repos
-
-2. Internal API
-   - Create `/api/internal/token` endpoint
-   - Implement shared secret authentication
-
-3. Error handling
-   - Auth failure detection
-   - Token expiration handling
-   - Retry logic for transient failures
-
-**Deliverables**:
-- Backend can clone private repos with tokens
-- Authentication errors handled gracefully
+**Consider Token Vault later if:**
+- Users need long-running scan retries
+- Compliance requires detailed token audit logs
+- Multi-stage scans need token reuse
 
 ---
 
-### Phase 3: Frontend Integration (Week 3)
+## Implementation Roadmap
 
-**Tasks**:
-1. Update scan API route
-   - Accept `isPrivate` flag
-   - Store tokens securely
-   - Pass credential ref to backend
+### Phase 1: Foundation (Week 1) - Ephemeral Approach
 
-2. Update GitHub repos API
-   - Support `include_private` parameter
-   - Return private repos when authorized
+**Day 1-2: Setup**
+- [ ] Add `WORKER_ENCRYPTION_SECRET` to environment configs
+- [ ] Create `lib/token-ephemeral.ts` (frontend encryption)
+- [ ] Create `backend/src/audit/token_ephemeral.py` (decryption)
+- [ ] Add cryptography library to requirements.txt
 
-3. UI Components
-   - Private repo indicator in lists
-   - Visibility toggle in scan form
-   - Authentication prompt for private repos
+**Day 3-4: Backend Integration**
+- [ ] Update `ScanRequest` model to accept `encrypted_token`
+- [ ] Create `clone_repo_with_token()` function
+- [ ] Update worker to handle private repos
+- [ ] Add token masking in error handling
 
-**Deliverables**:
-- Users can select and scan private repos
-- UI clearly indicates private vs public
+**Day 5: Testing**
+- [ ] Unit tests for encryption/decryption
+- [ ] Integration test with test private repo
+- [ ] Verify token is never logged
+
+**Deliverables:**
+- Backend can receive and use encrypted tokens
+- Tokens are properly cleared after use
 
 ---
 
-### Phase 4: Security Hardening (Week 4)
+### Phase 2: Frontend Integration (Week 2)
 
-**Tasks**:
-1. Security review
-   - Penetration testing
-   - Token leak detection
-   - Access control verification
+**Day 1-2: API Updates**
+- [ ] Update `/api/scan` to handle `isPrivate` flag
+- [ ] Add `verifyRepoAccess()` helper
+- [ ] Update `/api/github/repos` to include private repos
 
-2. Audit logging
-   - Implement comprehensive logging
-   - Log retention policies
-   - Alerting for suspicious activity
+**Day 3-4: UI Components**
+- [ ] Add private repo toggle to scan form
+- [ ] Update repo selector with visibility badges
+- [ ] Add authentication prompts
 
-3. Documentation
-   - Security runbook
-   - Incident response procedures
-   - User documentation
+**Day 5: End-to-End Testing**
+- [ ] Test full flow: select private repo → scan → results
+- [ ] Test error handling (no access, expired token)
+- [ ] Test that public repos still work
 
-**Deliverables**:
+**Deliverables:**
+- Users can scan private repositories
+- Clear UI indicating private vs public
+
+---
+
+### Phase 3: Security Hardening (Week 3)
+
+**Security Review**
+- [ ] Verify no tokens in logs
+- [ ] Verify token cleared from memory
+- [ ] Test Redis data is encrypted
+- [ ] Penetration test the flow
+
+**Documentation**
+- [ ] Security runbook
+- [ ] Incident response procedures
+- [ ] User documentation
+
+**Deliverables:**
 - Security audit passed
-- Logging and monitoring in place
 - Documentation complete
 
 ---
@@ -880,77 +635,101 @@ async function logPrivateRepoAccess({
 ### Unit Tests
 
 ```python
-# tests/test_token_vault.py
+# backend/tests/test_token_ephemeral.py
+import pytest
+from audit.token_ephemeral import decrypt_token
 
-async def test_token_encryption_decryption():
-    vault = SecureTokenVault()
-    token = "ghp_test_token_12345"
-    user_id = "user_123"
-    
-    ref = await vault.storeToken(user_id, token)
-    retrieved = await vault.retrieveToken(ref)
-    
-    assert retrieved == token
-
-async def test_token_expiration():
-    vault = SecureTokenVault()
-    token = "ghp_test_token_12345"
-    
-    ref = await vault.storeToken("user_123", token, expires_in_seconds=1)
-    await asyncio.sleep(2)
-    
-    retrieved = await vault.retrieveToken(ref)
-    assert retrieved is None
+def test_token_encryption_decryption():
+    """Test that we can decrypt what frontend encrypts."""
+    # This test requires the same encryption key
+    encrypted = "iv:authTag:ciphertext"  # From frontend test
+    decrypted = decrypt_token(encrypted)
+    assert decrypted == "expected_token"
 ```
 
-### Integration Tests
+```typescript
+// lib/__tests__/token-ephemeral.test.ts
+import { encryptTokenForWorker } from "../token-ephemeral";
+
+describe("Token Encryption", () => {
+  it("should produce decryptable payload", () => {
+    const token = "ghp_test_token_12345";
+    const encrypted = encryptTokenForWorker(token);
+    
+    // Verify format
+    expect(encrypted).toMatch(/^[a-f0-9]{32}:[a-f0-9]{32}:[a-f0-9]+$/);
+  });
+});
+```
+
+### Integration Test
 
 ```python
 # tests/test_private_repo_clone.py
+import os
+import pytest
+import tempfile
+from pathlib import Path
 
 @pytest.mark.integration
+@pytest.mark.skipif(
+    not os.getenv("TEST_GITHUB_TOKEN"),
+    reason="TEST_GITHUB_TOKEN not set"
+)
 async def test_clone_private_repo():
-    """Test cloning a real private repo (requires test credentials)."""
+    """Test cloning a real private repo."""
+    from audit.repos import clone_repo_with_token
+    
     token = os.getenv("TEST_GITHUB_TOKEN")
     repo_url = "https://github.com/test-org/private-test-repo"
     
     with tempfile.TemporaryDirectory() as tmpdir:
         dest = Path(tmpdir) / "repo"
         
-        branch = await clone_repo_with_auth(
-            repo_url,
-            dest,
-            branch="main",
-            skip_lfs=True,
-            token=token,
+        branch = await clone_repo_with_token(
+            repo_url, dest, "main", skip_lfs=True, token=token
         )
         
         assert dest.exists()
         assert (dest / ".git").exists()
+        assert (dest / "README.md").exists()
 ```
 
 ---
 
-## Deployment Considerations
+## Deployment Checklist
 
-### Environment Variables
+### Pre-Deployment
 
-```bash
-# Required for private repo support
-TOKEN_ENCRYPTION_SECRET=<generate-with-openssl-rand-base64-32>
-WORKER_API_SECRET=<generate-with-openssl-rand-base64-32>
+- [ ] Generate unique `WORKER_ENCRYPTION_SECRET`
+- [ ] Add to all environment configs (frontend + worker)
+- [ ] Verify secrets are different per environment
+- [ ] Run security scan on new code
 
-# Optional
-TOKEN_EXPIRY_HOURS=24
-REDIS_TOKEN_CACHE_URL=redis://localhost:6379/1
-```
+### Deployment
 
-### Database Migrations
+- [ ] Deploy backend with new dependencies (`cryptography`)
+- [ ] Deploy frontend with encryption library
+- [ ] Monitor error rates
+- [ ] Test private repo scan in staging
+
+### Post-Deployment
+
+- [ ] Verify no tokens in application logs
+- [ ] Verify Redis data is encrypted
+- [ ] Monitor scan success rates
+- [ ] Document any issues
+
+---
+
+## Appendix A: Token Vault Alternative (Reference)
+
+For use cases requiring persistent token storage, here is the alternative architecture.
+
+### Database Schema
 
 ```sql
--- migrations/0009_private_repo_support.sql
-
--- Encrypted token storage
+-- Token storage (if using persistent approach)
 CREATE TABLE encrypted_tokens (
     id SERIAL PRIMARY KEY,
     ref TEXT UNIQUE NOT NULL,
@@ -962,59 +741,83 @@ CREATE TABLE encrypted_tokens (
     expires_at TIMESTAMP NOT NULL,
     accessed_at TIMESTAMP
 );
+```
 
-CREATE INDEX idx_encrypted_tokens_ref ON encrypted_tokens(ref);
-CREATE INDEX idx_encrypted_tokens_user ON encrypted_tokens(user_id);
-CREATE INDEX idx_encrypted_tokens_expires ON encrypted_tokens(expires_at);
+### Token Vault Service
 
--- Add columns to scans table
-ALTER TABLE scans 
-    ADD COLUMN credential_ref TEXT,
-    ADD COLUMN repo_visibility TEXT DEFAULT 'public';
+```typescript
+// lib/token-vault.ts (Alternative implementation)
+export class SecureTokenVault {
+  async storeToken(userId: string, token: string): Promise<string> {
+    const ref = generateSecureRef();
+    const encrypted = this.encrypt(token);
+    
+    await db.insert(encryptedTokens).values({
+      ref,
+      userId,
+      ...encrypted,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    });
+    
+    return ref;
+  }
+  
+  async retrieveToken(ref: string): Promise<string | null> {
+    const record = await db.query.encryptedTokens.findFirst({
+      where: eq(encryptedTokens.ref, ref),
+    });
+    
+    if (!record || record.expiresAt < new Date()) {
+      return null;
+    }
+    
+    return this.decrypt(record);
+  }
+}
+```
 
-CREATE INDEX idx_scans_credential ON scans(credential_ref);
+### Worker Token Retrieval
 
--- Audit log for private repo access
-CREATE TABLE audit_logs (
-    id SERIAL PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
-    repo_url TEXT NOT NULL,
-    action TEXT NOT NULL,
-    success BOOLEAN NOT NULL,
-    error TEXT,
-    ip_address INET,
-    user_agent TEXT,
-    timestamp TIMESTAMP DEFAULT NOW()
-);
-
-CREATE INDEX idx_audit_logs_user ON audit_logs(user_id);
-CREATE INDEX idx_audit_logs_timestamp ON audit_logs(timestamp);
+```python
+# backend/src/audit/token_vault.py (Alternative)
+class TokenVaultClient:
+    """Client to retrieve encrypted tokens from frontend API."""
+    
+    async def get_token(self, credential_ref: str) -> Optional[str]:
+        """Retrieve decrypted token from frontend API."""
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.frontend_url}/api/internal/token",
+                headers={"Authorization": f"Bearer {self.api_secret}"},
+                json={"credential_ref": credential_ref},
+            )
+            return response.json().get("token") if response.status_code == 200 else None
 ```
 
 ---
 
 ## Success Metrics
 
-| Metric | Target |
-|--------|--------|
-| Private repo scan success rate | >95% |
-| Token security incidents | 0 |
-| Average scan time (private vs public) | <10% difference |
-| User adoption (private repos) | 30% of scans within 3 months |
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| Private repo scan success rate | >95% | Scan completion logs |
+| Token security incidents | 0 | Security audit |
+| Average scan time delta | <10% slower | Compare public vs private |
+| User adoption | 30% of scans | Within 3 months of launch |
 
 ---
 
 ## Future Enhancements
 
-1. **GitLab Support**: Extend to GitLab private repos
+1. **GitLab Support**: Extend to GitLab private repos using same ephemeral pattern
 2. **Bitbucket Support**: Add Bitbucket Cloud support
-3. **Self-Hosted GitHub**: GitHub Enterprise Server support
-4. **SSH Key Authentication**: Alternative to OAuth tokens
-5. **Repository Webhooks**: Auto-scan on push events
-6. **Fine-Grained Permissions**: Branch-level access control
+3. **Fine-Grained Tokens**: Support GitHub fine-grained personal access tokens
+4. **App Authentication**: GitHub App installation tokens for organization access
+5. **SSH Key Option**: Alternative authentication method for private repos
 
 ---
 
-**Document Version**: 1.0  
+**Document Version**: 2.0  
 **Last Updated**: 2026-02-04  
-**Author**: Architecture Team
+**Author**: Architecture Team  
+**Status**: RECOMMENDED - Ephemeral Token Pass-Through
