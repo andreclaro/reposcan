@@ -43,11 +43,20 @@ interface Share {
 interface ScanShareDialogProps {
   scanId: string;
   scanStatus: string;
+  /** Controlled open state (optional - for programmatic control) */
+  open?: boolean;
+  /** Callback when open state changes (optional - for programmatic control) */
+  onOpenChange?: (open: boolean) => void;
+  /** Callback when a share is created */
+  onShareCreated?: (token: string) => void;
 }
 
 export default function ScanShareDialog({
   scanId,
-  scanStatus
+  scanStatus,
+  open: controlledOpen,
+  onOpenChange,
+  onShareCreated
 }: ScanShareDialogProps) {
   const [shares, setShares] = useState<Share[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -56,7 +65,16 @@ export default function ScanShareDialog({
   const [expiresInDays, setExpiresInDays] = useState<string>("never");
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  
+  // Use controlled or uncontrolled open state
+  const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setIsOpen = (open: boolean) => {
+    if (controlledOpen === undefined) {
+      setInternalOpen(open);
+    }
+    onOpenChange?.(open);
+  };
 
   const fetchShares = useCallback(async () => {
     if (!isOpen) return;
@@ -102,6 +120,7 @@ export default function ScanShareDialog({
 
       const data = await response.json();
       setShares((prev) => [data.share, ...prev]);
+      onShareCreated?.(data.share.token);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create share");
     } finally {
@@ -150,12 +169,14 @@ export default function ScanShareDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <Share2 className="h-4 w-4" />
-          Share
-        </Button>
-      </DialogTrigger>
+      {controlledOpen === undefined && (
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className="gap-2">
+            <Share2 className="h-4 w-4" />
+            Share
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

@@ -18,6 +18,8 @@ import {
   Clock,
   Loader2,
   AlertCircle,
+  Share2,
+  Github,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -40,6 +42,8 @@ import {
 import { StatusBadge, FindingsSummary } from "@/components/severity-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
+import ScanShareDialog from "@/components/scan-share-dialog";
+import GitHubIssueDialog from "@/components/admin/github-issue-dialog";
 
 type ScanWithUser = {
   id: number;
@@ -153,6 +157,9 @@ function ScanListItem({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmValue, setDeleteConfirmValue] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [showGitHubDialog, setShowGitHubDialog] = useState(false);
+  const [existingShareToken, setExistingShareToken] = useState<string | undefined>();
 
   const githubUrl = getGitHubUrl(scan.repoUrl, scan.branch);
   const displayProgress =
@@ -169,6 +176,26 @@ function ScanListItem({
       setShowDeleteDialog(false);
       setDeleteConfirmValue("");
     }
+  };
+
+  const recordOutreach = async (issueUrl: string) => {
+    try {
+      await fetch("/api/admin/marketing/outreach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scanId: scan.scanId,
+          type: "github_issue_opened",
+          metadata: { issueUrl, shareToken: existingShareToken }
+        })
+      });
+    } catch (error) {
+      console.error("Failed to record outreach:", error);
+    }
+  };
+
+  const handleShareCreated = (token: string) => {
+    setExistingShareToken(token);
   };
 
   const canRetry = RETRYABLE_STATUSES.has(scan.status);
@@ -339,6 +366,30 @@ function ScanListItem({
               </Button>
             )}
 
+            {/* Marketing actions - only for completed scans */}
+            {scan.status === "completed" && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowShareDialog(true)}
+                  className="h-8 gap-1.5"
+                >
+                  <Share2 className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Share</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowGitHubDialog(true)}
+                  className="h-8 gap-1.5"
+                >
+                  <Github className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">GitHub</span>
+                </Button>
+              </>
+            )}
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -442,6 +493,35 @@ function ScanListItem({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Share Dialog */}
+      <ScanShareDialog
+        scanId={scan.scanId}
+        scanStatus={scan.status}
+        open={showShareDialog}
+        onOpenChange={setShowShareDialog}
+        onShareCreated={handleShareCreated}
+      />
+
+      {/* GitHub Issue Dialog */}
+      <GitHubIssueDialog
+        scan={{
+          scanId: scan.scanId,
+          repoUrl: scan.repoUrl,
+          branch: scan.branch,
+          commitHash: scan.commitHash,
+          findingsCount: scan.findingsCount,
+          criticalCount: scan.criticalCount,
+          highCount: scan.highCount,
+          mediumCount: scan.mediumCount,
+          lowCount: scan.lowCount,
+          infoCount: scan.infoCount,
+        }}
+        shareToken={existingShareToken}
+        open={showGitHubDialog}
+        onOpenChange={setShowGitHubDialog}
+        onRecordOutreach={recordOutreach}
+      />
     </>
   );
 }

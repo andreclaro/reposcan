@@ -237,3 +237,26 @@ export const scanShares = pgTable(
     tokenIdx: index("idx_scan_shares_token").on(table.token)
   })
 );
+
+// Outreach activity tracking for marketing (GitHub issues, etc.)
+export const outreachActivity = pgTable(
+  "outreach_activity",
+  {
+    id: serial("id").primaryKey(),
+    scanId: text("scan_id")
+      .notNull()
+      .references(() => scans.scanId, { onDelete: "cascade" }),
+    type: text("type").notNull(), // 'github_issue_opened'
+    metadata: jsonb("metadata").$type<{
+      issueUrl?: string;
+      shareToken?: string;
+    }>(),
+    createdBy: text("created_by").notNull(), // admin email
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow()
+  },
+  (table) => ({
+    scanIdIdx: index("idx_outreach_activity_scan_id").on(table.scanId),
+    typeIdx: index("idx_outreach_activity_type").on(table.type),
+    createdAtIdx: index("idx_outreach_activity_created_at").on(table.createdAt)
+  })
+);
