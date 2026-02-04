@@ -15,7 +15,7 @@ A comprehensive security review of the `sec-audit-repos` codebase has been condu
 
 | Severity | Count | Status |
 |----------|-------|--------|
-| 🔴 Critical | 2 | 1 fixed, 2 remaining |
+| 🔴 Critical | 0 | All fixed ✅ |
 | 🟠 High | 4 | Address within 1 week |
 | 🟡 Medium | 3 | Address within 1 month |
 | 🟢 Low | 2 | Address when convenient |
@@ -465,12 +465,12 @@ worker:
 |---------------|--------|----------|
 | A01: Broken Access Control | ⚠️ Partial | No RBAC on scan endpoints; admin checks present but limited |
 | A02: Cryptographic Failures | ✅ Good | Secrets in env vars, JWT tokens used |
-| A03: Injection | 🔴 Critical | Command injection in version_manager.py; SQL injection prevented via parameterized queries |
-| A04: Insecure Design | ⚠️ Partial | Webhook bypass design flaw; trustHost issue; insecure cookies |
-| A05: Security Misconfiguration | 🔴 High | trustHost, insecure cookies, root containers, hardcoded creds |
+| A03: Injection | 🟢 Fixed | Command injection FIXED; SQL injection prevented via parameterized queries |
+| A04: Insecure Design | 🟢 Fixed | Webhook bypass FIXED; trustHost FIXED; insecure cookies FIXED |
+| A05: Security Misconfiguration | 🟡 Medium | trustHost FIXED, insecure cookies FIXED; root containers, hardcoded creds remain |
 | A06: Vulnerable Components | ✅ Good | Dependencies pinned in requirements.txt |
-| A07: Auth Failures | ⚠️ Partial | trustHost and insecure cookies weaken auth; beta mode adds approval flow |
-| A08: Data Integrity Failures | 🔴 High | Webhook signature bypass |
+| A07: Auth Failures | 🟢 Fixed | trustHost and insecure cookies FIXED; beta mode adds approval flow |
+| A08: Data Integrity Failures | 🟢 Fixed | Webhook signature bypass FIXED |
 | A09: Security Logging Failures | ⚠️ Partial | Debug logs expose info; no audit logging |
 | A10: SSRF | ⚠️ Partial | URL validation present but DNS rebinding possible |
 
