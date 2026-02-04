@@ -1,8 +1,11 @@
+import ipaddress
 import logging
 import os
+import socket
 import subprocess
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 from .utils import sanitize_repo_slug
 
@@ -61,6 +64,78 @@ def ensure_audit_dirs(audit_root: Path, repo_slug: str) -> Path:
     return repo_audit_dir
 
 
+def _is_internal_ip(hostname: str) -> bool:
+    """
+    Check if a hostname resolves to an internal/private IP address.
+    
+    Used to prevent SSRF attacks by blocking access to internal services.
+    
+    Args:
+        hostname: The hostname to check
+        
+    Returns:
+        True if the hostname resolves to an internal IP, False otherwise
+    """
+    try:
+        # Get all IP addresses for the hostname
+        addr_info = socket.getaddrinfo(hostname, None)
+        for info in addr_info:
+            ip_str = info[4][0]
+            try:
+                ip_obj = ipaddress.ip_address(ip_str)
+                # Check if IP is private, loopback, link-local, or reserved
+                if (
+                    ip_obj.is_private
+                    or ip_obj.is_loopback
+                    or ip_obj.is_link_local
+                    or ip_obj.is_reserved
+                    or ip_obj.is_multicast
+                ):
+                    return True
+            except ValueError:
+                # Not a valid IP address, continue
+                continue
+    except socket.gaierror:
+        # DNS resolution failed - fail secure (treat as internal)
+        logger.warning(f"Could not resolve hostname: {hostname}")
+        return True
+    except Exception as e:
+        # Any other error - fail secure
+        logger.warning(f"Error checking IP for {hostname}: {e}")
+        return True
+    
+    return False
+
+
+def _validate_repo_url_ssrf(repo: str) -> None:
+    """
+    Validate repository URL to prevent SSRF attacks.
+    
+    Raises:
+        ValueError: If URL resolves to an internal IP address
+    """
+    # Skip SSH URLs (git@host:path format)
+    if repo.startswith("git@"):
+        # Extract hostname from git@host:path format
+        parts = repo.split(":", 1)
+        if len(parts) == 2:
+            host_part = parts[0]
+            if "@" in host_part:
+                hostname = host_part.split("@", 1)[1]
+                if _is_internal_ip(hostname):
+                    raise ValueError(f"SSH URL resolves to internal IP: {hostname}")
+        return
+    
+    # Parse HTTP/HTTPS URLs
+    try:
+        parsed = urlparse(repo)
+        if parsed.hostname:
+            if _is_internal_ip(parsed.hostname):
+                raise ValueError(f"URL resolves to internal IP: {parsed.hostname}")
+    except Exception as e:
+        raise ValueError(f"Invalid repository URL: {e}")
+
+
 def get_default_branch(repo: str) -> str:
     """
     Detect the default branch for a Git repository.
@@ -76,7 +151,14 @@ def get_default_branch(repo: str) -> str:
     
     Raises:
         RuntimeError: If unable to detect the default branch
+        ValueError: If URL resolves to an internal IP (SSRF protection)
     """
+    # Validate URL to prevent SSRF attacks
+    try:
+        _validate_repo_url_ssrf(repo)
+    except ValueError as e:
+        raise RuntimeError(f"SSRF protection: {e}") from e
+    
     try:
         # Use --symref to get symbolic references
         result = subprocess.run(
@@ -162,7 +244,11 @@ def clone_repo(
     
     Raises:
         RuntimeError: If cloning fails
+        ValueError: If URL resolves to an internal IP (SSRF protection)
     """
+    # Validate URL to prevent SSRF attacks
+    _validate_repo_url_ssrf(repo)
+    
     if allowed_base is not None:
         try:
             dest_resolved = dest_dir.resolve()
