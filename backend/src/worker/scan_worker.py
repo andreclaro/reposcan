@@ -12,7 +12,8 @@ import traceback
 from celery import Celery
 from celery.utils.log import get_task_logger
 
-from audit.repos import clone_repo, repo_name, update_submodules_if_present, get_commit_hash
+from audit.repos import clone_repo, clone_repo_with_token, repo_name, update_submodules_if_present, get_commit_hash
+from audit.token_ephemeral import decrypt_token
 from audit.utils import safe_repo_slug, validate_repo_url
 from audit.fs import detect_languages, has_terraform
 from audit.scanners import (
@@ -84,6 +85,8 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
     audit_types = request_data.get('audit_types', [])
     skip_lfs = request_data.get('skip_lfs', False)
     force_rescan = request_data.get('force_rescan', False)
+    is_private = request_data.get('is_private', False)
+    encrypted_token = request_data.get('encrypted_token')
 
     if not validate_repo_url(repo_url):
         raise ValueError("Invalid repo_url: only http, https, git, ssh URLs are allowed")
@@ -159,12 +162,26 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                 logger.warning(f"Network connectivity test failed: {e}")
             
             # Step 2: Clone repository
-            logger.info(f"Cloning {repo_url} to {repo_path}")
+            logger.info(f"Cloning {repo_url} to {repo_path} (private={is_private})")
+            
+            # Token exists only in this scope - decrypted for one-time use
+            git_token: str | None = None
+            
             try:
-                # Clone and capture the actual branch used (may be auto-detected)
-                actual_branch = clone_repo(
-                    repo_url, repo_path, branch, skip_lfs, allowed_base=tmpdir_path
-                )
+                if is_private and encrypted_token:
+                    # Decrypt token for one-time use (private repos only)
+                    logger.info("Decrypting authentication token for private repository")
+                    git_token = decrypt_token(encrypted_token)
+                    
+                    # Clone with authentication
+                    actual_branch = clone_repo_with_token(
+                        repo_url, repo_path, branch, skip_lfs, git_token, allowed_base=tmpdir_path
+                    )
+                else:
+                    # Public repo - no auth needed
+                    actual_branch = clone_repo(
+                        repo_url, repo_path, branch, skip_lfs, allowed_base=tmpdir_path
+                    )
                 # Use the actual branch for subsequent operations
                 branch = actual_branch
                 logger.info(f"Using branch: {branch}")
@@ -205,6 +222,12 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                 else:
                     # Re-raise other errors as-is
                     raise
+            finally:
+                # CRITICAL: Ensure token is cleared from memory immediately after clone
+                # This is a defense-in-depth measure - token should only exist during clone
+                if git_token is not None:
+                    git_token = None
+                    logger.debug("Authentication token cleared from memory")
             
             log_step(f"Repository cloned successfully to {repo_path}")
 

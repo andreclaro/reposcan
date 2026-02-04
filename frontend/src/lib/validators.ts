@@ -41,6 +41,8 @@ export const scanRequestSchema = z.object({
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
     z.string().regex(/^[0-9a-fA-F]{7,40}$/, "Must be 7–40 hex characters").optional()
   ),
+  // Whether the repository is private and requires authentication
+  isPrivate: z.boolean().optional().default(false),
 });
 
 export type ScanRequestInput = z.infer<typeof scanRequestSchema>;

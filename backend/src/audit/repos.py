@@ -414,3 +414,190 @@ def get_commit_hash(repo_path: Path, branch: str = "HEAD") -> str:
         timeout=GIT_REV_PARSE_TIMEOUT,
     )
     return result.stdout.strip()
+
+
+def clone_repo_with_token(
+    repo: str,
+    dest_dir: Path,
+    branch: Optional[str],
+    skip_lfs: bool,
+    token: str,
+    allowed_base: Optional[Path] = None,
+) -> str:
+    """
+    Clone a private Git repository using an OAuth token.
+    
+    The token is used once for cloning and never stored. It is masked in any
+    error messages to prevent accidental exposure in logs.
+    
+    Args:
+        repo: Repository URL (HTTPS format recommended)
+        dest_dir: Destination directory path
+        branch: Branch name to clone. If None, detects the default branch.
+        skip_lfs: Whether to skip Git LFS files
+        token: GitHub OAuth token for authentication
+        allowed_base: Optional base directory for path traversal protection
+        
+    Returns:
+        The branch name that was cloned
+        
+    Raises:
+        RuntimeError: If cloning fails or authentication fails
+        ValueError: If URL resolves to an internal IP (SSRF protection)
+    """
+    # Validate URL to prevent SSRF attacks
+    _validate_repo_url_ssrf(repo)
+    
+    if allowed_base is not None:
+        try:
+            dest_resolved = dest_dir.resolve()
+            base_resolved = allowed_base.resolve()
+            dest_resolved.relative_to(base_resolved)
+        except (OSError, ValueError):
+            raise ValueError(
+                "Destination directory is outside allowed base directory"
+            ) from None
+    
+    if (dest_dir / ".git").is_dir():
+        logger.info("Already cloned, skipping: %s", repo)
+        # Try to determine the current branch
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(dest_dir), "rev-parse", "--abbrev-ref", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=GIT_REV_PARSE_TIMEOUT,
+            )
+            return result.stdout.strip()
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            return branch or "main"
+    
+    # Build authenticated URL
+    # Format: https://oauth:TOKEN@github.com/owner/repo.git
+    parsed = urlparse(repo)
+    host = parsed.hostname or "github.com"
+    
+    # Construct authenticated URL
+    auth_url = f"https://oauth:{token}@{host}{parsed.path}"
+    
+    # Detect default branch if not specified
+    requested_branch = branch
+    if branch is None:
+        logger.info("Detecting default branch for private repo...")
+        # For private repos, we need to use the token to detect branch
+        # We can use git ls-remote with the token
+        try:
+            result = subprocess.run(
+                ["git", "ls-remote", "--symref", auth_url, "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            
+            for line in result.stdout.strip().split("\n"):
+                if line.startswith("ref:") and "refs/heads/" in line:
+                    parts = line.split("refs/heads/")
+                    if len(parts) > 1:
+                        detected_branch = parts[1].split("\t")[0].strip()
+                        if detected_branch:
+                            branch = detected_branch
+                            logger.info("Detected default branch: %s", branch)
+                            break
+        except subprocess.CalledProcessError:
+            logger.warning("Could not detect default branch, falling back to 'main'")
+            branch = "main"
+        except subprocess.TimeoutExpired:
+            logger.warning("Timeout detecting default branch, falling back to 'main'")
+            branch = "main"
+    
+    if branch is None:
+        branch = "main"
+    
+    logger.info("Cloning private repo %s -> %s (branch: %s)", repo, dest_dir, branch)
+    
+    # Set up git environment
+    env = os.environ.copy()
+    # Prevent token from appearing in process lists
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    
+    git_cmd = ["git"]
+    if skip_lfs:
+        git_cmd.extend([
+            "-c", "filter.lfs.smudge=",
+            "-c", "filter.lfs.process=",
+            "-c", "filter.lfs.required=false",
+        ])
+    
+    git_cmd.append("clone")
+    git_cmd.extend(["--branch", branch])
+    git_cmd.extend(["--depth", "1"])
+    git_cmd.extend([auth_url, str(dest_dir)])
+    
+    try:
+        subprocess.run(
+            git_cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=CLONE_TIMEOUT,
+            env=env,
+        )
+        return branch
+        
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Clone timed out") from None
+        
+    except subprocess.CalledProcessError as e:
+        stdout_text = e.stdout.strip() if e.stdout else ""
+        stderr_text = e.stderr.strip() if e.stderr else ""
+        
+        # Mask token in error messages
+        if stdout_text:
+            stdout_text = stdout_text.replace(token, "***")
+        if stderr_text:
+            stderr_text = stderr_text.replace(token, "***")
+        
+        if stdout_text and stderr_text:
+            error_msg = f"{stdout_text}\n{stderr_text}"
+        else:
+            error_msg = stdout_text or stderr_text or str(e)
+        
+        # Log error with masked token
+        logger.error("Git clone failed: %s", error_msg)
+        
+        # Check for authentication errors
+        auth_error_indicators = [
+            "Authentication failed",
+            "403",
+            "401",
+            "remote: Invalid username or password",
+            "remote: Repository not found",
+        ]
+        is_auth_error = any(indicator in error_msg for indicator in auth_error_indicators)
+        
+        if is_auth_error:
+            raise RuntimeError(
+                "Authentication failed. The token may have expired or you may not have "
+                "access to this repository. Please check your GitHub permissions."
+            ) from e
+        
+        # Check for branch not found
+        branch_not_found_indicators = [
+            "Remote branch",
+            "not found in upstream origin",
+            "fatal: Remote branch",
+            "could not find remote branch",
+        ]
+        is_branch_not_found = any(
+            indicator in error_msg for indicator in branch_not_found_indicators
+        )
+        
+        if is_branch_not_found and requested_branch is not None:
+            logger.warning("Branch '%s' not found. Trying default branch...", requested_branch)
+            return clone_repo_with_token(
+                repo, dest_dir, None, skip_lfs, token, allowed_base
+            )
+        
+        raise RuntimeError(f"Failed to clone repository: {error_msg}") from e

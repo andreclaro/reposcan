@@ -11,6 +11,8 @@ import { parseGitHubRepo } from "@/lib/github-url";
 import { canUserStartScan, getUsageForCurrentPeriod } from "@/lib/usage";
 import { DEFAULT_AUDIT_TYPES, scanRequestSchema } from "@/lib/validators";
 import { getServerAuth } from "@/lib/server-auth";
+import { getUserGitHubToken, verifyRepoAccess } from "@/lib/github-token";
+import { encryptTokenForWorker } from "@/lib/token-ephemeral";
 
 export async function POST(request: Request) {
   const session = await getServerAuth();
@@ -34,7 +36,8 @@ export async function POST(request: Request) {
     branch,
     auditTypes,
     forceRescan = false,
-    commitHash: requestCommitHash
+    commitHash: requestCommitHash,
+    isPrivate = false
   } = parsed.data;
 
   // Normalize full URL or org/repo to canonical GitHub URL for backend and DB
@@ -46,12 +49,60 @@ export async function POST(request: Request) {
     );
   }
 
-  const payload = {
+  // Handle private repository authentication
+  let encryptedToken: string | undefined;
+
+  if (isPrivate) {
+    // Get user's GitHub token from their OAuth session
+    const token = await getUserGitHubToken(session.user.id);
+    
+    if (!token) {
+      return NextResponse.json(
+        { 
+          error: "GitHub authentication required for private repositories",
+          code: "GITHUB_AUTH_REQUIRED"
+        },
+        { status: 403 }
+      );
+    }
+
+    // Verify the user actually has access to this repository
+    const hasAccess = await verifyRepoAccess(token, repoUrl);
+    
+    if (!hasAccess) {
+      return NextResponse.json(
+        { 
+          error: "You do not have access to this private repository",
+          code: "REPO_ACCESS_DENIED"
+        },
+        { status: 403 }
+      );
+    }
+
+    // Encrypt the token for the worker (ephemeral - never stored in DB)
+    try {
+      encryptedToken = encryptTokenForWorker(token);
+    } catch (error) {
+      console.error("Failed to encrypt token:", error);
+      return NextResponse.json(
+        { error: "Failed to prepare authentication token" },
+        { status: 500 }
+      );
+    }
+  }
+
+  const payload: Record<string, unknown> = {
     repo_url: repoUrl,
     branch,
     audit_types: auditTypes ?? Array.from(DEFAULT_AUDIT_TYPES),
-    force_rescan: forceRescan
+    force_rescan: forceRescan,
+    is_private: isPrivate
   };
+
+  // Add encrypted token for private repos (ephemeral, travels through queue only)
+  if (encryptedToken) {
+    payload.encrypted_token = encryptedToken;
+  }
 
   // Before queuing: check for existing completed scan (same repo + commit)
   if (!forceRescan) {
@@ -201,7 +252,7 @@ export async function POST(request: Request) {
       userId: session.user.id,
       repoUrl,
       branch,
-      auditTypes: payload.audit_types,
+      auditTypes: auditTypes ?? Array.from(DEFAULT_AUDIT_TYPES),
       status: scanData.status ?? "queued",
       progress: 0,
       updatedAt: new Date()
