@@ -139,6 +139,11 @@ export default function TermsOfServicePage() {
             <li>ACCURACY OR COMPLETENESS OF SCAN RESULTS</li>
           </ul>
           <p>
+            <strong>Disclaimer:</strong> Scan results are for informational purposes only and are not
+            guaranteed for accuracy. Use at your own risk. We are not liable for any actions taken
+            based on these results.
+          </p>
+          <p>
             We do not warrant that:
           </p>
           <ul>
