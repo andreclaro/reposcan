@@ -59,7 +59,8 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - RESULTS_DIR=/work/results
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/sec_audit}
+      # Override DATABASE_URL to use the postgres service name instead of localhost
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/sec_audit
     volumes:
       - ../backend/src:/work
       - results_data:/work/results
@@ -110,7 +111,8 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - RESULTS_DIR=/work/results
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/sec_audit}
+      # Override DATABASE_URL to use the postgres service name instead of localhost
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/sec_audit
       # Use Docker-in-Docker instead of host Docker socket
       - DOCKER_HOST=tcp://dind:2376
       - DOCKER_TLS_VERIFY=1
