@@ -11,12 +11,14 @@ import {
   ArrowRight,
   Filter,
   X,
+  Lock,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { ScanListItem } from "./scan-list-item";
 import { parseGitHubRepo } from "@/lib/github-url";
 import { DEFAULT_AUDIT_TYPES } from "@/lib/validators";
@@ -48,6 +50,7 @@ export default function ScanDashboard({
   const [errorUpgradeUrl, setErrorUpgradeUrl] = useState<string | null>(null);
   const [cachedMessage, setCachedMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPrivate, setIsPrivate] = useState(false);
   const branchIsDirtyRef = useRef(branchIsDirty);
 
   // Filters
@@ -292,7 +295,7 @@ export default function ScanDashboard({
       const response = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repoUrl, branch }),
+        body: JSON.stringify({ repoUrl, branch, isPrivate }),
       });
 
       if (!response.ok) {
@@ -324,6 +327,7 @@ export default function ScanDashboard({
 
       setRepoUrl("");
       setBranch("");
+      setIsPrivate(false);
     } catch {
       setError("Failed to start scan.");
     } finally {
@@ -454,6 +458,18 @@ export default function ScanDashboard({
                   </>
                 )}
               </Button>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+              <div className="flex items-center gap-2">
+                <Lock className="h-4 w-4 text-slate-500" />
+                <span className="text-sm text-slate-700">This is a private repository</span>
+              </div>
+              <Switch
+                checked={isPrivate}
+                onCheckedChange={setIsPrivate}
+                disabled={isSubmitting}
+              />
             </div>
 
             {error && (
