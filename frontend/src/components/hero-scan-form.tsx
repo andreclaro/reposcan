@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Github, Plus, ArrowRight, AlertCircle, Lock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { useRepoVisibility } from "@/hooks/use-repo-visibility";
 
 interface HeroScanFormProps {
   isAuthed: boolean;
@@ -15,9 +15,16 @@ interface HeroScanFormProps {
 export default function HeroScanForm({ isAuthed }: HeroScanFormProps) {
   const router = useRouter();
   const [repoUrl, setRepoUrl] = useState("");
-  const [isPrivate, setIsPrivate] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Auto-detect repo visibility
+  const {
+    isPrivate,
+    isLoading: isCheckingVisibility,
+    manuallySet,
+    setManually: setIsPrivate
+  } = useRepoVisibility(repoUrl);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +51,7 @@ export default function HeroScanForm({ isAuthed }: HeroScanFormProps) {
       const response = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repoUrl: repoUrl.trim(), isPrivate }),
+        body: JSON.stringify({ repoUrl: repoUrl.trim(), isPrivate: isPrivate ?? false }),
       });
 
       if (!response.ok) {
@@ -105,11 +112,21 @@ export default function HeroScanForm({ isAuthed }: HeroScanFormProps) {
       {isAuthed && (
         <div className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3">
           <div className="flex items-center gap-2">
-            <Lock className="h-4 w-4 text-slate-500" />
-            <span className="text-sm text-slate-700">This is a private repository</span>
+            <Lock className={`h-4 w-4 ${isPrivate ? "text-amber-500" : "text-slate-400"}`} />
+            <div className="flex flex-col">
+              <span className="text-sm text-slate-700">
+                This is a {isPrivate === null ? "private" : isPrivate ? "private" : "public"} repository
+              </span>
+              {isCheckingVisibility && (
+                <span className="text-xs text-slate-500">Checking visibility...</span>
+              )}
+              {manuallySet && (
+                <span className="text-xs text-blue-600">Manually set</span>
+              )}
+            </div>
           </div>
           <Switch
-            checked={isPrivate}
+            checked={isPrivate ?? false}
             onCheckedChange={setIsPrivate}
             disabled={isSubmitting}
           />

@@ -23,6 +23,7 @@ import { ScanListItem } from "./scan-list-item";
 import { parseGitHubRepo } from "@/lib/github-url";
 import { DEFAULT_AUDIT_TYPES } from "@/lib/validators";
 import { HIDE_PLANS } from "@/lib/config";
+import { useRepoVisibility } from "@/hooks/use-repo-visibility";
 import type { ScanRecord } from "@/types/scans";
 
 const activeStatuses = new Set(["queued", "running", "retrying"]);
@@ -50,8 +51,15 @@ export default function ScanDashboard({
   const [errorUpgradeUrl, setErrorUpgradeUrl] = useState<string | null>(null);
   const [cachedMessage, setCachedMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isPrivate, setIsPrivate] = useState(false);
   const branchIsDirtyRef = useRef(branchIsDirty);
+  
+  // Auto-detect repo visibility
+  const {
+    isPrivate,
+    isLoading: isCheckingVisibility,
+    manuallySet,
+    setManually: setIsPrivate
+  } = useRepoVisibility(repoUrl);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -462,11 +470,21 @@ export default function ScanDashboard({
 
             <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
               <div className="flex items-center gap-2">
-                <Lock className="h-4 w-4 text-slate-500" />
-                <span className="text-sm text-slate-700">This is a private repository</span>
+                <Lock className={`h-4 w-4 ${isPrivate ? "text-amber-500" : "text-slate-400"}`} />
+                <div className="flex flex-col">
+                  <span className="text-sm text-slate-700">
+                    This is a {isPrivate === null ? "private" : isPrivate ? "private" : "public"} repository
+                  </span>
+                  {isCheckingVisibility && (
+                    <span className="text-xs text-slate-500">Checking visibility...</span>
+                  )}
+                  {manuallySet && (
+                    <span className="text-xs text-blue-600">Manually set</span>
+                  )}
+                </div>
               </div>
               <Switch
-                checked={isPrivate}
+                checked={isPrivate ?? false}
                 onCheckedChange={setIsPrivate}
                 disabled={isSubmitting}
               />
