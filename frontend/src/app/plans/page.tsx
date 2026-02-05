@@ -38,7 +38,7 @@ interface Tier {
   savings?: string;
 }
 
-const tiers: Tier[] = [
+const baseTiers: Tier[] = [
   {
     name: "Free",
     icon: Shield,
@@ -51,7 +51,7 @@ const tiers: Tier[] = [
     features: [
       "5 scans per month",
       "Public repositories only",
-      "All security scanners",
+      "Basic security scanners",
       "Basic reporting",
       "Community support",
     ],
@@ -73,7 +73,8 @@ const tiers: Tier[] = [
     features: [
       "50 scans per month",
       "Public & private repositories",
-      "AI-powered analysis",
+      "All security scanners",
+      "AI access",
       "Export reports (PDF/JSON)",
       "Email notifications",
       "Scheduled scans",
@@ -121,7 +122,7 @@ const faqs = [
   {
     question: "What's included in the free plan?",
     answer:
-      "The free plan includes 5 scans per month on public repositories with access to all our security scanners and basic reporting.",
+      "The free plan includes 5 scans per month on public repositories with access to basic security scanners and basic reporting.",
   },
 ];
 
@@ -133,6 +134,12 @@ const trustBadges = [
 
 export default function PlansPage() {
   const [isYearly, setIsYearly] = useState(true);
+  const [proPlan, setProPlan] = useState<{
+    monthlyPrice: number | null;
+    yearlyPrice: number | null;
+    scansPerMonth: number | null;
+    trialDays: number | null;
+  } | null>(null);
   const { data: session, status } = useSession();
   const isAuthenticated = status === "authenticated";
   const router = useRouter();
@@ -144,10 +151,77 @@ export default function PlansPage() {
     }
   }, [router]);
 
+  useEffect(() => {
+    let isActive = true;
+
+    const loadProPlan = async () => {
+      try {
+        const response = await fetch("/api/plans", { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = (await response.json()) as {
+          plans?: Array<{
+            name: string;
+            codename: string;
+            monthlyPrice: number | null;
+            yearlyPrice: number | null;
+            scansPerMonth: number | null;
+            trialDays: number | null;
+          }>;
+        };
+        if (!isActive || !payload.plans?.length) return;
+        const plan =
+          payload.plans.find((p) => p.codename === "pro") ??
+          payload.plans.find((p) => p.name.toLowerCase() === "pro");
+        if (!plan) return;
+        setProPlan({
+          monthlyPrice: plan.monthlyPrice,
+          yearlyPrice: plan.yearlyPrice,
+          scansPerMonth: plan.scansPerMonth,
+          trialDays: plan.trialDays
+        });
+      } catch {
+        // Ignore errors; fallback values will render instead
+      }
+    };
+
+    loadProPlan();
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
   // Show nothing while redirecting
   if (HIDE_PLANS) {
     return null;
   }
+
+  const proScansPerMonth =
+    proPlan?.scansPerMonth === -1
+      ? "Unlimited"
+      : proPlan?.scansPerMonth
+        ? String(proPlan.scansPerMonth)
+        : "50";
+
+  const tiers = baseTiers.map((tier) => {
+    if (tier.name !== "Pro") return tier;
+
+    const monthly = proPlan?.monthlyPrice ?? tier.price.monthly;
+    const yearly = proPlan?.yearlyPrice ?? tier.price.yearly;
+
+    return {
+      ...tier,
+      price: { monthly, yearly },
+      scansPerMonth: proScansPerMonth,
+      features: [
+        `${proScansPerMonth} scans per month`,
+        ...tier.features.filter((feature) => !feature.includes("scans per month"))
+      ],
+      cta:
+        proPlan?.trialDays && proPlan.trialDays > 0
+          ? `Start ${proPlan.trialDays}-day free trial`
+          : tier.cta,
+    };
+  });
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -193,8 +267,8 @@ export default function PlansPage() {
               Choose your plan
             </h1>
             <p className="mt-4 text-lg text-slate-600 max-w-2xl mx-auto">
-              Start free and scale as you grow. All plans include access to our
-              full suite of security scanners.
+              Start free and scale as you grow. Free includes basic scanners;
+              Pro unlocks the full scanner suite and AI access.
             </p>
 
             {/* Billing Toggle */}
@@ -279,7 +353,7 @@ export default function PlansPage() {
                           <>
                             <span className="text-3xl font-bold text-slate-900">
                               €
-                              {isYearly && tier.price.yearly
+                              {isYearly && tier.price.yearly !== null
                                 ? Math.round(tier.price.yearly / 12)
                                 : tier.price.monthly}
                             </span>
@@ -287,7 +361,10 @@ export default function PlansPage() {
                           </>
                         )}
                       </div>
-                      {tier.featured && isYearly && tier.price.yearly && tier.price.monthly && (
+                      {tier.featured &&
+                        isYearly &&
+                        tier.price.yearly !== null &&
+                        tier.price.monthly !== null && (
                         <p className="mt-1 text-sm text-slate-500">
                           <span className="line-through text-slate-400">
                             €{tier.price.monthly * 12} yearly
@@ -410,7 +487,7 @@ export default function PlansPage() {
                     {
                       name: "Scans per month",
                       free: "5",
-                      pro: "50",
+                      pro: proScansPerMonth,
                       enterprise: "Unlimited",
                     },
                     {
@@ -427,6 +504,12 @@ export default function PlansPage() {
                     },
                     {
                       name: "All security scanners",
+                      free: "—",
+                      pro: "✓",
+                      enterprise: "✓",
+                    },
+                    {
+                      name: "Basic security scanners",
                       free: "✓",
                       pro: "✓",
                       enterprise: "✓",
