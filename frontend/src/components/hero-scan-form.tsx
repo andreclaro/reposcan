@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Github, Plus, ArrowRight, AlertCircle } from "lucide-react";
+import { Github, Plus, ArrowRight, AlertCircle, Lock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 
 interface HeroScanFormProps {
   isAuthed: boolean;
@@ -14,6 +15,7 @@ interface HeroScanFormProps {
 export default function HeroScanForm({ isAuthed }: HeroScanFormProps) {
   const router = useRouter();
   const [repoUrl, setRepoUrl] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,7 +44,7 @@ export default function HeroScanForm({ isAuthed }: HeroScanFormProps) {
       const response = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repoUrl: repoUrl.trim() }),
+        body: JSON.stringify({ repoUrl: repoUrl.trim(), isPrivate }),
       });
 
       if (!response.ok) {
