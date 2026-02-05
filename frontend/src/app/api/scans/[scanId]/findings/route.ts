@@ -76,11 +76,21 @@ export async function GET(
       conditions.push(eq(findings.scanner, scanner));
     }
 
-    // Fetch findings
+    // Fetch findings ordered by severity (critical first)
+    const severityOrder = sql`CASE ${findings.severity}
+      WHEN 'critical' THEN 0
+      WHEN 'high' THEN 1
+      WHEN 'medium' THEN 2
+      WHEN 'low' THEN 3
+      WHEN 'info' THEN 4
+      ELSE 5
+    END`;
+
     const findingsList = await db
       .select()
       .from(findings)
       .where(and(...conditions))
+      .orderBy(severityOrder)
       .limit(limit)
       .offset(offset);
 
