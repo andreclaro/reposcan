@@ -11,7 +11,7 @@ import { parseGitHubRepo } from "@/lib/github-url";
 import { canUserStartScan, getUsageForCurrentPeriod } from "@/lib/usage";
 import { DEFAULT_AUDIT_TYPES, scanRequestSchema } from "@/lib/validators";
 import { getServerAuth } from "@/lib/server-auth";
-import { getUserGitHubToken, verifyRepoAccess } from "@/lib/github-token";
+import { getUserGitHubToken, verifyRepoAccess, getTokenScopes, hasRequiredScopes } from "@/lib/github-token";
 import { encryptTokenForWorker } from "@/lib/token-ephemeral";
 
 export async function POST(request: Request) {
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     auditTypes,
     forceRescan = false,
     commitHash: requestCommitHash,
-    isPrivate = false
+    isPrivate
   } = parsed.data;
 
   // Normalize full URL or org/repo to canonical GitHub URL for backend and DB
@@ -49,10 +49,13 @@ export async function POST(request: Request) {
     );
   }
 
+  // Default to true when unknown - authenticated clone works for both public and private repos
+  const isPrivateFinal = isPrivate ?? true;
+  
   // Handle private repository authentication
   let encryptedToken: string | undefined;
 
-  if (isPrivate) {
+  if (isPrivateFinal) {
     // Get user's GitHub token from their OAuth session
     const token = await getUserGitHubToken(session.user.id);
     
@@ -66,13 +69,36 @@ export async function POST(request: Request) {
       );
     }
 
+    // Check if token has required scopes first
+    const hasRepoScope = await hasRequiredScopes(session.user.id, ["repo"]);
+    
+    if (!hasRepoScope) {
+      console.error(`[scan] User ${session.user.id} token missing 'repo' scope`);
+      return NextResponse.json(
+        { 
+          error: "GitHub token missing 'repo' scope. Quick fix: call DELETE /api/debug/token to reset.",
+          code: "REPO_SCOPE_MISSING",
+          fixUrl: "https://github.com/settings/applications",
+          debugUrl: "/api/debug/token",
+          quickFix: "curl -X DELETE http://localhost:3000/api/debug/token (then sign out/in)",
+          instructions: [
+            "Option 1 (Quick): Run 'curl -X DELETE http://localhost:3000/api/debug/token' then sign out/in",
+            "Option 2: Go to GitHub → Settings → Applications → Authorized OAuth Apps",
+            "Find 'Security Kit Localhost' and click Revoke",
+            "Return here and sign out/in again"
+          ]
+        },
+        { status: 403 }
+      );
+    }
+    
     // Verify the user actually has access to this repository
     const hasAccess = await verifyRepoAccess(token, repoUrl);
     
     if (!hasAccess) {
       return NextResponse.json(
         { 
-          error: "You do not have access to this private repository",
+          error: "Cannot access repository. Ensure your GitHub account has access to this repository.",
           code: "REPO_ACCESS_DENIED"
         },
         { status: 403 }
@@ -90,13 +116,13 @@ export async function POST(request: Request) {
       );
     }
   }
-
+  
   const payload: Record<string, unknown> = {
     repo_url: repoUrl,
     branch,
     audit_types: auditTypes ?? Array.from(DEFAULT_AUDIT_TYPES),
     force_rescan: forceRescan,
-    is_private: isPrivate
+    is_private: isPrivateFinal
   };
 
   // Add encrypted token for private repos (ephemeral, travels through queue only)

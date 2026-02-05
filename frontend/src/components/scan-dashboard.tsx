@@ -11,14 +11,12 @@ import {
   ArrowRight,
   Filter,
   X,
-  Lock,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { ScanListItem } from "./scan-list-item";
 import { parseGitHubRepo } from "@/lib/github-url";
 import { DEFAULT_AUDIT_TYPES } from "@/lib/validators";
@@ -53,13 +51,8 @@ export default function ScanDashboard({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const branchIsDirtyRef = useRef(branchIsDirty);
   
-  // Auto-detect repo visibility
-  const {
-    isPrivate,
-    isLoading: isCheckingVisibility,
-    manuallySet,
-    setManually: setIsPrivate
-  } = useRepoVisibility(repoUrl);
+  // Auto-detect repo visibility (for API call)
+  const { isPrivate, setManually: setIsPrivate } = useRepoVisibility(repoUrl);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -182,52 +175,27 @@ export default function ScanDashboard({
     const timeout = window.setTimeout(async () => {
       try {
         setIsLoadingBranches(true);
-        const [repoResponse, branchesResponse] = await Promise.all([
-          fetch(
-            `https://api.github.com/repos/${parsedRepo.owner}/${parsedRepo.repo}`,
-            {
-              headers: { Accept: "application/vnd.github+json" },
-              signal: controller.signal,
-            }
-          ),
-          fetch(
-            `https://api.github.com/repos/${parsedRepo.owner}/${parsedRepo.repo}/branches?per_page=100`,
-            {
-              headers: { Accept: "application/vnd.github+json" },
-              signal: controller.signal,
-            }
-          ),
-        ]);
+        
+        // Use our API which sends the user's GitHub token for private repos
+        const response = await fetch(
+          `/api/repo/branches?repoUrl=${encodeURIComponent(repoUrl)}`,
+          { signal: controller.signal }
+        );
 
-        let detectedBranch = "";
-        if (repoResponse.ok) {
-          const data = (await repoResponse.json()) as { default_branch?: string };
-          detectedBranch =
-            typeof data.default_branch === "string"
-              ? data.default_branch.trim()
-              : "";
-        }
-
-        let detectedBranches: string[] = [];
-        if (branchesResponse.ok) {
-          const data = (await branchesResponse.json()) as Array<{
-            name?: string;
-          }>;
-          detectedBranches = data
-            .map((item) =>
-              typeof item.name === "string" ? item.name.trim() : ""
-            )
-            .filter(Boolean);
-        }
-
-        if (!isActive || !detectedBranch) {
-          if (isActive) setBranches(detectedBranches);
+        if (!response.ok) {
+          if (isActive) setIsLoadingBranches(false);
           return;
         }
 
+        const data = await response.json();
+        const detectedBranch = data.defaultBranch || "";
+        const detectedBranches: string[] = data.branches || [];
+
+        if (!isActive) return;
+
         setDefaultBranch(detectedBranch);
         setBranches(detectedBranches);
-        if (!branchIsDirtyRef.current) {
+        if (detectedBranch && !branchIsDirtyRef.current) {
           setBranch(detectedBranch);
         }
       } catch (error) {
@@ -243,7 +211,7 @@ export default function ScanDashboard({
       controller.abort();
       window.clearTimeout(timeout);
     };
-  }, [parsedRepo, repoSlug]);
+  }, [parsedRepo, repoSlug, repoUrl]);
 
   useEffect(() => {
     if (activeScanIds.length === 0) return;
@@ -303,7 +271,9 @@ export default function ScanDashboard({
       const response = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repoUrl, branch, isPrivate }),
+        // Default to true if visibility unknown - worker will handle public repos fine,
+        // but private repos need the token. Better to err on the side of caution.
+        body: JSON.stringify({ repoUrl, branch, isPrivate: isPrivate ?? true }),
       });
 
       if (!response.ok) {
@@ -466,28 +436,6 @@ export default function ScanDashboard({
                   </>
                 )}
               </Button>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-              <div className="flex items-center gap-2">
-                <Lock className={`h-4 w-4 ${isPrivate ? "text-amber-500" : "text-slate-400"}`} />
-                <div className="flex flex-col">
-                  <span className="text-sm text-slate-700">
-                    This is a {isPrivate === null ? "private" : isPrivate ? "private" : "public"} repository
-                  </span>
-                  {isCheckingVisibility && (
-                    <span className="text-xs text-slate-500">Checking visibility...</span>
-                  )}
-                  {manuallySet && (
-                    <span className="text-xs text-blue-600">Manually set</span>
-                  )}
-                </div>
-              </div>
-              <Switch
-                checked={isPrivate ?? false}
-                onCheckedChange={setIsPrivate}
-                disabled={isSubmitting}
-              />
             </div>
 
             {error && (

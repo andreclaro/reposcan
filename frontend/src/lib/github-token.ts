@@ -31,14 +31,44 @@ export async function getUserGitHubToken(userId: string): Promise<string | null>
         eq(accounts.provider, "github")
       ),
       columns: {
-        access_token: true
+        access_token: true,
+        scope: true
       }
     });
+
+    // Debug: log the scopes we have
+    if (account?.scope) {
+      console.log(`[github-token] Token scopes for user ${userId}:`, account.scope);
+    }
 
     return account?.access_token ?? null;
   } catch (error) {
     console.error("Error retrieving GitHub token:", error);
     return null;
+  }
+}
+
+/**
+ * Check if the user's GitHub token has the required scopes.
+ */
+export async function hasRequiredScopes(userId: string, requiredScopes: string[]): Promise<boolean> {
+  try {
+    const account = await db.query.accounts.findFirst({
+      where: and(
+        eq(accounts.userId, userId),
+        eq(accounts.provider, "github")
+      ),
+      columns: {
+        scope: true
+      }
+    });
+
+    if (!account?.scope) return false;
+    
+    const grantedScopes = account.scope.split(/[,\s]+/).map(s => s.trim());
+    return requiredScopes.every(req => grantedScopes.includes(req));
+  } catch {
+    return false;
   }
 }
 
@@ -52,6 +82,26 @@ export async function getUserGitHubToken(userId: string): Promise<string | null>
  * @param repoUrl - The repository URL (e.g., https://github.com/owner/repo)
  * @returns True if the user has access, false otherwise
  */
+/**
+ * Get the scopes granted to a GitHub token.
+ * Useful for debugging permission issues.
+ */
+export async function getTokenScopes(token: string): Promise<string[]> {
+  try {
+    const response = await fetch("https://api.github.com/user", {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Accept": "application/vnd.github+json"
+      }
+    });
+    
+    const scopesHeader = response.headers.get("x-oauth-scopes") || "";
+    return scopesHeader.split(",").map(s => s.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 export async function verifyRepoAccess(
   token: string,
   repoUrl: string
@@ -82,19 +132,25 @@ export async function verifyRepoAccess(
       return true;
     }
 
+    // Log details for debugging
+    const responseBody = await response.text().catch(() => "unknown");
+    console.error(`GitHub API verifyRepoAccess failed:`, {
+      status: response.status,
+      owner,
+      repo: repoName,
+      response: responseBody.substring(0, 200)
+    });
+
     if (response.status === 404) {
-      // Repo not found or no access
+      // Repo not found or no access - could be private repo without proper token scope
       return false;
     }
 
     if (response.status === 401 || response.status === 403) {
       // Token invalid or expired
-      console.error("GitHub token invalid or expired");
       return false;
     }
 
-    // For other errors, assume no access
-    console.error(`GitHub API error: ${response.status}`);
     return false;
 
   } catch (error) {

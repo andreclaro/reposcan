@@ -12,21 +12,25 @@ Security properties:
 """
 
 import os
-import base64
 import logging
 from typing import Optional
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
 logger = logging.getLogger(__name__)
 
-# Cache the decoded key in memory
+# Cache the derived key in memory
 _worker_key: Optional[bytes] = None
+
+# Fixed salt to match frontend - this is acceptable since the secret is already random
+_SALT = b"SecurityKitSalt2026"
 
 
 def _get_encryption_key() -> bytes:
     """
-    Get or derive the encryption key from environment variable.
+    Derive the encryption key from environment variable using scrypt.
     
+    Matches the frontend's scryptSync(WORKER_ENCRYPTION_SECRET, salt, 32) derivation.
     The key is cached in memory after first access for performance.
     
     Returns:
@@ -40,20 +44,26 @@ def _get_encryption_key() -> bytes:
     if _worker_key is not None:
         return _worker_key
     
-    key_b64 = os.getenv("WORKER_ENCRYPTION_SECRET")
-    if not key_b64:
+    secret = os.getenv("WORKER_ENCRYPTION_SECRET")
+    if not secret:
         raise RuntimeError(
             "WORKER_ENCRYPTION_SECRET environment variable is not configured. "
             "Please set it to enable private repository scanning."
         )
     
     try:
-        _worker_key = base64.b64decode(key_b64)
-        if len(_worker_key) != 32:
-            raise ValueError(f"Expected 32-byte key, got {len(_worker_key)} bytes")
+        # Use scrypt to derive 32-byte key, matching frontend's scryptSync
+        kdf = Scrypt(
+            salt=_SALT,
+            length=32,
+            n=2**14,  # Default Node.js scrypt cost factor
+            r=8,
+            p=1,
+        )
+        _worker_key = kdf.derive(secret.encode('utf-8'))
         return _worker_key
     except Exception as e:
-        raise RuntimeError("Failed to decode WORKER_ENCRYPTION_SECRET") from e
+        raise RuntimeError("Failed to derive encryption key from WORKER_ENCRYPTION_SECRET") from e
 
 
 def decrypt_token(encrypted_payload: str) -> str:

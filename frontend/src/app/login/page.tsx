@@ -23,6 +23,11 @@ const ERROR_MESSAGES: Record<string, { title: string; message: string; type: "er
     message: "You don't have permission to access this resource. Please contact support if you believe this is an error.",
     type: "error"
   },
+  OAuthAccountNotLinked: {
+    title: "Account Connection Issue",
+    message: "Your GitHub account was disconnected. Please click the link below to reset your account.",
+    type: "warning"
+  },
   Configuration: {
     title: "Configuration Error",
     message: "There's a problem with the server configuration. Please try again later.",
@@ -71,7 +76,16 @@ function LoginForm() {
         <Alert variant={errorInfo.type === "error" ? "destructive" : "default"}>
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>{errorInfo.title}</AlertTitle>
-          <AlertDescription>{errorInfo.message}</AlertDescription>
+          <AlertDescription>
+            {errorInfo.message}
+            {error === "OAuthAccountNotLinked" && (
+              <div className="mt-2">
+                <a href="/reset" className="text-blue-600 hover:underline font-medium">
+                  Click here to reset your account →
+                </a>
+              </div>
+            )}
+          </AlertDescription>
         </Alert>
       )}
 

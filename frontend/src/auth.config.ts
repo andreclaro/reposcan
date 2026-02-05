@@ -13,6 +13,11 @@ if (githubClientId && githubClientSecret) {
     GitHub({
       clientId: githubClientId,
       clientSecret: githubClientSecret,
+      authorization: {
+        params: {
+          scope: "read:user user:email repo"
+        }
+      }
     })
   );
 }

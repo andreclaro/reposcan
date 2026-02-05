@@ -14,6 +14,8 @@ class ScanRequest(BaseModel):
     audit_types: List[str]
     skip_lfs: bool = False
     force_rescan: bool = False  # Bypass scan caching
+    is_private: bool = False  # Whether repo requires authentication
+    encrypted_token: Optional[str] = None  # Encrypted GitHub token for private repos
 
     @field_validator("repo_url")
     @classmethod

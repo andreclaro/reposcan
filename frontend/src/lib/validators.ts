@@ -42,7 +42,8 @@ export const scanRequestSchema = z.object({
     z.string().regex(/^[0-9a-fA-F]{7,40}$/, "Must be 7–40 hex characters").optional()
   ),
   // Whether the repository is private and requires authentication
-  isPrivate: z.boolean().optional().default(false),
+  // Note: No default here - frontend sends true when unknown to ensure private repos work
+  isPrivate: z.boolean().optional(),
 });
 
 export type ScanRequestInput = z.infer<typeof scanRequestSchema>;

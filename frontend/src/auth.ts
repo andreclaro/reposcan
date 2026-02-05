@@ -23,7 +23,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   }),
   callbacks: {
     ...authConfig.callbacks,
-    async signIn({ user, account }) {
+    async signIn({ user, account, profile }) {
       // Allow dev bypass and credentials provider without checks
       if (account?.provider === "credentials" && DEV_BYPASS_AUTH) {
         return true;
@@ -45,7 +45,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       // Check if user exists and is enabled
       const existingUser = await db
-        .select({ isEnabled: users.isEnabled })
+        .select({ isEnabled: users.isEnabled, id: users.id })
         .from(users)
         .where(eq(users.email, userEmail))
         .limit(1);
@@ -56,6 +56,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           console.log("[auth] signIn rejected: user account is disabled");
           return `/login?error=AccountDisabled`;
         }
+        
+        // If OAuth account was deleted (e.g., via debug endpoint), 
+        // we need to link it back to the existing user
+        if (account && profile) {
+          const existingAccount = await db.query.accounts.findFirst({
+            where: and(
+              eq(accounts.provider, account.provider),
+              eq(accounts.providerAccountId, account.providerAccountId)
+            )
+          });
+          
+          if (!existingAccount) {
+            console.log("[auth] Linking OAuth account to existing user:", existingUser[0].id);
+            // The adapter will handle creating the account link
+          }
+        }
+        
         console.log("[auth] signIn allowed: existing enabled user");
         return true;
       }
