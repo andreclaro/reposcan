@@ -130,8 +130,12 @@ services:
     dns:
       - 8.8.8.8
       - 8.8.4.4
+    # Run as root for Docker-in-Docker access, but ensure results dir is writable
+    user: root
     entrypoint: []
-    command: celery -A worker.scan_worker worker --loglevel=info --concurrency=50
+    command: >
+      sh -c "mkdir -p /work/results && chmod 777 /work/results &&
+             celery -A worker.scan_worker worker --loglevel=info --concurrency=50"
     # Resource limits
     deploy:
       resources:
