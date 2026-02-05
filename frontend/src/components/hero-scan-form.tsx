@@ -102,6 +102,20 @@ export default function HeroScanForm({ isAuthed }: HeroScanFormProps) {
         </Button>
       </div>
 
+      {isAuthed && (
+        <div className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Lock className="h-4 w-4 text-slate-500" />
+            <span className="text-sm text-slate-700">This is a private repository</span>
+          </div>
+          <Switch
+            checked={isPrivate}
+            onCheckedChange={setIsPrivate}
+            disabled={isSubmitting}
+          />
+        </div>
+      )}
+
       {error && (
         <div className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 flex-shrink-0" />
