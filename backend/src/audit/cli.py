@@ -1,6 +1,7 @@
 import argparse
 import csv
 import logging
+import os
 import shutil
 from pathlib import Path
 
@@ -12,13 +13,33 @@ from .ecosystem import (
     run_go_vulncheck,
     run_node_audit,
 )
-from .fs import detect_languages, has_terraform
+from .fs import (
+    detect_languages,
+    find_dockerfiles,
+    has_docker_compose,
+    has_kubernetes_manifests,
+    has_osv_supported_lockfiles,
+    has_python_files,
+    has_terraform,
+)
 from .repos import clone_repo, ensure_audit_dirs, repo_name, update_submodules_if_present
+from .scanner_config import (
+    apply_cli_overrides,
+    is_scanner_enabled,
+    log_scanner_status,
+)
 from .scanners import (
+    run_bandit,
+    run_gitleaks,
+    run_hadolint,
+    run_osv_scanner,
     run_semgrep,
     run_tfsec_checkov_tflint_scan,
+    run_trivy_config_scan,
     run_trivy_dockerfile_scan,
     run_trivy_fs_scan,
+    run_trufflehog,
+    run_zap_baseline_scan,
 )
 from .utils import (
     normalize_cell,
@@ -69,8 +90,32 @@ def main() -> int:
         default=[],
         help=(
             "Audits to run (comma-separated or repeatable). "
-            "Options: all, sast, terraform, dockerfile, node, go, rust"
+            "Options: all, sast, terraform, dockerfile, node, go, rust, "
+            "secrets, sca, python, dockerfile_lint, misconfig, dast, secrets_deep"
         ),
+    )
+    parser.add_argument(
+        "--enable",
+        action="append",
+        default=[],
+        help=(
+            "Force-enable specific scanners (comma-separated). "
+            "Example: --enable secrets_deep,dast"
+        ),
+    )
+    parser.add_argument(
+        "--disable",
+        action="append",
+        default=[],
+        help=(
+            "Force-disable specific scanners (comma-separated). "
+            "Example: --disable sast,terraform"
+        ),
+    )
+    parser.add_argument(
+        "--list-scanners",
+        action="store_true",
+        help="List all available scanners and their status, then exit",
     )
     parser.add_argument(
         "--verbose", "-v",
@@ -84,10 +129,19 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    # Parse --enable/--disable (split on commas like --audit)
+    enable_list = [s.strip() for e in args.enable for s in e.split(",") if s.strip()]
+    disable_list = [s.strip() for e in args.disable for s in e.split(",") if s.strip()]
+    apply_cli_overrides(enable_list, disable_list)
+
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else (logging.WARNING if args.quiet else logging.INFO),
         format="%(message)s",
     )
+
+    if args.list_scanners:
+        log_scanner_status()
+        return 0
 
     git_lfs_available = shutil.which("git-lfs") is not None
     if args.use_lfs:
@@ -217,5 +271,58 @@ def main() -> int:
                     logger.info("Wrote checkov report: %s", checkov_report)
                 if tflint_report.exists():
                     logger.info("Wrote tflint report: %s", tflint_report)
+
+            # --- New scanners (gated by --audit selection AND scanner_config) ---
+
+            if should_run_audit(selected_audits, "secrets") and is_scanner_enabled("secrets"):
+                gitleaks_json = repo_audit_dir / "gitleaks.json"
+                gitleaks_text = repo_audit_dir / "gitleaks.txt"
+                run_gitleaks(dest, gitleaks_json, gitleaks_text)
+                logger.info("Wrote Gitleaks report: %s", gitleaks_json)
+
+            if should_run_audit(selected_audits, "sca") and is_scanner_enabled("sca"):
+                has_lockfiles, lockfile_types = has_osv_supported_lockfiles(dest)
+                if has_lockfiles:
+                    osv_json = repo_audit_dir / "osv_scanner.json"
+                    osv_text = repo_audit_dir / "osv_scanner.txt"
+                    run_osv_scanner(dest, name, osv_json, osv_text)
+                    logger.info("Wrote OSV-Scanner report (%s): %s", ", ".join(lockfile_types), osv_json)
+
+            if should_run_audit(selected_audits, "python") and is_scanner_enabled("python"):
+                if "Python" in language_counts or has_python_files(dest):
+                    bandit_json = repo_audit_dir / "bandit.json"
+                    bandit_text = repo_audit_dir / "bandit.txt"
+                    run_bandit(dest, name, bandit_json, bandit_text)
+                    logger.info("Wrote Bandit report: %s", bandit_json)
+
+            if should_run_audit(selected_audits, "dockerfile_lint") and is_scanner_enabled("dockerfile_lint"):
+                if find_dockerfiles(dest):
+                    hadolint_report = repo_audit_dir / "hadolint.txt"
+                    run_hadolint(dest, hadolint_report)
+                    if hadolint_report.exists():
+                        logger.info("Wrote Hadolint report: %s", hadolint_report)
+
+            if should_run_audit(selected_audits, "misconfig") and is_scanner_enabled("misconfig"):
+                if has_kubernetes_manifests(dest) or has_docker_compose(dest):
+                    trivy_config_report = repo_audit_dir / "trivy_config_scan.txt"
+                    run_trivy_config_scan(dest, name, trivy_config_report)
+                    if trivy_config_report.exists():
+                        logger.info("Wrote Trivy config report: %s", trivy_config_report)
+
+            if should_run_audit(selected_audits, "dast") and is_scanner_enabled("dast"):
+                dast_target = os.getenv("DAST_TARGET_URL", "")
+                if dast_target:
+                    zap_report = repo_audit_dir / "zap_scan.txt"
+                    run_zap_baseline_scan(dast_target, zap_report)
+                    if zap_report.exists():
+                        logger.info("Wrote ZAP DAST report: %s", zap_report)
+                else:
+                    logger.info("Skipping DAST: DAST_TARGET_URL not set")
+
+            if should_run_audit(selected_audits, "secrets_deep") and is_scanner_enabled("secrets_deep"):
+                trufflehog_json = repo_audit_dir / "trufflehog.json"
+                trufflehog_text = repo_audit_dir / "trufflehog.txt"
+                run_trufflehog(dest, trufflehog_json, trufflehog_text)
+                logger.info("Wrote TruffleHog report: %s", trufflehog_json)
 
     return 0

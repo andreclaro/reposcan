@@ -12,6 +12,13 @@ from .parsers import (
     parse_tfsec,
     parse_checkov,
     parse_tflint,
+    parse_gitleaks,
+    parse_osv_scanner,
+    parse_bandit,
+    parse_hadolint,
+    parse_trivy_config,
+    parse_zap,
+    parse_trufflehog,
 )
 
 
@@ -70,5 +77,40 @@ def normalize_findings(results_dir: Path, scan_id: str) -> List[Finding]:
     tflint_txt = results_dir / "tflint.txt"
     if tflint_txt.exists():
         findings.extend(parse_tflint(tflint_txt, scan_id))
+    
+    # Parse Gitleaks secrets
+    gitleaks_json = results_dir / "gitleaks.json"
+    if gitleaks_json.exists():
+        findings.extend(parse_gitleaks(gitleaks_json, scan_id))
+    
+    # Parse OSV-Scanner results
+    osv_json = results_dir / "osv_scanner.json"
+    if osv_json.exists():
+        findings.extend(parse_osv_scanner(osv_json, scan_id))
+    
+    # Parse Bandit results
+    bandit_json = results_dir / "bandit.json"
+    if bandit_json.exists():
+        findings.extend(parse_bandit(bandit_json, scan_id))
+    
+    # Parse Hadolint results
+    hadolint_txt = results_dir / "hadolint.txt"
+    if hadolint_txt.exists():
+        findings.extend(parse_hadolint(hadolint_txt, scan_id))
+    
+    # Parse Trivy config results (K8s/Docker Compose)
+    trivy_config_txt = results_dir / "trivy_config_scan.txt"
+    if trivy_config_txt.exists():
+        findings.extend(parse_trivy_config(trivy_config_txt, scan_id))
+    
+    # Parse ZAP results (DAST)
+    zap_txt = results_dir / "zap_scan.txt"
+    if zap_txt.exists():
+        findings.extend(parse_zap(zap_txt, scan_id))
+    
+    # Parse TruffleHog results (Enhanced secrets)
+    trufflehog_json = results_dir / "trufflehog.json"
+    if trufflehog_json.exists():
+        findings.extend(parse_trufflehog(trufflehog_json, scan_id))
     
     return findings

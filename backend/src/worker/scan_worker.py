@@ -15,12 +15,27 @@ from celery.utils.log import get_task_logger
 from audit.repos import clone_repo, clone_repo_with_token, repo_name, update_submodules_if_present, get_commit_hash
 from audit.token_ephemeral import decrypt_token
 from audit.utils import safe_repo_slug, validate_repo_url
-from audit.fs import detect_languages, has_terraform
+from audit.fs import (
+    detect_languages,
+    has_terraform,
+    has_git_history,
+    has_osv_supported_lockfiles,
+    has_python_files,
+    has_kubernetes_manifests,
+    has_docker_compose,
+)
 from audit.scanners import (
     run_semgrep,
     run_trivy_dockerfile_scan,
     run_trivy_fs_scan,
     run_tfsec_checkov_tflint_scan,
+    run_gitleaks,
+    run_osv_scanner,
+    run_bandit,
+    run_hadolint,
+    run_trivy_config_scan,
+    run_zap_baseline_scan,
+    run_trufflehog,
 )
 from audit.ecosystem import (
     has_node_project,
@@ -31,6 +46,7 @@ from audit.ecosystem import (
     run_cargo_audit,
 )
 from audit.utils import parse_audit_selection, should_run_audit
+from audit.scanner_config import is_scanner_enabled, log_scanner_status
 from audit.ai.normalizer import normalize_findings
 from audit.ai.storage import (
     store_findings,
@@ -326,6 +342,9 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             # Step 3: Determine which scans to run
             selected_audits = parse_audit_selection(audit_types)
             
+            # Log scanner configuration status
+            log_scanner_status(logger)
+            
             # Prepare results structure
             results = {
                 'scan_id': scan_id,
@@ -342,7 +361,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             current_progress = progress_base
             
             # SAST scan
-            if should_run_audit(selected_audits, 'sast'):
+            if should_run_audit(selected_audits, 'sast') and is_scanner_enabled('sast'):
                 update_progress(int(current_progress), 'Running SAST scan (Semgrep)')
                 log_step("Running SAST scan (Semgrep)")
                 try:
@@ -368,7 +387,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                 current_progress += progress_step
             
             # Dockerfile scan
-            if should_run_audit(selected_audits, 'dockerfile'):
+            if should_run_audit(selected_audits, 'dockerfile') and is_scanner_enabled('dockerfile'):
                 update_progress(int(current_progress), 'Scanning Dockerfiles (Trivy)')
                 log_step("Scanning Dockerfiles with Trivy")
                 try:
@@ -407,7 +426,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             current_progress += progress_step
             
             # Terraform scans
-            if should_run_audit(selected_audits, 'terraform') and has_terraform(repo_path):
+            if should_run_audit(selected_audits, 'terraform') and is_scanner_enabled('terraform') and has_terraform(repo_path):
                 update_progress(int(current_progress), 'Scanning Terraform (tfsec, checkov, tflint)')
                 log_step("Scanning Terraform with tfsec, checkov, and tflint")
                 try:
@@ -428,7 +447,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                 current_progress += progress_step
             
             # Node.js audit
-            if should_run_audit(selected_audits, 'node'):
+            if should_run_audit(selected_audits, 'node') and is_scanner_enabled('node'):
                 if ('JavaScript' in language_counts or 'TypeScript' in language_counts or has_node_project(repo_path)):
                     update_progress(int(current_progress), 'Auditing Node.js dependencies')
                     log_step("Auditing Node.js dependencies")
@@ -449,7 +468,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                 current_progress += progress_step
             
             # Go audit
-            if should_run_audit(selected_audits, 'go'):
+            if should_run_audit(selected_audits, 'go') and is_scanner_enabled('go'):
                 if 'Go' in language_counts or has_go_project(repo_path):
                     update_progress(int(current_progress), 'Auditing Go dependencies (govulncheck)')
                     log_step("Auditing Go dependencies with govulncheck")
@@ -470,7 +489,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                 current_progress += progress_step
             
             # Rust audit
-            if should_run_audit(selected_audits, 'rust'):
+            if should_run_audit(selected_audits, 'rust') and is_scanner_enabled('rust'):
                 if 'Rust' in language_counts or has_rust_project(repo_path):
                     update_progress(int(current_progress), 'Auditing Rust dependencies (cargo-audit)')
                     log_step("Auditing Rust dependencies with cargo-audit")
@@ -488,6 +507,184 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                         results['audits']['rust'] = {'status': 'failed', 'error': str(e)}
                 else:
                     results['audits']['rust'] = {'status': 'skipped', 'reason': 'No Rust project detected'}
+                current_progress += progress_step
+            
+            # Secrets scan (Gitleaks)
+            if should_run_audit(selected_audits, 'secrets') and is_scanner_enabled('secrets'):
+                update_progress(int(current_progress), 'Scanning for secrets (Gitleaks)')
+                log_step("Scanning for secrets with Gitleaks")
+                try:
+                    gitleaks_json = results_dir / "gitleaks.json"
+                    gitleaks_text = results_dir / "gitleaks.txt"
+                    run_gitleaks(repo_path, gitleaks_json, gitleaks_text)
+                    if gitleaks_json.exists():
+                        results['audits']['secrets'] = {
+                            'json_file': str(gitleaks_json),
+                            'text_file': str(gitleaks_text) if gitleaks_text.exists() else None,
+                            'status': 'completed'
+                        }
+                        logger.info("Secrets scan completed")
+                    else:
+                        results['audits']['secrets'] = {'status': 'skipped', 'reason': 'No output generated'}
+                except Exception as e:
+                    logger.error(f"Secrets scan failed: {e}")
+                    results['audits']['secrets'] = {'status': 'failed', 'error': str(e)}
+                current_progress += progress_step
+            
+            # SCA scan (OSV-Scanner) - for Python, Java, .NET, PHP
+            if should_run_audit(selected_audits, 'sca') and is_scanner_enabled('sca'):
+                has_lockfiles, lockfile_types = has_osv_supported_lockfiles(repo_path)
+                if has_lockfiles:
+                    update_progress(int(current_progress), 'Scanning dependencies (OSV-Scanner)')
+                    log_step(f"Scanning dependencies with OSV-Scanner ({', '.join(lockfile_types)})")
+                    try:
+                        osv_json = results_dir / "osv_scanner.json"
+                        osv_text = results_dir / "osv_scanner.txt"
+                        run_osv_scanner(repo_path, repo_name(repo_url), osv_json, osv_text)
+                        if osv_json.exists():
+                            results['audits']['sca'] = {
+                                'json_file': str(osv_json),
+                                'text_file': str(osv_text) if osv_text.exists() else None,
+                                'status': 'completed',
+                                'lockfiles': lockfile_types
+                            }
+                            logger.info("OSV-Scanner completed")
+                        else:
+                            results['audits']['sca'] = {'status': 'skipped', 'reason': 'No output generated'}
+                    except Exception as e:
+                        logger.error(f"OSV-Scanner failed: {e}")
+                        results['audits']['sca'] = {'status': 'failed', 'error': str(e)}
+                else:
+                    results['audits']['sca'] = {
+                        'status': 'skipped',
+                        'reason': 'No supported lockfiles (Python, Java, .NET, PHP) found'
+                    }
+                current_progress += progress_step
+            
+            # Python SAST scan (Bandit)
+            if should_run_audit(selected_audits, 'python') and is_scanner_enabled('python'):
+                if 'Python' in language_counts or has_python_files(repo_path):
+                    update_progress(int(current_progress), 'Running Python SAST (Bandit)')
+                    log_step("Running Python SAST with Bandit")
+                    try:
+                        bandit_json = results_dir / "bandit.json"
+                        bandit_text = results_dir / "bandit.txt"
+                        run_bandit(repo_path, repo_name(repo_url), bandit_json, bandit_text)
+                        if bandit_json.exists():
+                            results['audits']['python'] = {
+                                'json_file': str(bandit_json),
+                                'text_file': str(bandit_text) if bandit_text.exists() else None,
+                                'status': 'completed'
+                            }
+                            logger.info("Python SAST completed")
+                        else:
+                            results['audits']['python'] = {'status': 'skipped', 'reason': 'No output generated'}
+                    except Exception as e:
+                        logger.error(f"Python SAST failed: {e}")
+                        results['audits']['python'] = {'status': 'failed', 'error': str(e)}
+                else:
+                    results['audits']['python'] = {'status': 'skipped', 'reason': 'No Python files detected'}
+                current_progress += progress_step
+            
+            # Dockerfile lint scan (Hadolint)
+            if should_run_audit(selected_audits, 'dockerfile_lint') and is_scanner_enabled('dockerfile_lint'):
+                update_progress(int(current_progress), 'Linting Dockerfiles (Hadolint)')
+                log_step("Linting Dockerfiles with Hadolint")
+                try:
+                    hadolint_report = results_dir / "hadolint.txt"
+                    run_hadolint(repo_path, hadolint_report)
+                    if hadolint_report.exists():
+                        results['audits']['dockerfile_lint'] = {
+                            'file': str(hadolint_report),
+                            'status': 'completed'
+                        }
+                        logger.info("Dockerfile lint completed")
+                    else:
+                        results['audits']['dockerfile_lint'] = {'status': 'skipped', 'reason': 'No Dockerfiles found'}
+                except Exception as e:
+                    logger.error(f"Dockerfile lint failed: {e}")
+                    results['audits']['dockerfile_lint'] = {'status': 'failed', 'error': str(e)}
+                current_progress += progress_step
+            
+            # Misconfiguration scan (Trivy Config) - K8s and Docker Compose
+            if should_run_audit(selected_audits, 'misconfig') and is_scanner_enabled('misconfig'):
+                has_k8s = has_kubernetes_manifests(repo_path)
+                has_compose = has_docker_compose(repo_path)
+                if has_k8s or has_compose:
+                    update_progress(int(current_progress), 'Scanning K8s/Docker Compose (Trivy)')
+                    log_step(f"Scanning with Trivy Config (K8s: {has_k8s}, Compose: {has_compose})")
+                    try:
+                        trivy_config_report = results_dir / "trivy_config_scan.txt"
+                        run_trivy_config_scan(repo_path, repo_name(repo_url), trivy_config_report)
+                        if trivy_config_report.exists():
+                            results['audits']['misconfig'] = {
+                                'file': str(trivy_config_report),
+                                'status': 'completed',
+                                'kubernetes': has_k8s,
+                                'docker_compose': has_compose,
+                            }
+                            logger.info("Trivy config scan completed")
+                        else:
+                            results['audits']['misconfig'] = {'status': 'skipped', 'reason': 'No output generated'}
+                    except Exception as e:
+                        logger.error(f"Trivy config scan failed: {e}")
+                        results['audits']['misconfig'] = {'status': 'failed', 'error': str(e)}
+                else:
+                    results['audits']['misconfig'] = {
+                        'status': 'skipped',
+                        'reason': 'No Kubernetes manifests or Docker Compose files found'
+                    }
+                current_progress += progress_step
+            
+            # DAST scan (OWASP ZAP) - requires running application
+            if should_run_audit(selected_audits, 'dast') and is_scanner_enabled('dast'):
+                import os
+                dast_target = os.getenv("DAST_TARGET_URL", "")
+                if dast_target:
+                    update_progress(int(current_progress), 'Running DAST scan (ZAP)')
+                    log_step(f"Running DAST scan against {dast_target}")
+                    try:
+                        zap_report = results_dir / "zap_scan.txt"
+                        run_zap_baseline_scan(dast_target, zap_report)
+                        if zap_report.exists():
+                            results['audits']['dast'] = {
+                                'file': str(zap_report),
+                                'status': 'completed',
+                                'target': dast_target
+                            }
+                            logger.info("DAST scan completed")
+                        else:
+                            results['audits']['dast'] = {'status': 'skipped', 'reason': 'No output generated'}
+                    except Exception as e:
+                        logger.error(f"DAST scan failed: {e}")
+                        results['audits']['dast'] = {'status': 'failed', 'error': str(e)}
+                else:
+                    results['audits']['dast'] = {
+                        'status': 'skipped',
+                        'reason': 'DAST_TARGET_URL not set. Set environment variable to enable DAST.'
+                    }
+                current_progress += progress_step
+            
+            # Enhanced secrets scan (TruffleHog)
+            if should_run_audit(selected_audits, 'secrets_deep') and is_scanner_enabled('secrets_deep'):
+                update_progress(int(current_progress), 'Running deep secret scan (TruffleHog)')
+                log_step("Running deep secret scan with TruffleHog")
+                try:
+                    trufflehog_json = results_dir / "trufflehog.json"
+                    trufflehog_text = results_dir / "trufflehog.txt"
+                    run_trufflehog(repo_path, trufflehog_json, trufflehog_text)
+                    if trufflehog_json.exists():
+                        results['audits']['secrets_deep'] = {
+                            'json_file': str(trufflehog_json),
+                            'text_file': str(trufflehog_text) if trufflehog_text.exists() else None,
+                            'status': 'completed'
+                        }
+                        logger.info("TruffleHog deep scan completed")
+                    else:
+                        results['audits']['secrets_deep'] = {'status': 'skipped', 'reason': 'No output generated'}
+                except Exception as e:
+                    logger.error(f"TruffleHog scan failed: {e}")
+                    results['audits']['secrets_deep'] = {'status': 'failed', 'error': str(e)}
             
             # Step 5: Normalize findings and store in database
             update_progress(96, 'Normalizing findings')
@@ -554,6 +751,17 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                         "tfsec.txt",
                         "checkov.txt",
                         "tflint.txt",
+                        "gitleaks.json",
+                        "gitleaks.txt",
+                        "osv_scanner.json",
+                        "osv_scanner.txt",
+                        "bandit.json",
+                        "bandit.txt",
+                        "hadolint.txt",
+                        "trivy_config_scan.txt",
+                        "zap_scan.txt",
+                        "trufflehog.json",
+                        "trufflehog.txt",
                     ]
                     
                     uploaded_paths = []

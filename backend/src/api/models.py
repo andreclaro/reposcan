@@ -3,7 +3,7 @@ from pydantic import BaseModel, field_validator
 from typing import List, Optional
 
 # Allowed audit types (must match audit.utils.ALLOWED_AUDITS minus "all")
-ALLOWED_AUDIT_TYPES = ["all", "sast", "terraform", "dockerfile", "node", "go", "rust"]
+ALLOWED_AUDIT_TYPES = ["all", "sast", "terraform", "dockerfile", "node", "go", "rust", "secrets", "sca", "python", "dockerfile_lint", "misconfig", "dast", "secrets_deep"]
 AUDIT_TYPES_MAX_LEN = 50
 
 

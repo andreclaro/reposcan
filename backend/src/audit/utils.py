@@ -18,6 +18,13 @@ ALLOWED_AUDITS = frozenset({
     "node",
     "go",
     "rust",
+    "secrets",        # Gitleaks - Secret Detection
+    "sca",            # OSV-Scanner - Universal SCA
+    "python",         # Bandit - Python SAST
+    "dockerfile_lint", # Hadolint - Dockerfile Linting
+    "misconfig",      # Trivy Config - K8s/Docker Compose
+    "dast",           # OWASP ZAP - Dynamic Application Security Testing
+    "secrets_deep",   # TruffleHog - Enhanced Secret Detection
 })
 
 # Branch name: alphanumeric, dots, underscores, slashes, hyphens. Max length 255.

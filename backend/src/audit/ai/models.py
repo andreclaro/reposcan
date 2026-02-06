@@ -12,6 +12,13 @@ ScannerType = Literal[
     "tfsec",
     "checkov",
     "tflint",
+    "gitleaks",
+    "osv-scanner",
+    "bandit",
+    "hadolint",
+    "trivy-config",
+    "zap",
+    "trufflehog",
 ]
 
 SeverityType = Literal["critical", "high", "medium", "low", "info"]
@@ -41,6 +48,13 @@ VALID_SCANNERS: set[str] = {
     "tfsec",
     "checkov",
     "tflint",
+    "gitleaks",
+    "osv-scanner",
+    "bandit",
+    "hadolint",
+    "trivy-config",
+    "zap",
+    "trufflehog",
 }
 
 VALID_SEVERITIES: set[str] = {"critical", "high", "medium", "low", "info"}

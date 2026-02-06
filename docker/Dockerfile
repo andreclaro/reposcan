@@ -32,6 +32,11 @@ ARG CARGO_AUDIT_VERSION=0.22.0
 ARG TFSEC_VERSION=1.28.14
 ARG TFLINT_VERSION=0.60.0
 ARG TRIVY_VERSION=0.68.2
+ARG GITLEAKS_VERSION=8.23.3
+ARG OSV_SCANNER_VERSION=2.3.2
+ARG HADOLINT_VERSION=2.12.0
+ARG ZAP_VERSION=2.17.0
+ARG TRUFFLEHOG_VERSION=3.93.0
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -50,6 +55,7 @@ RUN apt-get update \
         python3-venv \
         unzip \
         xz-utils \
+        default-jre \
         # Add docker-ce-cli dependencies for TLS
         openssl \
     && rm -rf /var/lib/apt/lists/*
@@ -141,9 +147,58 @@ RUN ARCH="$(dpkg --print-architecture)" \
     && tar -xzf /tmp/trivy.tgz -C /usr/local/bin trivy \
     && rm /tmp/trivy.tgz
 
+# Gitleaks (Secret Detection)
+RUN ARCH="$(dpkg --print-architecture)" \
+    && case "${ARCH}" in \
+        amd64) GITLEAKS_ARCH="x64" ;; \
+        arm64) GITLEAKS_ARCH="arm64" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_${GITLEAKS_ARCH}.tar.gz -o /tmp/gitleaks.tgz \
+    && tar -xzf /tmp/gitleaks.tgz -C /usr/local/bin gitleaks \
+    && rm /tmp/gitleaks.tgz
+
+# OSV-Scanner (Universal SCA for Python, Java, .NET)
+RUN ARCH="$(dpkg --print-architecture)" \
+    && case "${ARCH}" in \
+        amd64) OSV_ARCH="amd64" ;; \
+        arm64) OSV_ARCH="arm64" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL https://github.com/google/osv-scanner/releases/download/v${OSV_SCANNER_VERSION}/osv-scanner_linux_${OSV_ARCH} -o /usr/local/bin/osv-scanner \
+    && chmod +x /usr/local/bin/osv-scanner
+
+# Hadolint (Dockerfile linting)
+RUN ARCH="$(dpkg --print-architecture)" \
+    && case "${ARCH}" in \
+        amd64) HADOLINT_ARCH="x86_64" ;; \
+        arm64) HADOLINT_ARCH="arm64" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL https://github.com/hadolint/hadolint/releases/download/v${HADOLINT_VERSION}/hadolint-Linux-${HADOLINT_ARCH} -o /usr/local/bin/hadolint \
+    && chmod +x /usr/local/bin/hadolint
+
+# OWASP ZAP (DAST - Dynamic Application Security Testing)
+# Note: ZAP requires a running application to scan
+RUN curl -fsSL "https://github.com/zaproxy/zaproxy/releases/download/v${ZAP_VERSION}/ZAP_${ZAP_VERSION}_Linux.tar.gz" -o /tmp/zap.tgz \
+    && tar -xzf /tmp/zap.tgz -C /opt \
+    && ln -s /opt/ZAP_${ZAP_VERSION}/zap.sh /usr/local/bin/zap \
+    && rm /tmp/zap.tgz
+
+# TruffleHog (Enhanced Secret Detection)
+RUN ARCH="$(dpkg --print-architecture)" \
+    && case "${ARCH}" in \
+        amd64) TRUFFLEHOG_ARCH="linux_amd64" ;; \
+        arm64) TRUFFLEHOG_ARCH="linux_arm64" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL "https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/trufflehog_${TRUFFLEHOG_VERSION}_${TRUFFLEHOG_ARCH}.tar.gz" -o /tmp/trufflehog.tgz \
+    && tar -xzf /tmp/trufflehog.tgz -C /usr/local/bin trufflehog \
+    && rm /tmp/trufflehog.tgz
+
 # Python-based scanners (system-wide for all users)
 RUN python3 -m pip install --no-cache-dir --upgrade pip \
-    && python3 -m pip install --no-cache-dir semgrep checkov
+    && python3 -m pip install --no-cache-dir semgrep checkov bandit[sarif]
 
 # Docker CLI (required by Dockerfile scan in scanners.py)
 RUN ARCH="$(dpkg --print-architecture)" \
