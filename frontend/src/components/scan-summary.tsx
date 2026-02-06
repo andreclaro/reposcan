@@ -195,8 +195,8 @@ export default function ScanSummary({ scan }: ScanSummaryProps) {
         </CardContent>
       </Card>
 
-      {/* Compact Findings Summary Card */}
-      <Card className="overflow-hidden border-0 shadow-sm">
+      {/* Compact Findings Summary Card — only shown when scan is completed */}
+      {scan.status === "completed" && <Card className="overflow-hidden border-0 shadow-sm">
         <CardHeader className="bg-slate-50/50 py-3 px-4">
           <CardTitle className="flex items-center gap-2 text-sm font-semibold text-slate-700">
             <AlertCircle className="h-4 w-4" />
@@ -318,7 +318,7 @@ export default function ScanSummary({ scan }: ScanSummaryProps) {
             </>
           )}
         </CardContent>
-      </Card>
+      </Card>}
     </div>
   );
 }

@@ -45,11 +45,14 @@ export default function ScanResults({
     }
   }, [scanId, scan.aiAnalysisId, aiAnalysisEnabled]);
 
-  const showAIAnalysis = aiAnalysisEnabled && hasAIAnalysis;
+  const isCompleted = scan.status === "completed";
+  const showAIAnalysis = aiAnalysisEnabled && hasAIAnalysis && isCompleted;
 
   const tabs: Array<{ id: Tab; label: string; icon: typeof FileText }> = [
     { id: "summary", label: "Summary", icon: BarChart3 },
-    { id: "findings", label: "Findings", icon: AlertTriangle },
+    ...(isCompleted
+      ? [{ id: "findings" as Tab, label: "Findings", icon: AlertTriangle }]
+      : []),
     ...(showAIAnalysis
       ? [{ id: "ai-analysis" as Tab, label: "AI Analysis", icon: Brain }]
       : []),
