@@ -21,8 +21,8 @@ export default async function AdminScannersPage() {
       <div>
         <h1 className="text-2xl font-bold">Scanners</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Enable or disable security scanners globally. Disabled scanners will
-          be skipped for all new scans.
+          Manage scanner availability globally and per plan. Global toggle
+          disables a scanner for everyone; plan toggles control access per tier.
         </p>
       </div>
       <AdminScanners initialSettings={rows} />

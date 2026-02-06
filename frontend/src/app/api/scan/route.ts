@@ -13,6 +13,7 @@ import { DEFAULT_AUDIT_TYPES, scanRequestSchema } from "@/lib/validators";
 import { getServerAuth } from "@/lib/server-auth";
 import { getUserGitHubToken, verifyRepoAccess, getTokenScopes, hasRequiredScopes } from "@/lib/github-token";
 import { encryptTokenForWorker } from "@/lib/token-ephemeral";
+import { getUserPlan } from "@/lib/plans/getUserPlan";
 
 export async function POST(request: Request) {
   const session = await getServerAuth();
@@ -117,15 +118,21 @@ export async function POST(request: Request) {
     }
   }
   
-  // Filter out admin-disabled scanners
-  const disabledRows = await db
-    .select({ id: scannerSettings.id })
-    .from(scannerSettings)
-    .where(eq(scannerSettings.enabled, false));
-  const disabledSet = new Set(disabledRows.map((r) => r.id));
+  // Filter scanners by global enable AND user's plan access
+  const allScannerRows = await db.select().from(scannerSettings);
+  const scannerMap = Object.fromEntries(allScannerRows.map((r) => [r.id, r]));
+
+  const userPlan = await getUserPlan(session.user.id);
+  const planCodename = (userPlan?.codename ?? "free") as "free" | "pro" | "custom";
+  const planField = `${planCodename}Enabled` as const;
 
   const requestedTypes = auditTypes ?? Array.from(DEFAULT_AUDIT_TYPES);
-  const filteredTypes = requestedTypes.filter((t) => !disabledSet.has(t));
+  const filteredTypes = requestedTypes.filter((t) => {
+    const row = scannerMap[t];
+    if (!row) return true; // No setting row → allow (default enabled)
+    if (!row.enabled) return false; // Globally disabled
+    return row[planField]; // Plan-level access
+  });
 
   const payload: Record<string, unknown> = {
     repo_url: repoUrl,

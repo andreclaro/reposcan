@@ -2,6 +2,22 @@ import { z } from "zod";
 
 import { parseGitHubUrl } from "./github-url";
 
+export const ALL_AUDIT_TYPES = [
+  "sast",
+  "dockerfile",
+  "terraform",
+  "node",
+  "go",
+  "rust",
+  "secrets",
+  "sca",
+  "python",
+  "dockerfile_lint",
+  "misconfig",
+  "dast",
+  "secrets_deep",
+] as const;
+
 export const DEFAULT_AUDIT_TYPES = [
   "sast",
   "dockerfile",
@@ -34,7 +50,7 @@ export const scanRequestSchema = z.object({
     },
     z.string().max(120).optional()
   ),
-  auditTypes: z.array(z.enum(DEFAULT_AUDIT_TYPES)).optional(),
+  auditTypes: z.array(z.enum(ALL_AUDIT_TYPES)).optional(),
   forceRescan: z.boolean().optional(),
   // Optional commit hash (7–40 hex chars); when provided, used for existing-scan lookup and skips GitHub API.
   commitHash: z.preprocess(
