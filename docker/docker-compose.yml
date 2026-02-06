@@ -4,7 +4,7 @@ services:
   postgres:
     image: postgres:16-alpine
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
@@ -60,6 +60,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - RESULTS_DIR=/work/results
       # Override DATABASE_URL to use the postgres service name instead of localhost
+      # NOTE: Use internal port 5432 (not host-mapped 5433) for container-to-container communication
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/sec_audit
     volumes:
       - ../backend/src:/work
@@ -112,6 +113,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - RESULTS_DIR=/work/results
       # Override DATABASE_URL to use the postgres service name instead of localhost
+      # NOTE: Use internal port 5432 (not host-mapped 5433) for container-to-container communication
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/sec_audit
       # Use Docker-in-Docker instead of host Docker socket
       - DOCKER_HOST=tcp://dind:2376

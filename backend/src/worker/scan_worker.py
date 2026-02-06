@@ -638,7 +638,6 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
             
             # DAST scan (OWASP ZAP) - requires running application
             if should_run_audit(selected_audits, 'dast') and is_scanner_enabled('dast'):
-                import os
                 dast_target = os.getenv("DAST_TARGET_URL", "")
                 if dast_target:
                     update_progress(int(current_progress), 'Running DAST scan (ZAP)')

@@ -91,7 +91,7 @@ Values in `docker/docker-compose.yml` `environment:` block override the file for
 
 ```bash
 REDIS_URL=redis://redis:6379/0
-DATABASE_URL=postgresql://postgres:postgres@postgres:5432/sec_audit
+DATABASE_URL=postgresql://postgres:postgres@postgres:5433/sec_audit
 RESULTS_DIR=/work/results
 ```
 

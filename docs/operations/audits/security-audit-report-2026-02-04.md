@@ -243,7 +243,7 @@ postgres:
 
 worker:
   environment:
-    - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/sec_audit
+    - DATABASE_URL=postgresql://postgres:postgres@postgres:5433/sec_audit
 ```
 
 **Impact:** Credential exposure, unauthorized database access
