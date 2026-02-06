@@ -242,6 +242,9 @@ export const scanShares = pgTable(
 export const scannerSettings = pgTable("scanner_setting", {
   id: text("id").primaryKey(), // scanner key, e.g. "sast"
   enabled: boolean("enabled").notNull().default(true),
+  freeEnabled: boolean("free_enabled").notNull().default(true),
+  proEnabled: boolean("pro_enabled").notNull().default(true),
+  customEnabled: boolean("custom_enabled").notNull().default(true),
   updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow()
 });
 

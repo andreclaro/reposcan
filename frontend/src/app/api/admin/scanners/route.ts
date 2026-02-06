@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { scannerSettings } from "@/db/schema";
@@ -39,6 +38,9 @@ export async function GET() {
   const scanners = Object.entries(SCANNER_META).map(([key, meta]) => ({
     id: key,
     enabled: byId[key]?.enabled ?? meta.defaultEnabled,
+    freeEnabled: byId[key]?.freeEnabled ?? true,
+    proEnabled: byId[key]?.proEnabled ?? true,
+    customEnabled: byId[key]?.customEnabled ?? true,
     updatedAt: byId[key]?.updatedAt?.toISOString() ?? null,
     ...meta,
   }));
@@ -53,26 +55,58 @@ export async function PATCH(request: Request) {
   }
 
   const body = await request.json().catch(() => null);
-  if (!body || typeof body.scanners !== "object") {
-    return NextResponse.json(
-      { error: "Invalid request. Expected { scanners: { [key]: boolean } }" },
-      { status: 400 }
-    );
+  if (!body) {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const updates = body.scanners as Record<string, boolean>;
   const now = new Date();
 
-  for (const [key, enabled] of Object.entries(updates)) {
-    if (!(key in SCANNER_META) || typeof enabled !== "boolean") continue;
+  // Legacy: global toggles via { scanners: { [key]: boolean } }
+  if (body.scanners && typeof body.scanners === "object") {
+    const updates = body.scanners as Record<string, boolean>;
+    for (const [key, enabled] of Object.entries(updates)) {
+      if (!(key in SCANNER_META) || typeof enabled !== "boolean") continue;
 
-    await db
-      .insert(scannerSettings)
-      .values({ id: key, enabled, updatedAt: now })
-      .onConflictDoUpdate({
-        target: scannerSettings.id,
-        set: { enabled, updatedAt: now },
-      });
+      await db
+        .insert(scannerSettings)
+        .values({ id: key, enabled, updatedAt: now })
+        .onConflictDoUpdate({
+          target: scannerSettings.id,
+          set: { enabled, updatedAt: now },
+        });
+    }
+  }
+
+  // Plan access: { planAccess: { [scannerKey]: { free?: bool, pro?: bool, custom?: bool } } }
+  if (body.planAccess && typeof body.planAccess === "object") {
+    const planUpdates = body.planAccess as Record<
+      string,
+      { free?: boolean; pro?: boolean; custom?: boolean }
+    >;
+
+    for (const [key, access] of Object.entries(planUpdates)) {
+      if (!(key in SCANNER_META) || typeof access !== "object") continue;
+
+      const set: Record<string, boolean | Date> = { updatedAt: now };
+      if (typeof access.free === "boolean") set.freeEnabled = access.free;
+      if (typeof access.pro === "boolean") set.proEnabled = access.pro;
+      if (typeof access.custom === "boolean") set.customEnabled = access.custom;
+
+      await db
+        .insert(scannerSettings)
+        .values({
+          id: key,
+          enabled: true,
+          freeEnabled: access.free ?? true,
+          proEnabled: access.pro ?? true,
+          customEnabled: access.custom ?? true,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: scannerSettings.id,
+          set,
+        });
+    }
   }
 
   return NextResponse.json({ ok: true });
