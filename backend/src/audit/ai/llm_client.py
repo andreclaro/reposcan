@@ -215,12 +215,88 @@ class KimiClient(LLMClient):
         }
 
 
+# OpenRouter API base URL (OpenAI-compatible)
+OPENROUTER_API_BASE_URL = "https://openrouter.ai/api/v1"
+
+
+class OpenRouterClient(LLMClient):
+    """OpenRouter client using OpenAI-compatible API. Routes to hundreds of models."""
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: str = "anthropic/claude-sonnet-4",
+        base_url: Optional[str] = None,
+    ):
+        if not OPENAI_AVAILABLE:
+            raise ImportError("openai package not installed. Install with: pip install openai")
+
+        key = api_key or os.getenv("OPENROUTER_API_KEY")
+        if not key or not str(key).strip():
+            raise ValueError(
+                "OpenRouter API key is missing. Set OPENROUTER_API_KEY in your environment. "
+                "Get a key at https://openrouter.ai/keys"
+            )
+        key = str(key).strip()
+        base = base_url or os.getenv("OPENROUTER_BASE_URL", OPENROUTER_API_BASE_URL)
+        # Use a custom httpx client to avoid openai→httpx passing deprecated 'proxies' kwarg
+        default_headers = {
+            "HTTP-Referer": "https://github.com/sec-audit-repos",
+            "X-Title": "sec-audit-repos",
+        }
+        if httpx is not None:
+            http_client = httpx.Client(trust_env=False)
+            self.client = OpenAI(
+                api_key=key,
+                base_url=base,
+                default_headers=default_headers,
+                http_client=http_client,
+            )
+        else:
+            self.client = OpenAI(
+                api_key=key,
+                base_url=base,
+                default_headers=default_headers,
+            )
+        self.model = model
+        self.model_version = "openrouter"
+
+    async def generate(
+        self,
+        prompt: str,
+        max_tokens: int = 4000,
+        temperature: float = 0.7,
+    ) -> Dict[str, Any]:
+        """Generate response using OpenRouter API."""
+        import asyncio
+
+        def _call_api():
+            return self.client.chat.completions.create(
+                model=self.model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                messages=[{"role": "user", "content": prompt}],
+            )
+
+        response = await asyncio.to_thread(_call_api)
+
+        content = response.choices[0].message.content if response.choices else ""
+        tokens_used = response.usage.total_tokens if response.usage else 0
+
+        return {
+            "content": content,
+            "tokens_used": tokens_used,
+            "model": self.model,
+            "model_version": self.model_version,
+        }
+
+
 def create_llm_client(provider: Optional[str] = None, model: Optional[str] = None) -> LLMClient:
     """
     Create an LLM client based on configuration.
 
     Args:
-        provider: Provider name ('anthropic', 'openai', or 'kimi'). Auto-detects if None.
+        provider: Provider name ('anthropic', 'openai', 'kimi', or 'openrouter'). Auto-detects if None.
         model: Model name. Uses defaults if None.
 
     Returns:
@@ -246,5 +322,11 @@ def create_llm_client(provider: Optional[str] = None, model: Optional[str] = Non
         model = model or os.getenv("AI_MODEL", "kimi-k2.5")
         return KimiClient(model=model)
 
+    elif provider == "openrouter":
+        if not OPENAI_AVAILABLE:
+            raise ImportError("openai package not installed (required for OpenRouter API)")
+        model = model or os.getenv("AI_MODEL", "anthropic/claude-sonnet-4")
+        return OpenRouterClient(model=model)
+
     else:
-        raise ValueError(f"Unknown LLM provider: {provider}. Use: anthropic, openai, kimi")
+        raise ValueError(f"Unknown LLM provider: {provider}. Use: anthropic, openai, kimi, openrouter")
