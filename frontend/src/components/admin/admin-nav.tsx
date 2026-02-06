@@ -2,19 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, CreditCard, Users, Scan } from "lucide-react";
+import { LayoutDashboard, CreditCard, Users, Scan, Shield } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const adminNav: Array<{
   name: string;
-  href: "/app/admin" | "/app/admin/plans" | "/app/admin/users";
+  href: string;
   icon: typeof LayoutDashboard;
 }> = [
   { name: "Dashboard", href: "/app/admin", icon: LayoutDashboard },
   { name: "Scans", href: "/app/admin", icon: Scan },
   { name: "Plans", href: "/app/admin/plans", icon: CreditCard },
-  { name: "Users", href: "/app/admin/users", icon: Users }
+  { name: "Users", href: "/app/admin/users", icon: Users },
+  { name: "Scanners", href: "/app/admin/scanners", icon: Shield }
 ];
 
 export default function AdminNav() {
@@ -31,7 +32,7 @@ export default function AdminNav() {
         return (
           <Link
             key={item.name}
-            href={item.href}
+            href={item.href as "/app/admin"}
             className={cn(
               "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
               active

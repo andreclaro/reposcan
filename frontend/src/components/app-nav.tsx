@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { CreditCard, Users, Scan, Wrench, ChevronDown } from "lucide-react";
+import { CreditCard, Users, Scan, Wrench, Shield, ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { HIDE_PLANS } from "@/lib/config";
@@ -15,13 +15,14 @@ import {
 
 const adminNav: Array<{
   name: string;
-  href: "/app/admin" | "/app/admin/plans" | "/app/admin/users" | "/app/admin/tools";
+  href: "/app/admin" | "/app/admin/plans" | "/app/admin/users" | "/app/admin/tools" | "/app/admin/scanners";
   icon: typeof Scan;
 }> = [
   { name: "Scans", href: "/app/admin", icon: Scan },
   { name: "Plans", href: "/app/admin/plans", icon: CreditCard },
   { name: "Users", href: "/app/admin/users", icon: Users },
   { name: "Tools", href: "/app/admin/tools", icon: Wrench },
+  { name: "Scanners", href: "/app/admin/scanners", icon: Shield },
 ];
 
 type AppNavProps = {

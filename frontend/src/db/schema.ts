@@ -238,6 +238,13 @@ export const scanShares = pgTable(
   })
 );
 
+// Admin scanner enable/disable settings
+export const scannerSettings = pgTable("scanner_setting", {
+  id: text("id").primaryKey(), // scanner key, e.g. "sast"
+  enabled: boolean("enabled").notNull().default(true),
+  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow()
+});
+
 // Outreach activity tracking for marketing (GitHub issues, etc.)
 export const outreachActivity = pgTable(
   "outreach_activity",

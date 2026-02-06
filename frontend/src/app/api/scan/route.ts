@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, desc, eq, like, or } from "drizzle-orm";
 
 import { db } from "@/db";
-import { scans } from "@/db/schema";
+import { scans, scannerSettings } from "@/db/schema";
 import {
   getCommitShaForBranch,
   normalizeRepoUrl
@@ -117,10 +117,20 @@ export async function POST(request: Request) {
     }
   }
   
+  // Filter out admin-disabled scanners
+  const disabledRows = await db
+    .select({ id: scannerSettings.id })
+    .from(scannerSettings)
+    .where(eq(scannerSettings.enabled, false));
+  const disabledSet = new Set(disabledRows.map((r) => r.id));
+
+  const requestedTypes = auditTypes ?? Array.from(DEFAULT_AUDIT_TYPES);
+  const filteredTypes = requestedTypes.filter((t) => !disabledSet.has(t));
+
   const payload: Record<string, unknown> = {
     repo_url: repoUrl,
     branch,
-    audit_types: auditTypes ?? Array.from(DEFAULT_AUDIT_TYPES),
+    audit_types: filteredTypes,
     force_rescan: forceRescan,
     is_private: isPrivateFinal
   };
@@ -278,7 +288,7 @@ export async function POST(request: Request) {
       userId: session.user.id,
       repoUrl,
       branch,
-      auditTypes: auditTypes ?? Array.from(DEFAULT_AUDIT_TYPES),
+      auditTypes: filteredTypes,
       status: scanData.status ?? "queued",
       progress: 0,
       updatedAt: new Date()
