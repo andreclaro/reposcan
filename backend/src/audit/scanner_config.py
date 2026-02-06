@@ -23,31 +23,42 @@ Default behavior:
     - secrets_deep is special: disabled by default (slower than Gitleaks)
 """
 import os
-from typing import Dict, Set
+from dataclasses import dataclass, asdict
+from typing import Dict, List, Set
 
-# Scanner configuration with defaults
-# Format: audit_type -> default_enabled
+
+@dataclass(frozen=True)
+class ScannerDefinition:
+    """Full metadata for a single scanner, used as the single source of truth."""
+    key: str
+    name: str
+    tool: str
+    description: str
+    default_enabled: bool
+    order: int
+
+
+# Authoritative scanner registry — add new scanners here only.
+# `order` uses gaps (10, 20, ...) so new scanners can be inserted without renumbering.
+SCANNER_REGISTRY: List[ScannerDefinition] = [
+    ScannerDefinition("sast",           "SAST",            "Semgrep",              "Static application security testing",         True,  10),
+    ScannerDefinition("sca",            "SCA",             "OSV-Scanner",          "Software composition analysis",               True,  20),
+    ScannerDefinition("secrets",        "Secrets",         "Gitleaks",             "Secret and credential detection",             True,  30),
+    ScannerDefinition("secrets_deep",   "Deep Secrets",    "TruffleHog",           "Deep secret scanning (thorough)",             False, 40),
+    ScannerDefinition("node",           "Node.js",         "npm/pnpm audit",       "JavaScript dependency vulnerabilities",       True,  50),
+    ScannerDefinition("go",             "Go",              "govulncheck",          "Go module vulnerability scanning",            True,  60),
+    ScannerDefinition("rust",           "Rust",            "cargo-audit",          "Rust dependency vulnerability scanning",      True,  70),
+    ScannerDefinition("python",         "Python",          "Bandit",               "Python security linting",                     True,  80),
+    ScannerDefinition("dockerfile",     "Dockerfile",      "Trivy",                "Container image vulnerability scanning",      True,  90),
+    ScannerDefinition("dockerfile_lint","Dockerfile Lint",  "Hadolint",             "Dockerfile best practices",                   True, 100),
+    ScannerDefinition("misconfig",      "Misconfiguration","Trivy Config",         "K8s/Docker Compose config scanning",          True, 110),
+    ScannerDefinition("terraform",      "Terraform",       "tfsec/checkov/tflint", "Infrastructure-as-code scanning",             True, 120),
+    ScannerDefinition("dast",           "DAST",            "OWASP ZAP",            "Dynamic application security testing",        False, 130),
+]
+
+# Derived from registry — used by the rest of the codebase (backward-compatible).
 SCANNER_DEFAULTS: Dict[str, bool] = {
-    # Existing scanners (enabled by default)
-    "sast": True,           # Semgrep
-    "terraform": True,      # tfsec, checkov, tflint
-    "dockerfile": True,     # Trivy image scan
-    "node": True,           # npm/pnpm audit
-    "go": True,             # govulncheck
-    "rust": True,           # cargo-audit
-    
-    # Phase 1 scanners (enabled by default)
-    "secrets": True,        # Gitleaks
-    "sca": True,            # OSV-Scanner
-    
-    # Phase 2 scanners (enabled by default)
-    "python": True,         # Bandit
-    "dockerfile_lint": True, # Hadolint
-    "misconfig": True,      # Trivy Config
-    
-    # Phase 3 scanners (disabled by default - require special setup or are slow)
-    "dast": False,          # ZAP - requires DAST_TARGET_URL and running app
-    "secrets_deep": False,  # TruffleHog - slower than Gitleaks, use for deep scans
+    s.key: s.default_enabled for s in SCANNER_REGISTRY
 }
 
 # Environment variable prefix
@@ -201,6 +212,22 @@ def apply_cli_overrides(enable: list[str] | None, disable: list[str] | None) -> 
         if key in SCANNER_DEFAULTS:
             env_var = f"{ENV_PREFIX}{key.upper().replace('-', '_').replace(' ', '_')}{ENV_SUFFIX}"
             os.environ[env_var] = "false"
+
+
+def get_scanner_registry() -> List[dict]:
+    """Return the full scanner registry as JSON-serializable dicts.
+
+    Each dict includes the static metadata from ``SCANNER_REGISTRY`` plus the
+    current ``enabled`` state (which accounts for environment overrides).
+    """
+    result: List[dict] = []
+    for scanner in SCANNER_REGISTRY:
+        d = asdict(scanner)
+        # camelCase keys for the frontend
+        d["defaultEnabled"] = d.pop("default_enabled")
+        d["enabled"] = is_scanner_enabled(scanner.key)
+        result.append(d)
+    return result
 
 
 # Convenience functions for specific scanners

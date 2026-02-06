@@ -10,6 +10,7 @@ import {
 import { parseGitHubRepo } from "@/lib/github-url";
 import { canUserStartScan, getUsageForCurrentPeriod } from "@/lib/usage";
 import { DEFAULT_AUDIT_TYPES, scanRequestSchema } from "@/lib/validators";
+import { getScannerKeys } from "@/lib/scanner-registry";
 import { getServerAuth } from "@/lib/server-auth";
 import { getUserGitHubToken, verifyRepoAccess, getTokenScopes, hasRequiredScopes } from "@/lib/github-token";
 import { encryptTokenForWorker } from "@/lib/token-ephemeral";
@@ -126,7 +127,9 @@ export async function POST(request: Request) {
   const planCodename = (userPlan?.codename ?? "free") as "free" | "pro" | "custom";
   const planField = `${planCodename}Enabled` as const;
 
-  const requestedTypes = auditTypes ?? Array.from(DEFAULT_AUDIT_TYPES);
+  const validKeys = await getScannerKeys();
+  const requestedTypes = (auditTypes ?? Array.from(DEFAULT_AUDIT_TYPES))
+    .filter((t) => validKeys.size === 0 || validKeys.has(t));
   const filteredTypes = requestedTypes.filter((t) => {
     const row = scannerMap[t];
     if (!row) return true; // No setting row → allow (default enabled)

@@ -4,6 +4,7 @@ import { getServerAuth } from "@/lib/server-auth";
 import { isAdmin } from "@/lib/admin-auth";
 import { db } from "@/db";
 import { scannerSettings } from "@/db/schema";
+import { getScannerRegistry } from "@/lib/scanner-registry";
 import AdminScanners from "@/components/admin/admin-scanners";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,11 @@ export default async function AdminScannersPage() {
     redirect("/app");
   }
 
-  const rows = await db.select().from(scannerSettings);
+  // Fetch backend scanner registry and DB settings in parallel.
+  const [scannerMeta, rows] = await Promise.all([
+    getScannerRegistry(),
+    db.select().from(scannerSettings),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -25,7 +30,7 @@ export default async function AdminScannersPage() {
           disables a scanner for everyone; plan toggles control access per tier.
         </p>
       </div>
-      <AdminScanners initialSettings={rows} />
+      <AdminScanners initialSettings={rows} scannerMeta={scannerMeta} />
     </div>
   );
 }

@@ -2,8 +2,10 @@
 from pydantic import BaseModel, field_validator
 from typing import List, Optional
 
-# Allowed audit types (must match audit.utils.ALLOWED_AUDITS minus "all")
-ALLOWED_AUDIT_TYPES = ["all", "sast", "terraform", "dockerfile", "node", "go", "rust", "secrets", "sca", "python", "dockerfile_lint", "misconfig", "dast", "secrets_deep"]
+from audit.scanner_config import SCANNER_DEFAULTS
+
+# Allowed audit types — derived from the scanner registry (single source of truth).
+ALLOWED_AUDIT_TYPES = ["all"] + sorted(SCANNER_DEFAULTS.keys())
 AUDIT_TYPES_MAX_LEN = 50
 
 

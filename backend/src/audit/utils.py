@@ -5,27 +5,14 @@ from pathlib import Path
 from typing import List
 from urllib.parse import urlparse
 
+from .scanner_config import SCANNER_DEFAULTS
+
 # CSV safety limits
 CSV_MAX_SIZE_BYTES = 10 * 1024 * 1024  # 10MB
 CSV_MAX_ROWS = 10_000
 
-# Allowed audit types (restrict to prevent injection)
-ALLOWED_AUDITS = frozenset({
-    "all",
-    "sast",
-    "terraform",
-    "dockerfile",
-    "node",
-    "go",
-    "rust",
-    "secrets",        # Gitleaks - Secret Detection
-    "sca",            # OSV-Scanner - Universal SCA
-    "python",         # Bandit - Python SAST
-    "dockerfile_lint", # Hadolint - Dockerfile Linting
-    "misconfig",      # Trivy Config - K8s/Docker Compose
-    "dast",           # OWASP ZAP - Dynamic Application Security Testing
-    "secrets_deep",   # TruffleHog - Enhanced Secret Detection
-})
+# Allowed audit types — derived from the scanner registry (single source of truth).
+ALLOWED_AUDITS = frozenset({"all"} | set(SCANNER_DEFAULTS.keys()))
 
 # Branch name: alphanumeric, dots, underscores, slashes, hyphens. Max length 255.
 BRANCH_RE = re.compile(r"^[a-zA-Z0-9._/-]+$")

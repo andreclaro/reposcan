@@ -1,35 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 
-const SCANNER_META: Record<
-  string,
-  { name: string; tool: string; description: string; defaultEnabled: boolean }
-> = {
-  sast: { name: "SAST", tool: "Semgrep", description: "Static application security testing", defaultEnabled: true },
-  terraform: { name: "Terraform", tool: "tfsec/checkov/tflint", description: "Infrastructure-as-code scanning", defaultEnabled: true },
-  dockerfile: { name: "Dockerfile", tool: "Trivy", description: "Container image vulnerability scanning", defaultEnabled: true },
-  node: { name: "Node.js", tool: "npm/pnpm audit", description: "JavaScript dependency vulnerabilities", defaultEnabled: true },
-  go: { name: "Go", tool: "govulncheck", description: "Go module vulnerability scanning", defaultEnabled: true },
-  rust: { name: "Rust", tool: "cargo-audit", description: "Rust dependency vulnerability scanning", defaultEnabled: true },
-  secrets: { name: "Secrets", tool: "Gitleaks", description: "Secret and credential detection", defaultEnabled: true },
-  sca: { name: "SCA", tool: "OSV-Scanner", description: "Software composition analysis", defaultEnabled: true },
-  python: { name: "Python", tool: "Bandit", description: "Python security linting", defaultEnabled: true },
-  dockerfile_lint: { name: "Dockerfile Lint", tool: "Hadolint", description: "Dockerfile best practices", defaultEnabled: true },
-  misconfig: { name: "Misconfiguration", tool: "Trivy Config", description: "K8s/Docker Compose config scanning", defaultEnabled: true },
-  dast: { name: "DAST", tool: "OWASP ZAP", description: "Dynamic application security testing", defaultEnabled: false },
-  secrets_deep: { name: "Deep Secrets", tool: "TruffleHog", description: "Deep secret scanning (thorough)", defaultEnabled: false },
-};
-
-const SCANNER_ORDER = [
-  "sast", "sca", "secrets", "secrets_deep",
-  "node", "go", "rust", "python",
-  "dockerfile", "dockerfile_lint", "misconfig", "terraform",
-  "dast",
-];
+import type { ScannerMeta } from "@/lib/scanner-registry";
 
 type PlanKey = "free" | "pro" | "custom";
 
@@ -51,13 +27,19 @@ type ScannerState = {
 
 type Props = {
   initialSettings: ScannerSetting[];
+  scannerMeta: ScannerMeta[];
 };
 
-export default function AdminScanners({ initialSettings }: Props) {
+export default function AdminScanners({ initialSettings, scannerMeta }: Props) {
+  const metaMap = useMemo(
+    () => new Map(scannerMeta.map((m) => [m.key, m])),
+    [scannerMeta]
+  );
+
   const [settings, setSettings] = useState<Record<string, ScannerState>>(() => {
     const map: Record<string, ScannerState> = {};
-    for (const [key, meta] of Object.entries(SCANNER_META)) {
-      map[key] = {
+    for (const meta of scannerMeta) {
+      map[meta.key] = {
         enabled: meta.defaultEnabled,
         freeEnabled: true,
         proEnabled: true,
@@ -144,7 +126,7 @@ export default function AdminScanners({ initialSettings }: Props) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        {enabledCount} of {Object.keys(SCANNER_META).length} scanners enabled
+        {enabledCount} of {scannerMeta.length} scanners enabled
         globally
       </p>
 
@@ -160,9 +142,8 @@ export default function AdminScanners({ initialSettings }: Props) {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {SCANNER_ORDER.map((key) => {
-              const meta = SCANNER_META[key];
-              if (!meta) return null;
+            {scannerMeta.map((meta) => {
+              const key = meta.key;
               const state = settings[key];
               if (!state) return null;
               const globalDisabled = !state.enabled;

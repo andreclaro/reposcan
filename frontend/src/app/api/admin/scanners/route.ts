@@ -4,26 +4,7 @@ import { db } from "@/db";
 import { scannerSettings } from "@/db/schema";
 import { getServerAuth } from "@/lib/server-auth";
 import { isAdmin } from "@/lib/admin-auth";
-
-/** All known scanners with display metadata. */
-const SCANNER_META: Record<
-  string,
-  { name: string; tool: string; description: string; defaultEnabled: boolean }
-> = {
-  sast: { name: "SAST", tool: "Semgrep", description: "Static application security testing", defaultEnabled: true },
-  terraform: { name: "Terraform", tool: "tfsec/checkov/tflint", description: "Infrastructure-as-code scanning", defaultEnabled: true },
-  dockerfile: { name: "Dockerfile", tool: "Trivy", description: "Container image vulnerability scanning", defaultEnabled: true },
-  node: { name: "Node.js", tool: "npm/pnpm audit", description: "JavaScript dependency vulnerabilities", defaultEnabled: true },
-  go: { name: "Go", tool: "govulncheck", description: "Go module vulnerability scanning", defaultEnabled: true },
-  rust: { name: "Rust", tool: "cargo-audit", description: "Rust dependency vulnerability scanning", defaultEnabled: true },
-  secrets: { name: "Secrets", tool: "Gitleaks", description: "Secret and credential detection", defaultEnabled: true },
-  sca: { name: "SCA", tool: "OSV-Scanner", description: "Software composition analysis", defaultEnabled: true },
-  python: { name: "Python", tool: "Bandit", description: "Python security linting", defaultEnabled: true },
-  dockerfile_lint: { name: "Dockerfile Lint", tool: "Hadolint", description: "Dockerfile best practices", defaultEnabled: true },
-  misconfig: { name: "Misconfiguration", tool: "Trivy Config", description: "K8s/Docker Compose config scanning", defaultEnabled: true },
-  dast: { name: "DAST", tool: "OWASP ZAP", description: "Dynamic application security testing", defaultEnabled: false },
-  secrets_deep: { name: "Deep Secrets", tool: "TruffleHog", description: "Deep secret scanning (thorough)", defaultEnabled: false },
-};
+import { getScannerRegistry, getScannerKeys } from "@/lib/scanner-registry";
 
 export async function GET() {
   const session = await getServerAuth();
@@ -31,18 +12,25 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  const rows = await db.select().from(scannerSettings);
+  // Fetch backend registry and DB rows in parallel.
+  const [registry, rows] = await Promise.all([
+    getScannerRegistry(),
+    db.select().from(scannerSettings),
+  ]);
 
   const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
 
-  const scanners = Object.entries(SCANNER_META).map(([key, meta]) => ({
-    id: key,
-    enabled: byId[key]?.enabled ?? meta.defaultEnabled,
-    freeEnabled: byId[key]?.freeEnabled ?? true,
-    proEnabled: byId[key]?.proEnabled ?? true,
-    customEnabled: byId[key]?.customEnabled ?? true,
-    updatedAt: byId[key]?.updatedAt?.toISOString() ?? null,
-    ...meta,
+  const scanners = registry.map((meta) => ({
+    id: meta.key,
+    enabled: byId[meta.key]?.enabled ?? meta.defaultEnabled,
+    freeEnabled: byId[meta.key]?.freeEnabled ?? true,
+    proEnabled: byId[meta.key]?.proEnabled ?? true,
+    customEnabled: byId[meta.key]?.customEnabled ?? true,
+    updatedAt: byId[meta.key]?.updatedAt?.toISOString() ?? null,
+    name: meta.name,
+    tool: meta.tool,
+    description: meta.description,
+    defaultEnabled: meta.defaultEnabled,
   }));
 
   return NextResponse.json({ scanners });
@@ -59,13 +47,14 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
+  const validKeys = await getScannerKeys();
   const now = new Date();
 
   // Legacy: global toggles via { scanners: { [key]: boolean } }
   if (body.scanners && typeof body.scanners === "object") {
     const updates = body.scanners as Record<string, boolean>;
     for (const [key, enabled] of Object.entries(updates)) {
-      if (!(key in SCANNER_META) || typeof enabled !== "boolean") continue;
+      if (!validKeys.has(key) || typeof enabled !== "boolean") continue;
 
       await db
         .insert(scannerSettings)
@@ -85,7 +74,7 @@ export async function PATCH(request: Request) {
     >;
 
     for (const [key, access] of Object.entries(planUpdates)) {
-      if (!(key in SCANNER_META) || typeof access !== "object") continue;
+      if (!validKeys.has(key) || typeof access !== "object") continue;
 
       const set: Record<string, boolean | Date> = { updatedAt: now };
       if (typeof access.free === "boolean") set.freeEnabled = access.free;

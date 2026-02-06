@@ -171,6 +171,19 @@ async def generate_ai_for_scan(request: Request, scan_id: str):
     return {"scan_id": scan_id, "status": "queued", "message": "AI analysis generation queued"}
 
 
+@app.get("/scanners")
+@limiter.limit("30/minute")
+async def list_scanners(request: Request):
+    """Return the full scanner registry (metadata + current enabled state).
+
+    This is the single source of truth consumed by the frontend to render
+    the admin scanners matrix and validate scan requests.
+    """
+    from audit.scanner_config import get_scanner_registry
+
+    return {"scanners": get_scanner_registry()}
+
+
 @app.get("/health", response_model=HealthResponse)
 @limiter.limit("60/minute")  # Rate limit: 60 health checks per minute per IP
 async def health(request: Request):
