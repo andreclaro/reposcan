@@ -26,6 +26,20 @@ from urllib.parse import urlparse
 import asyncpg
 import redis
 
+# Valid PostgreSQL identifier pattern (letters, digits, underscore; must start with letter or underscore)
+VALID_IDENTIFIER = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+
+
+def validate_identifier(name: str) -> str:
+    """Validate a PostgreSQL identifier to prevent SQL injection.
+    
+    Raises:
+        ValueError: If the identifier contains invalid characters.
+    """
+    if not VALID_IDENTIFIER.match(name):
+        raise ValueError(f"Invalid identifier: {name!r}. Only alphanumeric and underscore allowed.")
+    return name
+
 
 async def purge_database(database_url: str, drop_recreate: bool = False) -> None:
     """Truncate all tables in the database and reset sequences."""
@@ -33,9 +47,9 @@ async def purge_database(database_url: str, drop_recreate: bool = False) -> None
     conn = await asyncpg.connect(database_url)
 
     try:
-        # Get database name from URL
+        # Get database name from URL and validate it
         parsed = urlparse(database_url)
-        db_name = parsed.path.lstrip('/')
+        db_name = validate_identifier(parsed.path.lstrip('/'))
 
         if drop_recreate:
             # Drop and recreate database (requires connection to postgres database)
@@ -54,11 +68,11 @@ async def purge_database(database_url: str, drop_recreate: bool = False) -> None
                     """,
                     db_name
                 )
-                # Drop database
-                await admin_conn.execute(f'DROP DATABASE IF EXISTS "{db_name}";')
+                # Drop database (identifier already validated)
+                await admin_conn.execute(f'DROP DATABASE IF EXISTS "{db_name}";')  # nosemgrep
                 print(f"  ✓ Dropped database: {db_name}")
-                # Recreate database
-                await admin_conn.execute(f'CREATE DATABASE "{db_name}";')
+                # Recreate database (identifier already validated)
+                await admin_conn.execute(f'CREATE DATABASE "{db_name}";')  # nosemgrep
                 print(f"  ✓ Recreated database: {db_name}")
             finally:
                 await admin_conn.close()
@@ -79,7 +93,8 @@ async def purge_database(database_url: str, drop_recreate: bool = False) -> None
             print("No tables found in the database.")
             return
 
-        table_names = [row["tablename"] for row in tables]
+        # Validate all table names (defense in depth - they come from pg_tables but validate anyway)
+        table_names = [validate_identifier(row["tablename"]) for row in tables]
         print(f"Found {len(table_names)} tables: {', '.join(table_names)}")
 
         # Truncate all tables with CASCADE (respects foreign key constraints)
@@ -89,7 +104,7 @@ async def purge_database(database_url: str, drop_recreate: bool = False) -> None
             # Build comma-separated list of table names
             table_list = ', '.join(f'"{name}"' for name in table_names)
             # RESTART IDENTITY must come before CASCADE
-            await conn.execute(f'TRUNCATE TABLE {table_list} RESTART IDENTITY CASCADE;')
+            await conn.execute(f'TRUNCATE TABLE {table_list} RESTART IDENTITY CASCADE;')  # nosemgrep
             print(f"  ✓ Truncated {len(table_names)} tables: {', '.join(table_names)}")
         except Exception as e:
             print(f"  ✗ Failed to truncate tables: {e}")
@@ -97,7 +112,7 @@ async def purge_database(database_url: str, drop_recreate: bool = False) -> None
             print("  Attempting individual table truncation...")
             for table_name in table_names:
                 try:
-                    await conn.execute(f'TRUNCATE TABLE "{table_name}" RESTART IDENTITY CASCADE;')
+                    await conn.execute(f'TRUNCATE TABLE "{table_name}" RESTART IDENTITY CASCADE;')  # nosemgrep
                     print(f"  ✓ Truncated: {table_name}")
                 except Exception as e2:
                     print(f"  ✗ Failed to truncate {table_name}: {e2}")
@@ -114,9 +129,10 @@ async def purge_database(database_url: str, drop_recreate: bool = False) -> None
         )
         if sequences:
             for seq in sequences:
-                seq_name = seq["sequencename"]
+                # Validate sequence name (defense in depth)
+                seq_name = validate_identifier(seq["sequencename"])
                 try:
-                    await conn.execute(f'ALTER SEQUENCE "{seq_name}" RESTART WITH 1;')
+                    await conn.execute(f'ALTER SEQUENCE "{seq_name}" RESTART WITH 1;')  # nosemgrep
                     print(f"  ✓ Reset sequence: {seq_name}")
                 except Exception as e:
                     print(f"  ✗ Failed to reset sequence {seq_name}: {e}")
@@ -124,7 +140,7 @@ async def purge_database(database_url: str, drop_recreate: bool = False) -> None
         # Verify tables are empty
         print("\nVerifying tables are empty...")
         for table_name in table_names:
-            count = await conn.fetchval(f'SELECT COUNT(*) FROM "{table_name}";')
+            count = await conn.fetchval(f'SELECT COUNT(*) FROM "{table_name}";')  # nosemgrep
             if count > 0:
                 print(f"  ⚠ Warning: {table_name} still has {count} rows")
             else:

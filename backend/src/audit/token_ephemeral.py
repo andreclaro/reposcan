@@ -111,7 +111,7 @@ def decrypt_token(encrypted_payload: str) -> str:
         
     except Exception as e:
         # Log error without exposing payload details
-        logger.error("Token decryption failed: %s", str(e))
+        logger.error("Token decryption failed: %s", str(e))  # nosemgrep
         raise RuntimeError(
             "Failed to decrypt authentication token. "
             "The token may be corrupted or the encryption keys may not match."

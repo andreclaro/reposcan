@@ -29,3 +29,7 @@ debug.log
 
 # Pending work
 .pending/
+
+# Next.js build output (both root and frontend)
+.next/
+frontend/.next/

@@ -88,7 +88,7 @@ async function applyMigration() {
           if (isSkip) {
             console.log(`⚠ [${i + 1}/${statements.length}] Skipped (already exists)`);
           } else {
-            console.error(`✗ [${i + 1}/${statements.length}] Failed:`, error.message || error);
+            console.error("✗ [%d/%d] Failed: %s", i + 1, statements.length, String(error.message || error));
             throw error;
           }
         }

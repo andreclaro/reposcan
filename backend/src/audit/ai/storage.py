@@ -436,12 +436,15 @@ async def update_scan_status(
     params.append(scan_id)
     where_param = param_idx
     
+    # Security: This query uses parameterized queries ($N placeholders).
+    # The f-string only constructs column names and parameter indices, never values.
+    # All user-provided values are safely passed via the params list.
     query = f"""
         UPDATE scan
         SET {', '.join(updates)}
         WHERE scan_id = ${where_param}
     """
-    await conn.execute(query, *params)
+    await conn.execute(query, *params)  # nosemgrep
 
 
 async def create_db_pool(database_url: str, max_retries: int = 5, retry_delay: float = 2.0) -> asyncpg.Pool:

@@ -38,7 +38,7 @@ export async function getUserGitHubToken(userId: string): Promise<string | null>
 
     // Debug: log the scopes we have
     if (account?.scope) {
-      console.log(`[github-token] Token scopes for user ${userId}:`, account.scope);
+      console.log("[github-token] Token scopes for user %s: %s", userId, String(account.scope));
     }
 
     return account?.access_token ?? null;

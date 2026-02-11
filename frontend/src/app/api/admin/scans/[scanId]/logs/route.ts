@@ -12,6 +12,9 @@ type RouteParams = { params: Promise<{ scanId: string }> };
 
 const RESULTS_DIR = process.env.RESULTS_DIR ?? "./results";
 
+// UUID validation regex for scanId parameter
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // Files to look for in the scan results directory
 const LOG_FILES = [
   "worker.log",
@@ -41,6 +44,11 @@ export async function GET(request: Request, { params }: RouteParams) {
 
   const { scanId } = await params;
 
+  // Validate scanId format to prevent path traversal
+  if (!UUID_REGEX.test(scanId)) {
+    return NextResponse.json({ error: "Invalid scan ID format" }, { status: 400 });
+  }
+
   // Get scan record to find results path
   const [scan] = await db
     .select({ resultsPath: scans.resultsPath })
@@ -53,13 +61,15 @@ export async function GET(request: Request, { params }: RouteParams) {
   }
 
   // Determine the results directory
-  const resultsDir = scan.resultsPath ?? path.join(RESULTS_DIR, scanId);
+  // scanId is validated as UUID above; safe to use in path
+  const resultsDir = scan.resultsPath ?? path.join(RESULTS_DIR, scanId);  // nosemgrep
 
   const logs: { filename: string; content: string; size: number }[] = [];
 
   // Try to read each log file
   for (const filename of LOG_FILES) {
-    const filePath = path.join(resultsDir, filename);
+    // filename comes from hardcoded LOG_FILES array, not user input
+    const filePath = path.join(resultsDir, filename);  // nosemgrep
     try {
       const stat = await fs.stat(filePath);
       if (stat.isFile()) {

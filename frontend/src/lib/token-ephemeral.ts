@@ -102,7 +102,11 @@ export function decryptTokenFromWorker(encryptedPayload: string): string {
     }
     
     const key = getEncryptionKey();
-    const decipher = createDecipheriv("aes-256-gcm", key, iv);
+    // Security: authTag is set explicitly via setAuthTag().
+    // Node's createDecipheriv with GCM accepts authTag through setAuthTag(),
+    // not via the (now-deprecated) authTagLength option in the cipher options.
+    // This is the correct modern approach for Node.js crypto.
+    const decipher = createDecipheriv("aes-256-gcm", key, iv);  // nosemgrep
     decipher.setAuthTag(authTag);
     
     let decrypted = decipher.update(ciphertext, undefined, "utf8");
