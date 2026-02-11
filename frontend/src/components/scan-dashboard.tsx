@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScanListItem } from "./scan-list-item";
 import { parseGitHubRepo } from "@/lib/github-url";
 import { HIDE_PLANS } from "@/lib/config";
-import { getScannerRegistry, type ScannerMeta } from "@/lib/scanner-registry";
+import type { ScannerMeta } from "@/lib/scanner-registry";
 import { useRepoVisibility } from "@/hooks/use-repo-visibility";
 import type { ScanRecord } from "@/types/scans";
 
@@ -59,16 +59,18 @@ export default function ScanDashboard({
   useEffect(() => {
     async function fetchScanners() {
       try {
-        const registry = await getScannerRegistry();
+        const res = await fetch("/api/scanners");
+        if (!res.ok) throw new Error("Failed to fetch scanners");
+        const data = await res.json();
         // Filter to only enabled scanners (respects admin panel settings)
-        setEnabledScanners(registry.filter((s) => s.enabled));
+        setEnabledScanners(data.scanners.filter((s: ScannerMeta) => s.enabled));
       } catch {
         // Silent fail - will show empty list
         setEnabledScanners([]);
       }
     }
     fetchScanners();
-  }, []);
+  }, [];
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
