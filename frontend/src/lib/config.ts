@@ -7,6 +7,7 @@
 
 /**
  * Whether to hide plans-related UI elements.
- * Set NEXT_PUBLIC_HIDE_PLANS=true to disable plans page and navigation links.
+ * When BETA_MODE_ENABLED=true, the plans page is not available.
+ * Set NEXT_PUBLIC_BETA_MODE_ENABLED=true to disable plans page and navigation links.
  */
-export const HIDE_PLANS = process.env.NEXT_PUBLIC_HIDE_PLANS === "true";
+export const HIDE_PLANS = process.env.NEXT_PUBLIC_BETA_MODE_ENABLED === "true";

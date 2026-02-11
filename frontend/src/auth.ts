@@ -11,7 +11,7 @@ import { sendEmail } from "@/lib/email";
 import { buildNewUserPendingApprovalEmail } from "@/lib/email-templates/new-user-pending-approval";
 import { logger } from "@/lib/logger.server";
 
-const BETA_MODE_ENABLED = process.env.BETA_MODE_ENABLED === "true";
+const BETA_MODE_ENABLED = process.env.NEXT_PUBLIC_BETA_MODE_ENABLED === "true";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
