@@ -292,9 +292,8 @@ export default function ScanDashboard({
       const isCached = payload.cached === true;
 
       if (isCached) {
-        setCachedMessage(
-          "This repository/commit was already scanned. Showing existing results."
-        );
+        const message = payload.message ?? "This repository/commit was already scanned. Showing existing results.";
+        setCachedMessage(message);
         setScans((prev) => [
           newScan,
           ...prev.filter((s) => s.scanId !== newScan.scanId),

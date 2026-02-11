@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, like, or } from "drizzle-orm";
+import { and, desc, eq, inArray, like, or } from "drizzle-orm";
 
 import { db } from "@/db";
 import { scans, scannerSettings } from "@/db/schema";
@@ -82,9 +82,9 @@ export async function POST(request: Request) {
           code: "REPO_SCOPE_MISSING",
           fixUrl: "https://github.com/settings/applications",
           debugUrl: "/api/debug/token",
-          quickFix: "curl -X DELETE http://localhost:3000/api/debug/token (then sign out/in)",
+          quickFix: "curl -X DELETE http://localhost:3003/api/debug/token (then sign out/in)",
           instructions: [
-            "Option 1 (Quick): Run 'curl -X DELETE http://localhost:3000/api/debug/token' then sign out/in",
+            "Option 1 (Quick): Run 'curl -X DELETE http://localhost:3003/api/debug/token' then sign out/in",
             "Option 2: Go to GitHub → Settings → Applications → Authorized OAuth Apps",
             "Find 'Security Kit Localhost' and click Revoke",
             "Return here and sign out/in again"
@@ -150,7 +150,7 @@ export async function POST(request: Request) {
     payload.encrypted_token = encryptedToken;
   }
 
-  // Before queuing: check for existing completed scan (same repo + commit)
+  // Before queuing: check for existing active or completed scan (same repo + commit)
   if (!forceRescan) {
     const normalizedUrl = repoUrl;
     if (normalizedUrl) {
@@ -168,11 +168,40 @@ export async function POST(request: Request) {
           return getCommitShaForBranch(repo.owner, repo.repo, branch ?? undefined);
         })());
 
+      const repoUrlVariants = [
+        normalizedUrl,
+        `${normalizedUrl}.git`
+      ] as const;
+
+      // First check for active scans (queued/running/retrying) - prevent duplicates
+      // Active scans don't have commit_hash yet (it's resolved by worker after cloning)
+      // So we check by repo_url only for active scans
+      const activeStatuses = ["queued", "running", "retrying"];
+      const [activeScan] = await db
+        .select()
+        .from(scans)
+        .where(
+          and(
+            inArray(scans.status, activeStatuses),
+            eq(scans.userId, session.user.id),
+            or(
+              eq(scans.repoUrl, repoUrlVariants[0]),
+              eq(scans.repoUrl, repoUrlVariants[1])
+            )
+          )
+        )
+        .orderBy(desc(scans.createdAt))
+        .limit(1);
+
+      if (activeScan) {
+        return NextResponse.json(
+          { scan: activeScan, cached: true, message: "A scan for this repository is already in progress" },
+          { status: 200 }
+        );
+      }
+
+      // Then check for completed scans with same commit - return existing results
       if (resolvedCommit) {
-        const repoUrlVariants = [
-          normalizedUrl,
-          `${normalizedUrl}.git`
-        ] as const;
         // Match exact commit or short SHA prefix (worker stores full 40-char SHA)
         const commitMatch =
           resolvedCommit.length >= 40
@@ -181,6 +210,7 @@ export async function POST(request: Request) {
                 eq(scans.commitHash, resolvedCommit),
                 like(scans.commitHash, `${resolvedCommit}%`)
               );
+
         const [existingScan] = await db
           .select()
           .from(scans)
