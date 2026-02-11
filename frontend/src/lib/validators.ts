@@ -3,13 +3,19 @@ import { z } from "zod";
 import { parseGitHubUrl } from "./github-url";
 
 // Safe fallback set — used when backend registry is unreachable.
+// Includes all scanners except DAST (requires DAST_TARGET_URL) and secrets_deep (slower).
 export const DEFAULT_AUDIT_TYPES = [
   "sast",
-  "dockerfile",
-  "terraform",
+  "sca",
+  "secrets",
   "node",
   "go",
-  "rust"
+  "rust",
+  "python",
+  "dockerfile",
+  "dockerfile_lint",
+  "misconfig",
+  "terraform"
 ] as const;
 
 /** Accepts full GitHub URL or owner/repo (e.g. awesome-selfhosted/awesome-selfhosted). */
