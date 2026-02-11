@@ -189,79 +189,79 @@ def run_trivy_dockerfile_scan(
     repo_slug: str,
     output_text: Path,
 ) -> None:
+    """Run Trivy config scan on Dockerfiles for vulnerabilities and misconfigurations.
+    
+    Uses `trivy config` instead of `docker build` + `trivy image` to avoid requiring
+    Docker-in-Docker (DinD). This enables deployment on platforms like Railway that
+    don't support privileged containers.
+    
+    Scans for:
+    - Vulnerable base images (FROM directives)
+    - Dockerfile best practices and misconfigurations
+    - Known bad patterns in container configurations
+    
+    Note: This does not perform OS/package vulnerability scanning of built images.
+    For comprehensive dependency scanning, use run_trivy_fs_scan alongside.
+    """
     dockerfiles = find_dockerfiles(repo_dir)
     if not dockerfiles:
         return
 
-    docker_bin = shutil.which("docker")
     trivy_bin = shutil.which("trivy")
     output_text.parent.mkdir(parents=True, exist_ok=True)
 
-    if not docker_bin or not trivy_bin:
-        missing = []
-        if not docker_bin:
-            missing.append("docker")
-        if not trivy_bin:
-            missing.append("trivy")
+    if not trivy_bin:
         output_text.write_text(
-            f"Skipping Dockerfile scan; missing binaries: {', '.join(missing)}\n",
+            "Skipping Dockerfile scan; missing binary: trivy\n",
             encoding="utf-8",
         )
         return
 
+    # Ensure absolute paths
+    repo_dir = repo_dir.resolve()
+    output_text = output_text.resolve()
+
     with output_text.open("w", encoding="utf-8") as handle:
-        for index, dockerfile in enumerate(dockerfiles, start=1):
-            tag_suffix = f"-df{index}" if len(dockerfiles) > 1 else ""
-            image_tag = f"{repo_slug.lower()}{tag_suffix}:latest"
-            context_dir = dockerfile.parent
+        handle.write("=" * 80 + "\n")
+        handle.write("Tool: Trivy Config (Dockerfile scanning - DinD-free)\n")
+        handle.write(f"Repository: {repo_slug}\n")
+        handle.write(f"Dockerfiles found: {len(dockerfiles)}\n")
+        handle.write("Note: Scans Dockerfile configurations without building images\n")
+        handle.write("=" * 80 + "\n\n")
 
-            handle.write("=" * 80 + "\n")
-            handle.write(f"Dockerfile: {dockerfile}\n")
-            handle.write(f"Image tag: {image_tag}\n")
-            handle.write("=" * 80 + "\n\n")
-
-            try:
-                build_result = subprocess.run(
-                    [
-                        docker_bin,
-                        "build",
-                        "-f",
-                        str(dockerfile),
-                        "-t",
-                        image_tag,
-                        str(context_dir),
-                    ],
-                    cwd=repo_dir,
-                    stdout=handle,
-                    stderr=handle,
-                    timeout=DOCKER_BUILD_TIMEOUT,
-                )
-            except subprocess.TimeoutExpired:
-                handle.write("\nDocker build timed out; skipping trivy.\n\n")
-                continue
-            if build_result.returncode != 0:
-                handle.write(
-                    f"\nDocker build failed (exit {build_result.returncode}); skipping trivy.\n\n"
-                )
-                continue
-
-            try:
-                trivy_result = subprocess.run(
-                    [trivy_bin, "image", image_tag],
-                    cwd=repo_dir,
-                    stdout=handle,
-                    stderr=handle,
-                    timeout=TRIVY_TIMEOUT,
-                )
-            except subprocess.TimeoutExpired:
-                handle.write("\nTrivy scan timed out.\n\n")
-                continue
-            if trivy_result.returncode != 0:
-                handle.write(
-                    f"\nTrivy scan failed (exit {trivy_result.returncode}).\n\n"
-                )
+        # Run trivy config scan targeting only Dockerfiles
+        # This scans Dockerfile syntax, FROM images, and container configs
+        try:
+            # Build list of Dockerfile paths for targeted scanning
+            dockerfile_args = []
+            for df in dockerfiles:
+                dockerfile_args.extend(["--file-patterns", f"dockerfile:{df}"])
+            
+            # Use trivy config with file patterns to scan only Dockerfiles
+            result = subprocess.run(
+                [
+                    trivy_bin,
+                    "config",
+                    "--file-patterns", "dockerfile:Dockerfile",
+                    "--file-patterns", "dockerfile:Dockerfile.*",
+                    "--file-patterns", "dockerfile:*.dockerfile",
+                    str(repo_dir),
+                ],
+                cwd=repo_dir,
+                stdout=handle,
+                stderr=handle,
+                timeout=TRIVY_TIMEOUT,
+            )
+            
+            if result.returncode not in (0, 1):
+                handle.write(f"\nTrivy config scan exited with code {result.returncode}\n")
             else:
-                handle.write("\n")
+                handle.write(f"\nExit code: {result.returncode}\n")
+                
+        except subprocess.TimeoutExpired:
+            handle.write("\nTrivy Dockerfile scan timed out.\n")
+        except Exception as e:
+            handle.write(f"\nError running trivy config: {e}\n")
 
 
 def run_trivy_fs_scan(

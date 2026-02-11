@@ -6,12 +6,13 @@
 
 | Requirement | Vercel Limit | Worker Needs |
 |-------------|--------------|--------------|
-| **Docker-in-Docker** | ❌ Not supported | ✅ Required for Trivy image scans |
-| **Privileged containers** | ❌ Not supported | ✅ Required for DinD |
 | **Execution time** | ❌ 10-15s max (Hobby) / 5min (Pro) | ✅ Scans take 2-30 minutes |
 | **Container image size** | ❌ 250MB function limit | ✅ 3-5 GB worker image |
 | **Ephemeral storage** | ❌ 1024 MB (Hobby) / 4GB (Pro) | ✅ Large repos + node_modules |
 | **Background jobs** | ❌ No persistent workers | ✅ Long-running Celery tasks |
+| **Docker-in-Docker** | ❌ Not supported | ❌ **Not required** (see below) |
+
+> **Note:** Docker-in-Docker is **NOT required** for this platform. The Dockerfile scanner uses `trivy config` to analyze Dockerfiles without building images, enabling deployment on Railway, Render, and other managed platforms without privileged containers.
 
 **What CAN run on Vercel:**
 - ✅ **Frontend** (Next.js) - perfect fit, automatic deploys, global CDN
@@ -29,11 +30,11 @@ The platform consists of five services with distinct resource profiles:
 |---------|-------|------------|-----------------|
 | **Frontend** | Next.js 16 (Node) | Low (0.5 CPU / 512MB) | Stateless, SSR, OAuth, Stripe webhooks |
 | **API** | Python 3.11-slim (FastAPI) | Low (1 CPU / 1GB) | Stateless, queues jobs to Redis |
-| **Worker** | Ubuntu 22.04 + all scanner tools | High (2+ CPU / 4GB+) | Clones repos, runs scanners, needs DinD |
+| **Worker** | Ubuntu 22.04 + all scanner tools | High (2+ CPU / 4GB+) | Clones repos, runs scanners (no DinD needed) |
 | **PostgreSQL** | postgres:16 | Medium (1 CPU / 1GB) | Persistent storage, scan results, users |
 | **Redis** | redis:7 | Low (0.5 CPU / 512MB) | Celery broker, ephemeral |
 
-The **worker** is the dominant cost and complexity driver. Its image bundles Node.js (3 versions via nvm), Go (3 versions via gvm), Rust (4 toolchains via rustup), plus semgrep, trivy, tfsec, checkov, tflint, cargo-audit, and a Docker CLI. It requires Docker-in-Docker (privileged) for Trivy image scans. Each scan clones a full repository to disk and runs multiple analysis tools.
+The **worker** is the dominant cost and complexity driver. Its image bundles Node.js (3 versions via nvm), Go (3 versions via gvm), Rust (4 toolchains via rustup), plus semgrep, trivy, tfsec, checkov, tflint, cargo-audit. Each scan clones a full repository to disk and runs multiple analysis tools. Note: Docker-in-Docker is **not required** - the Dockerfile scanner uses `trivy config` instead of building images.
 
 ---
 
@@ -58,8 +59,8 @@ The **worker** is the dominant cost and complexity driver. Its image bundles Nod
         └────────────┘ └────────┘ └────┬─────┘
                                        │
                                   ┌────┴─────┐
-                                  │   DinD   │
-                                  │ Sidecar  │
+                                  │  Worker  │
+                                  │  (cont.) │
                                   └──────────┘
               ┌────────────────────────────────┐
               │  Managed PostgreSQL (RDS/Cloud  │
@@ -73,7 +74,7 @@ The **worker** is the dominant cost and complexity driver. Its image bundles Nod
 - **Frontend**: `Deployment` + `HPA` scaling on CPU. Standard node pool.
 - **API**: `Deployment` + `HPA`. Standard node pool. Low resource requests.
 - **Worker**: `Deployment` on a **dedicated node pool** with larger instances (e.g., `m6i.xlarge` / `e2-standard-4`). Scale with [KEDA](https://keda.sh/) based on Redis queue depth rather than CPU.
-- **DinD**: Run as a sidecar container in each worker pod (avoids mounting the host Docker socket). Requires `privileged: true` on the sidecar.
+- **Worker**: Runs as a standard container (no DinD needed). The Dockerfile scanner uses `trivy config` instead of building images.
 - **PostgreSQL**: Use managed service (RDS, Cloud SQL, Azure Database). Do not run in-cluster for production.
 - **Redis**: Use managed service (ElastiCache, Memorystore, Azure Cache). Acceptable in-cluster for non-critical workloads.
 
@@ -83,12 +84,9 @@ Each worker pod needs ~2 CPU + 4 GB RAM + fast ephemeral storage for cloned repo
 
 Workers are bursty (idle between scans, high CPU during semgrep/trivy runs). Consider Spot/Preemptible instances for the worker node pool to reduce cost by 60-70%. Scans are idempotent and can be retried on eviction.
 
-### DinD security concern
+### Worker container security
 
-Running privileged containers in Kubernetes is a security risk. Alternatives:
-- **Sysbox runtime**: Runs DinD without `--privileged` using a user-namespace remap.
-- **Kaniko / img**: If you only need `docker build`, not `docker run`.
-- **Trivy filesystem mode**: `trivy fs` scans Dockerfiles without building images, removing the DinD requirement entirely. This is the simplest mitigation.
+The worker container runs without privileged mode. It uses `trivy config` to scan Dockerfiles without building images, eliminating the Docker-in-Docker (DinD) security concern entirely.
 
 ### Pros
 - Horizontal auto-scaling of each component independently
@@ -99,7 +97,6 @@ Running privileged containers in Kubernetes is a security risk. Alternatives:
 
 ### Cons
 - Highest operational complexity; requires Kubernetes expertise
-- DinD in K8s requires privileged pods or alternative runtimes
 - Worker image is large (~3-5 GB); slow cold starts without image caching (consider [kube-fledged](https://github.com/senthilrch/kube-fledged) or pre-pulling via DaemonSet)
 - Cluster overhead cost even at low utilization
 
@@ -132,10 +129,10 @@ This is essentially what the existing `docker-compose.yml` already defines. Depl
 │  ┌──────────┐ ┌──────┐ ┌────────────┐  │
 │  │ Frontend  │ │ API  │ │   Worker   │  │
 │  │ :3000     │ │:8000 │ │ (Celery)   │  │
-│  └──────────┘ └──────┘ └─────┬──────┘  │
-│  ┌──────────┐ ┌──────┐ ┌────┴──────┐  │
-│  │ Postgres  │ │Redis │ │   DinD    │  │
-│  └──────────┘ └──────┘ └───────────┘  │
+│  └──────────┘ └──────┘ └────────────┘  │
+│  ┌──────────┐ ┌──────┐                 │
+│  │ Postgres  │ │Redis │                 │
+│  └──────────┘ └──────┘                 │
 │                                         │
 │  ┌──────────────────────────────────┐   │
 │  │  Caddy / Nginx (reverse proxy)  │   │
@@ -156,7 +153,7 @@ This is essentially what the existing `docker-compose.yml` already defines. Depl
 ### Scaling path
 
 - **Vertical**: Move to a larger VM (8 vCPU / 32 GB) when worker contention becomes an issue.
-- **Horizontal workers**: Add a second VM running only the worker + DinD containers, pointing at the same Redis and PostgreSQL on the primary VM (or migrated to managed services).
+- **Horizontal workers**: Add a second VM running only the worker container, pointing at the same Redis and PostgreSQL on the primary VM (or migrated to managed services).
 
 ### Pros
 - Simplest deployment; the existing docker-compose.yml works almost as-is
@@ -202,9 +199,7 @@ This is essentially what the existing `docker-compose.yml` already defines. Depl
 │ Service │ │Service│ │  Service   │
 └─────────┘ └──────┘ └─────┬──────┘
                             │
-                       ┌────┴─────┐
-                       │  DinD    │
-                       │ Sidecar  │
+                       │          │
                        └──────────┘
          ┌──────────────────────────┐
          │  RDS + ElastiCache       │
@@ -214,8 +209,7 @@ This is essentially what the existing `docker-compose.yml` already defines. Depl
 ### Key considerations
 
 - **Frontend + API**: Run on **Fargate** (serverless containers). No EC2 management, scales automatically.
-- **Worker**: Run on **EC2-backed ECS** (not Fargate). Fargate does not support privileged containers needed for DinD. Use capacity providers with auto-scaling groups.
-- **Alternative**: If you can eliminate the DinD requirement (use `trivy fs` instead of `trivy image`), all services can run on Fargate.
+- **Worker**: Can run on **Fargate** or **EC2-backed ECS**. No DinD required.
 - **Auto-scaling**: Use ECS Service Auto Scaling. For workers, scale on the custom CloudWatch metric for Redis queue length.
 
 ### Pros
@@ -226,7 +220,6 @@ This is essentially what the existing `docker-compose.yml` already defines. Depl
 
 ### Cons
 - Vendor lock-in to AWS
-- EC2-backed tasks needed for privileged containers (worker)
 - ECS task definition updates are more verbose than Kubernetes manifests
 - Less ecosystem tooling than Kubernetes
 
@@ -265,9 +258,9 @@ This is essentially what the existing `docker-compose.yml` already defines. Depl
 │  ┌───────┐ ┌────────┐        │
 │  │  API  │ │ Worker │        │
 │  └───────┘ └────────┘        │
-│  ┌───────┐ ┌────────┐        │
-│  │ Redis │ │  DinD  │        │
-│  └───────┘ └────────┘        │
+│  ┌───────┐                   │
+│  │ Redis │                   │
+│  └───────┘                   │
 │  ┌──────────────────┐        │
 │  │    PostgreSQL     │        │
 │  └──────────────────┘        │
@@ -277,7 +270,7 @@ This is essentially what the existing `docker-compose.yml` already defines. Depl
 ### How it works
 
 - **Frontend on Vercel**: Deploys automatically from Git. Handles SSR, static assets, OAuth callbacks, Stripe webhooks. Next.js API routes proxy scan requests to the FastAPI backend.
-- **Backend on any cloud**: The API, worker, Redis, DinD, and PostgreSQL run on any of the other options (VM, ECS, K8s). Vercel's frontend connects over HTTPS to the backend's public or VPN-tunneled endpoint.
+- **Backend on any cloud**: The API, worker, Redis, and PostgreSQL run on any of the other options (VM, ECS, K8s). Vercel's frontend connects over HTTPS to the backend's public or VPN-tunneled endpoint.
 
 ### Pros
 - Frontend is zero-ops: automatic deployments, CDN, preview environments, analytics
@@ -308,13 +301,13 @@ This is essentially what the existing `docker-compose.yml` already defines. Depl
 
 **Not recommended for this workload.** Included for completeness.
 
-The worker image is ~3-5 GB with dozens of system-level tools. Lambda has a 10 GB container image limit and 15-minute execution timeout. Some scans (large repos with semgrep + all tools) can exceed both limits. The DinD requirement is incompatible with Lambda's execution model.
+The worker image is ~3-5 GB with dozens of system-level tools. Lambda has a 10 GB container image limit and 15-minute execution timeout. Some scans (large repos with semgrep + all tools) can exceed both limits.
 
 You could theoretically split each scanner into a separate Lambda function orchestrated by Step Functions, but:
 - Cold starts for large images are 30-60 seconds
-- No Docker socket available (breaks Trivy image scanning)
 - Max 10 GB ephemeral storage (large repos with node_modules can exceed this)
 - Significantly more engineering effort to decompose the monolithic worker
+- 15-minute max execution timeout may not be enough for large repository scans
 
 **Verdict**: Avoid unless you refactor the scanner architecture to be truly serverless-native (e.g., each scanner as a lightweight, standalone Lambda with pre-built vulnerability databases).
 
@@ -349,10 +342,6 @@ These platforms run your Docker containers without managing VMs or Kubernetes. T
 │  │  Redis    │ │  PostgreSQL          │ │
 │  │ (managed) │ │  (managed)           │ │
 │  └──────────┘ └──────────────────────┘ │
-│                                         │
-│  ┌──────────────────────────────────┐   │
-│  │  DinD sidecar (worker only)      │   │
-│  └──────────────────────────────────┘   │
 └─────────────────────────────────────────┘
 ```
 
@@ -393,7 +382,6 @@ These platforms run your Docker containers without managing VMs or Kubernetes. T
 
 ### Cons
 - **Less control** than VMs (can't SSH in, limited OS customization)
-- **Worker DinD** may need special configuration (Render supports privileged, Railway requires alternative)
 - **Cold starts** for infrequently used services
 - **Egress costs** can surprise on high bandwidth (Fly.io especially)
 
@@ -440,12 +428,9 @@ If using a VM or want to reduce costs:
 | **Auto-scaling** | None | Basic | Good | Best | Partial |
 | **Zero-ops** | No | Yes | Partial | No | Partial |
 | **Time to production** | Hours | Minutes | Days | Days-Weeks | Hours |
-| **DinD support** | Yes | Partial* | Yes | Yes | Yes |
 | **HA / Reliability** | None | Good | Good | Best | Good (frontend) |
 | **Operational overhead** | Low | Lowest | Medium | High | Low-Medium |
 | **Scale ceiling** | Low | Medium | High | Highest | Medium |
-
-\* Render supports privileged containers; Railway requires DinD workarounds or Trivy filesystem mode only.
 
 ### Suggested progression
 
