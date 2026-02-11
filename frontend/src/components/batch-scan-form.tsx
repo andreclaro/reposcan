@@ -109,10 +109,9 @@ export default function BatchScanForm({}: BatchScanFormProps) {
       // Update results progressively
       setResults([...newResults]);
 
-      // Delay between requests to respect rate limit (10/min = 6sec per request)
-      // Add extra buffer to account for processing time
+      // Minimal delay to avoid overwhelming the backend (rate limit is 1000/min)
       if (i < urls.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 6500));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
 

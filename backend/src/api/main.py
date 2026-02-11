@@ -47,7 +47,7 @@ celery_app.conf.update(
 
 
 @app.post("/scan", response_model=ScanResponse)
-@limiter.limit("10/minute")  # Rate limit: 10 scans per minute per IP
+@limiter.limit("1000/minute")  # Rate limit: 1000 scans per minute per IP
 async def create_scan(request: Request, scan_request: ScanRequest):
     """Queue a new security scan job."""
     scan_id = str(uuid.uuid4())
@@ -63,7 +63,7 @@ async def create_scan(request: Request, scan_request: ScanRequest):
 
 
 @app.post("/scan/{scan_id}/retry", response_model=ScanResponse)
-@limiter.limit("5/minute")  # Rate limit: 5 retries per minute per IP
+@limiter.limit("5000/minute")  # Rate limit: 5000 retries per minute per IP
 async def retry_scan(request: Request, scan_id: str, scan_request: ScanRequest):
     """Queue a retry for an existing scan, reusing the same scan_id."""
     # Validate scan_id is a valid UUID to prevent abuse
@@ -83,7 +83,7 @@ async def retry_scan(request: Request, scan_id: str, scan_request: ScanRequest):
     return ScanResponse(scan_id=scan_id_str, status="queued")
 
 @app.get("/scan/{scan_id}/status", response_model=ScanStatusResponse)
-@limiter.limit("30/minute")  # Rate limit: 30 status checks per minute per IP
+@limiter.limit("30000/minute")  # Rate limit: 30000 status checks per minute per IP
 async def get_scan_status(request: Request, scan_id: str):
     """Get the status of a scan job."""
     task = AsyncResult(scan_id, app=celery_app)
@@ -149,7 +149,7 @@ async def get_scan_status(request: Request, scan_id: str):
 
 
 @app.post("/scan/{scan_id}/generate-ai")
-@limiter.limit("5/minute")  # Rate limit: 5 AI generations per minute per IP
+@limiter.limit("5000/minute")  # Rate limit: 5000 AI generations per minute per IP
 async def generate_ai_for_scan(request: Request, scan_id: str):
     """
     Queue generation of AI analysis for an existing completed scan.
@@ -172,7 +172,7 @@ async def generate_ai_for_scan(request: Request, scan_id: str):
 
 
 @app.get("/scanners")
-@limiter.limit("30/minute")
+@limiter.limit("30000/minute")  # Rate limit: 30000 scanners endpoint calls per minute per IP
 async def list_scanners(request: Request):
     """Return the full scanner registry (metadata + current enabled state).
 
@@ -185,7 +185,7 @@ async def list_scanners(request: Request):
 
 
 @app.get("/health", response_model=HealthResponse)
-@limiter.limit("60/minute")  # Rate limit: 60 health checks per minute per IP
+@limiter.limit("60000/minute")  # Rate limit: 60000 health checks per minute per IP
 async def health(request: Request):
     """Health check endpoint."""
     return HealthResponse(status="ok")
