@@ -1,5 +1,26 @@
 # Production Deployment Options
 
+## FAQ: Can Everything Run on Vercel?
+
+**No.** The security scanning **worker** cannot run on Vercel (or any serverless platform) due to fundamental architectural constraints:
+
+| Requirement | Vercel Limit | Worker Needs |
+|-------------|--------------|--------------|
+| **Docker-in-Docker** | ❌ Not supported | ✅ Required for Trivy image scans |
+| **Privileged containers** | ❌ Not supported | ✅ Required for DinD |
+| **Execution time** | ❌ 10-15s max (Hobby) / 5min (Pro) | ✅ Scans take 2-30 minutes |
+| **Container image size** | ❌ 250MB function limit | ✅ 3-5 GB worker image |
+| **Ephemeral storage** | ❌ 1024 MB (Hobby) / 4GB (Pro) | ✅ Large repos + node_modules |
+| **Background jobs** | ❌ No persistent workers | ✅ Long-running Celery tasks |
+
+**What CAN run on Vercel:**
+- ✅ **Frontend** (Next.js) - perfect fit, automatic deploys, global CDN
+- ⚠️ **API** (FastAPI) - possible via Next.js API routes, but adds latency; better on dedicated backend
+
+**Solution:** Use **Vercel for frontend only** + a cheap VM or managed container platform for the backend (API + Worker + DB).
+
+---
+
 ## System Architecture Summary
 
 The platform consists of five services with distinct resource profiles:
@@ -299,25 +320,152 @@ You could theoretically split each scanner into a separate Lambda function orche
 
 ---
 
+## Option 6: Managed Container Platforms (Railway / Render / Fly.io)
+
+**Best for: Teams wanting zero server management with Docker-native deployments.**
+
+These platforms run your Docker containers without managing VMs or Kubernetes. They offer Git-based deploys, automatic HTTPS, and managed databases.
+
+### Comparison
+
+| Platform | Best For | Pricing Model | Free Tier |
+|----------|----------|---------------|-----------|
+| **Railway** | Simplicity, fast iteration | Per-resource usage ($5-50/mo typical) | $5 credit/month |
+| **Render** | Docker-native, predictable costs | Fixed per-service ($7-85/mo) | Yes (limited) |
+| **Fly.io** | Multi-region, close to users | Per-VM + bandwidth ($5-40/mo typical) | $5 credit/month |
+
+### Architecture (Railway Example)
+
+```
+┌─────────────────────────────────────────┐
+│           Railway Platform              │
+│                                         │
+│  ┌──────────┐ ┌──────┐ ┌────────────┐  │
+│  │ Frontend  │ │ API  │ │   Worker   │  │
+│  │ (Node)    │ │(FastAPI)│ │ (Celery)  │  │
+│  └──────────┘ └──────┘ └────────────┘  │
+│                                         │
+│  ┌──────────┐ ┌──────────────────────┐ │
+│  │  Redis    │ │  PostgreSQL          │ │
+│  │ (managed) │ │  (managed)           │ │
+│  └──────────┘ └──────────────────────┘ │
+│                                         │
+│  ┌──────────────────────────────────┐   │
+│  │  DinD sidecar (worker only)      │   │
+│  └──────────────────────────────────┘   │
+└─────────────────────────────────────────┘
+```
+
+### Setup Example (Railway)
+
+1. **Connect GitHub repo** to Railway
+2. **Deploy services** via `railway.yaml` or dashboard:
+   ```yaml
+   services:
+     frontend:
+       build:
+         dockerfilePath: ./frontend/Dockerfile
+       startCommand: "pnpm start"
+       
+     api:
+       build:
+         dockerfilePath: ./backend/Dockerfile.api
+       startCommand: "uvicorn api.main:app --host 0.0.0.0 --port 8000"
+       
+     worker:
+       build:
+         dockerfilePath: ./backend/Dockerfile
+       startCommand: "celery -A tasks.scan_worker worker"
+       resources:
+         memory: 4GB  # Worker needs more RAM
+   ```
+3. **Add managed databases**: Click "New Database" → PostgreSQL, Redis
+4. **Set environment variables** in Railway dashboard
+5. **Done** - Automatic deploys on every push
+
+### Pros
+- **Zero server management** - No SSH, no OS updates, no security patches
+- **Git-based deploys** - Push to deploy, automatic rollbacks
+- **Managed databases** - Automated backups, scaling, monitoring
+- **Automatic HTTPS** - Custom domains with SSL
+- **Good free tiers** - Start free, pay as you grow
+- **Faster than VMs** to set up (minutes vs hours)
+
+### Cons
+- **Less control** than VMs (can't SSH in, limited OS customization)
+- **Worker DinD** may need special configuration (Render supports privileged, Railway requires alternative)
+- **Cold starts** for infrequently used services
+- **Egress costs** can surprise on high bandwidth (Fly.io especially)
+
+### Cost Comparison (Low-Medium Traffic)
+
+| Platform | Frontend | API | Worker | Postgres | Redis | **Total** |
+|----------|----------|-----|--------|----------|-------|-----------|
+| **Railway** | ~$5 | ~$5 | ~$15 (4GB) | ~$5 | Free | **~$30/mo** |
+| **Render** | $7 | $7 | $25 (4GB) | $15 | Free | **~$54/mo** |
+| **Fly.io** | ~$3 | ~$3 | ~$12 (4GB) | ~$5 | ~$3 | **~$26/mo** |
+| + Supabase Postgres | - | - | - | Free tier | - | **Free** |
+| + Upstash Redis | - | - | - | - | Free tier | **Free** |
+
+**With free tiers (Supabase + Upstash):**
+- **Fly.io**: ~$18/mo (just compute)
+- **Railway**: ~$25/mo (just compute + $5 credit)
+
+### Managed Database Alternatives
+
+If using a VM or want to reduce costs:
+
+| Service | Type | Free Tier | Paid |
+|---------|------|-----------|------|
+| **Supabase** | PostgreSQL | 500MB, 2GB egress | $25/mo |
+| **Neon** | PostgreSQL (serverless) | 3GB, 3 branches | $19/mo |
+| **Upstash** | Redis | 10k req/day | $10/mo |
+| **Redis Cloud** | Redis | 30MB | Free-forever |
+
+**Recommended cheap stack:**
+- Compute: Fly.io or Railway
+- Database: Supabase (free tier) or Neon
+- Cache: Upstash (free tier)
+- **Total: $20-40/mo** for full production
+
+---
+
 ## Recommendation Matrix
 
-| Factor | Single VM | ECS | Kubernetes | Vercel + VM |
-|--------|-----------|-----|------------|-------------|
-| **Simplicity** | Best | Good | Complex | Good |
-| **Cost (low traffic)** | Lowest | Medium | Highest | Low |
-| **Auto-scaling** | None | Good | Best | Partial |
-| **HA / Reliability** | None | Good | Best | Good (frontend) |
-| **Operational overhead** | Low | Medium | High | Low-Medium |
-| **Time to production** | Hours | Days | Days-Weeks | Hours-Days |
-| **Scale ceiling** | Low | High | Highest | Medium |
+| Factor | Single VM | Railway/Render | ECS | Kubernetes | Vercel + VM |
+|--------|-----------|----------------|-----|------------|-------------|
+| **Simplicity** | Good | Best | Medium | Complex | Good |
+| **Cost (low traffic)** | $28-125 | $20-54 | ~$187 | ~$315 | $38-133 |
+| **Cost (with free tiers)** | $28 | $18-25 | - | - | $38 |
+| **Auto-scaling** | None | Basic | Good | Best | Partial |
+| **Zero-ops** | No | Yes | Partial | No | Partial |
+| **Time to production** | Hours | Minutes | Days | Days-Weeks | Hours |
+| **DinD support** | Yes | Partial* | Yes | Yes | Yes |
+| **HA / Reliability** | None | Good | Good | Best | Good (frontend) |
+| **Operational overhead** | Low | Lowest | Medium | High | Low-Medium |
+| **Scale ceiling** | Low | Medium | High | Highest | Medium |
+
+\* Render supports privileged containers; Railway requires DinD workarounds or Trivy filesystem mode only.
 
 ### Suggested progression
 
-1. **Start with**: **Single VM with Docker Compose** (Option 2). Use Hetzner or DigitalOcean for cost efficiency. The existing `docker-compose.yml` is ready. Add Caddy for TLS, set up daily database backups, and you're production-ready for early users.
+1. **Start with**: **Managed Container Platform** (Option 6 - Railway/Render/Fly.io). 
+   - Best for: Rapid prototyping, zero-ops, lowest time-to-production
+   - Cost: $20-40/mo with free database tiers
+   - Setup: Connect GitHub repo, add environment variables, deploy
 
-2. **When you outgrow the VM**: Move to **Vercel + beefier VM** (Option 4). Deploy the frontend to Vercel for zero-ops CDN/SSR, keep the backend on a larger VM or split into API VM + Worker VM.
+2. **Alternative start**: **Single VM with Docker Compose** (Option 2).
+   - Best for: Maximum control, lowest cost at small scale
+   - Cost: $28/mo (Hetzner) to $125/mo (AWS)
+   - Setup: Provision VM, install Docker, run docker-compose
 
-3. **When you need auto-scaling**: Move to **ECS** (Option 3) or **Kubernetes** (Option 1). Use managed database/redis. Scale workers independently based on queue depth.
+3. **When you outgrow the VM**: Move to **Vercel + beefier VM** (Option 4).
+   - Deploy the frontend to Vercel for zero-ops CDN/SSR
+   - Keep the backend on a larger VM or split into API VM + Worker VM
+
+4. **When you need auto-scaling**: Move to **ECS** (Option 3) or **Kubernetes** (Option 1).
+   - Use managed database/redis
+   - Scale workers independently based on queue depth
 
 ---
 
@@ -332,6 +480,7 @@ Push images to ECR, GCR, Docker Hub, or GitHub Container Registry. The build scr
 - **ECS**: AWS Secrets Manager, referenced in task definitions.
 - **K8s**: Kubernetes Secrets (sealed-secrets or external-secrets-operator for GitOps).
 - **Vercel**: Project environment variables in the dashboard.
+- **Railway/Render/Fly**: Platform-managed secrets in their respective dashboards (encrypted at rest).
 
 ### Database migrations
 Run `pnpm db:migrate` (frontend Drizzle schema) as a one-off task before deploying new versions. In K8s, use an init container or a Job. In ECS, use a one-off task. On a VM, run it as part of the deploy script.
@@ -350,7 +499,8 @@ Push to main
   └── Deploy backend
        ├── VM: SSH + docker compose pull + docker compose up -d
        ├── ECS: ecs-deploy or aws ecs update-service --force-new-deployment
-       └── K8s: kubectl rollout restart / Argo CD / Flux
+       ├── K8s: kubectl rollout restart / Argo CD / Flux
+       └── Railway/Render/Fly: Automatic deploy on git push (zero config)
 ```
 
 ### Worker image optimization
