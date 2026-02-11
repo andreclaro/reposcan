@@ -19,8 +19,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScanListItem } from "./scan-list-item";
 import { parseGitHubRepo } from "@/lib/github-url";
-import { DEFAULT_AUDIT_TYPES } from "@/lib/validators";
 import { HIDE_PLANS } from "@/lib/config";
+import { getScannerRegistry, type ScannerMeta } from "@/lib/scanner-registry";
 import { useRepoVisibility } from "@/hooks/use-repo-visibility";
 import type { ScanRecord } from "@/types/scans";
 
@@ -49,10 +49,26 @@ export default function ScanDashboard({
   const [errorUpgradeUrl, setErrorUpgradeUrl] = useState<string | null>(null);
   const [cachedMessage, setCachedMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [enabledScanners, setEnabledScanners] = useState<ScannerMeta[]>([]);
   const branchIsDirtyRef = useRef(branchIsDirty);
   
   // Auto-detect repo visibility (for API call)
   const { isPrivate, setManually: setIsPrivate } = useRepoVisibility(repoUrl);
+
+  // Fetch enabled scanners from backend (admin panel is source of truth)
+  useEffect(() => {
+    async function fetchScanners() {
+      try {
+        const registry = await getScannerRegistry();
+        // Filter to only enabled scanners (respects admin panel settings)
+        setEnabledScanners(registry.filter((s) => s.enabled));
+      } catch {
+        // Silent fail - will show empty list
+        setEnabledScanners([]);
+      }
+    }
+    fetchScanners();
+  }, []);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -378,7 +394,9 @@ export default function ScanDashboard({
                 Start a new scan
               </h2>
               <p className="text-sm text-slate-500">
-                Scans run: {DEFAULT_AUDIT_TYPES.join(", ")}
+                Scans run: {enabledScanners.length > 0 
+                  ? enabledScanners.map((s) => s.key).join(", ")
+                  : "Loading..."}
               </p>
             </div>
           </div>

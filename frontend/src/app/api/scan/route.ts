@@ -9,12 +9,28 @@ import {
 } from "@/lib/github";
 import { parseGitHubRepo } from "@/lib/github-url";
 import { canUserStartScan, getUsageForCurrentPeriod } from "@/lib/usage";
-import { DEFAULT_AUDIT_TYPES, scanRequestSchema } from "@/lib/validators";
+import { scanRequestSchema } from "@/lib/validators";
 import { getScannerKeys } from "@/lib/scanner-registry";
 import { getServerAuth } from "@/lib/server-auth";
 import { getUserGitHubToken, verifyRepoAccess, getTokenScopes, hasRequiredScopes } from "@/lib/github-token";
 import { encryptTokenForWorker } from "@/lib/token-ephemeral";
 import { getUserPlan } from "@/lib/plans/getUserPlan";
+
+/**
+ * Get default audit types based on admin panel settings and user plan.
+ * Admin panel (scannerSettings table) is the source of truth for which scanners are enabled.
+ */
+async function getDefaultAuditTypesForUser(
+  planCodename: "free" | "pro" | "custom"
+): Promise<string[]> {
+  const allScannerRows = await db.select().from(scannerSettings);
+  const planField = `${planCodename}Enabled` as const;
+
+  // Return scanners that are globally enabled AND enabled for the user's plan
+  return allScannerRows
+    .filter((row) => row.enabled && row[planField])
+    .map((row) => row.id);
+}
 
 export async function POST(request: Request) {
   const session = await getServerAuth();
@@ -119,21 +135,25 @@ export async function POST(request: Request) {
     }
   }
   
+  // Get user's plan for scanner filtering
+  const userPlan = await getUserPlan(session.user.id);
+  const planCodename = (userPlan?.codename ?? "free") as "free" | "pro" | "custom";
+
+  // Get default audit types from admin panel (source of truth)
+  const defaultAuditTypes = await getDefaultAuditTypesForUser(planCodename);
+
   // Filter scanners by global enable AND user's plan access
   const allScannerRows = await db.select().from(scannerSettings);
   const scannerMap = Object.fromEntries(allScannerRows.map((r) => [r.id, r]));
 
-  const userPlan = await getUserPlan(session.user.id);
-  const planCodename = (userPlan?.codename ?? "free") as "free" | "pro" | "custom";
-  const planField = `${planCodename}Enabled` as const;
-
   const validKeys = await getScannerKeys();
-  const requestedTypes = (auditTypes ?? Array.from(DEFAULT_AUDIT_TYPES))
+  const requestedTypes = (auditTypes ?? defaultAuditTypes)
     .filter((t) => validKeys.size === 0 || validKeys.has(t));
   const filteredTypes = requestedTypes.filter((t) => {
     const row = scannerMap[t];
     if (!row) return true; // No setting row → allow (default enabled)
     if (!row.enabled) return false; // Globally disabled
+    const planField = `${planCodename}Enabled` as const;
     return row[planField]; // Plan-level access
   });
 

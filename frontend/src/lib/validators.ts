@@ -2,8 +2,9 @@ import { z } from "zod";
 
 import { parseGitHubUrl } from "./github-url";
 
-// Safe fallback set — used when backend registry is unreachable.
-// Includes all scanners except DAST (requires DAST_TARGET_URL) and secrets_deep (slower).
+// DEPRECATED: Use getDefaultAuditTypesForUser() from API or getScannerRegistry() from lib/scanner-registry.
+// This is only a fallback when backend/admin panel is unreachable.
+// The admin panel (scannerSettings table) is the source of truth for enabled scanners.
 export const DEFAULT_AUDIT_TYPES = [
   "sast",
   "sca",
