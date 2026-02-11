@@ -10,7 +10,7 @@ import {
 import { parseGitHubRepo } from "@/lib/github-url";
 import { canUserStartScan, getUsageForCurrentPeriod } from "@/lib/usage";
 import { scanRequestSchema } from "@/lib/validators";
-import { getScannerKeys } from "@/lib/scanner-registry";
+import { getScannerKeys, getScannerRegistry } from "@/lib/scanner-registry";
 import { getServerAuth } from "@/lib/server-auth";
 import { getUserGitHubToken, verifyRepoAccess, getTokenScopes, hasRequiredScopes } from "@/lib/github-token";
 import { encryptTokenForWorker } from "@/lib/token-ephemeral";
@@ -19,17 +19,32 @@ import { getUserPlan } from "@/lib/plans/getUserPlan";
 /**
  * Get default audit types based on admin panel settings and user plan.
  * Admin panel (scannerSettings table) is the source of truth for which scanners are enabled.
+ * Falls back to backend registry for scanners not yet in the database.
  */
 async function getDefaultAuditTypesForUser(
   planCodename: "free" | "pro" | "custom"
 ): Promise<string[]> {
-  const allScannerRows = await db.select().from(scannerSettings);
+  const [allScannerRows, registry] = await Promise.all([
+    db.select().from(scannerSettings),
+    getScannerRegistry(),
+  ]);
+  
   const planField = `${planCodename}Enabled` as const;
+  const dbRowMap = Object.fromEntries(allScannerRows.map((r) => [r.id, r]));
 
   // Return scanners that are globally enabled AND enabled for the user's plan
-  return allScannerRows
-    .filter((row) => row.enabled && row[planField])
-    .map((row) => row.id);
+  // Check both database settings and backend registry (for scanners not yet in DB)
+  return registry
+    .filter((scanner) => {
+      const row = dbRowMap[scanner.key];
+      if (row) {
+        // Scanner exists in DB - use DB settings
+        return row.enabled && row[planField];
+      }
+      // Scanner not in DB yet - use default from registry
+      return scanner.defaultEnabled;
+    })
+    .map((scanner) => scanner.key);
 }
 
 export async function POST(request: Request) {
