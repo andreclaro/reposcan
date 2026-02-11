@@ -1,0 +1,33 @@
+# Trivy configuration
+# https://aquasecurity.github.io/trivy/latest/docs/configuration/config-file/
+
+scan:
+  # Skip scanning build artifacts and generated files
+  skip-dirs:
+    - frontend/.next
+    - frontend/node_modules
+    - frontend/dist
+    - .venv
+    - venv
+    - env
+    - __pycache__
+    - .pytest_cache
+    - .mypy_cache
+
+  # Skip files that are documentation or examples
+  skip-files:
+    - ".cursor/rules/*.mdc"
+    - "*.min.js"
+    - "*.map"
+
+secret:
+  # Disable secret scanning for specific paths that contain examples/documentation
+  skip-dirs:
+    - .cursor
+
+# Show only issues with severity >= LOW
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM
+  - LOW
