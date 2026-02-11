@@ -76,11 +76,14 @@ export default function BatchScanForm({}: BatchScanFormProps) {
 
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
+          const isRateLimit = response.status === 429;
           newResults.push({
             repoUrl,
             scanId: null,
             status: "error",
-            error: payload.error ?? "Failed to start scan"
+            error: isRateLimit 
+              ? "Rate limit exceeded (10 scans/min). Please wait and try again."
+              : (payload.error ?? "Failed to start scan")
           });
           errorCount++;
         } else {
@@ -106,9 +109,10 @@ export default function BatchScanForm({}: BatchScanFormProps) {
       // Update results progressively
       setResults([...newResults]);
 
-      // Small delay between requests to avoid rate limiting
+      // Delay between requests to respect rate limit (10/min = 6sec per request)
+      // Add extra buffer to account for processing time
       if (i < urls.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 6500));
       }
     }
 

@@ -301,9 +301,10 @@ export async function POST(request: Request) {
 
   if (!scanResponse.ok) {
     const errorText = await scanResponse.text();
+    // Pass through the original status code (e.g., 429 for rate limiting)
     return NextResponse.json(
       { error: "Scan service error", details: errorText },
-      { status: 502 }
+      { status: scanResponse.status }
     );
   }
 
