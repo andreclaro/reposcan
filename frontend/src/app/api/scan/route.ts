@@ -209,28 +209,32 @@ export async function POST(request: Request) {
       ] as const;
 
       // First check for active scans (queued/running/retrying) - prevent duplicates
-      // Active scans don't have commit_hash yet (it's resolved by worker after cloning)
-      // So we check by repo_url only for active scans
+      // Check by repo_url AND branch (active scans don't have commit_hash yet)
       const activeStatuses = ["queued", "running", "retrying"];
+      const activeScanWhere = [
+        inArray(scans.status, activeStatuses),
+        eq(scans.userId, session.user.id),
+        or(
+          eq(scans.repoUrl, repoUrlVariants[0]),
+          eq(scans.repoUrl, repoUrlVariants[1])
+        ),
+      ];
+      
+      // Also check branch if specified
+      if (branch) {
+        activeScanWhere.push(eq(scans.branch, branch));
+      }
+      
       const [activeScan] = await db
         .select()
         .from(scans)
-        .where(
-          and(
-            inArray(scans.status, activeStatuses),
-            eq(scans.userId, session.user.id),
-            or(
-              eq(scans.repoUrl, repoUrlVariants[0]),
-              eq(scans.repoUrl, repoUrlVariants[1])
-            )
-          )
-        )
+        .where(and(...activeScanWhere))
         .orderBy(desc(scans.createdAt))
         .limit(1);
 
       if (activeScan) {
         return NextResponse.json(
-          { scan: activeScan, cached: true, message: "A scan for this repository is already in progress" },
+          { scan: activeScan, cached: true, message: "A scan for this repository and branch is already in progress" },
           { status: 200 }
         );
       }
