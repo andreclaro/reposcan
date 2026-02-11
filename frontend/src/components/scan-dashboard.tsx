@@ -70,7 +70,7 @@ export default function ScanDashboard({
       }
     }
     fetchScanners();
-  }, [];
+  }, []);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
