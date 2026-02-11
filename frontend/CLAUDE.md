@@ -10,7 +10,7 @@ Next.js 16 SaaS frontend for the sec-audit-repos security scanning platform. Pro
 
 ```bash
 pnpm install          # Install dependencies
-pnpm dev              # Start dev server (localhost:3000)
+pnpm dev              # Start dev server (localhost:3003)
 pnpm build            # Build for production
 pnpm lint             # Run ESLint
 
@@ -155,6 +155,6 @@ const results = await db
 2. Copy `.env.local.example` to `.env.local` and configure
 3. Push schema: `DATABASE_URL=... pnpm db:push`
 4. Start dev server: `pnpm dev`
-5. Visit `http://localhost:3000`
+5. Visit `http://localhost:3003`
 
 With `DEV_BYPASS_AUTH=true`, you can access `/app` without GitHub OAuth.

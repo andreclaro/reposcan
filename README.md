@@ -42,7 +42,7 @@ curl -X POST http://localhost:8000/scan \
   -H "Content-Type: application/json" \
   -d '{"repo_url": "https://github.com/user/repo.git", "audit_types": ["sast"]}'
 
-# Stop stack
+# Stop stackd
 make docker-down
 ```
 

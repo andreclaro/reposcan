@@ -99,7 +99,7 @@ docker compose -f docker/docker-compose.yml down
 
 Services will be available at:
 - FastAPI: http://localhost:8000
-- Next.js: http://localhost:3000 (run separately with `pnpm dev` in frontend/)
+- Next.js: http://localhost:3003 (run separately with `pnpm dev` in frontend/)
 - PostgreSQL: localhost:5432
 - Redis: localhost:6379
 

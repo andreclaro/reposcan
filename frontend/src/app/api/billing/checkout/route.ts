@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
   const appUrl = process.env.NEXTAUTH_URL ?? process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}`
-    : "http://localhost:3000";
+    : "http://localhost:3003";
 
   try {
     const sessionParams: {

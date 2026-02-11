@@ -72,6 +72,6 @@ export function escapeHtml(s: string): string {
 export function getAppConfig(): { appName: string; appUrl: string } {
   return {
     appName: process.env.APP_NAME ?? "SecurityKit",
-    appUrl: process.env.APP_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3000",
+    appUrl: process.env.APP_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3003",
   };
 }
