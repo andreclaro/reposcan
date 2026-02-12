@@ -1,6 +1,6 @@
 import NextAuth from "next-auth";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { accounts, sessions, users, verificationTokens } from "@/db/schema";
@@ -111,15 +111,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           });
           for (const adminEmail of adminEmails) {
             const result = await sendEmail({ to: adminEmail, subject, html });
-            if (result.success) {
-              logger.info("[auth] Admin notification sent for new user", {
-                to: adminEmail,
-                newUserEmail: user.email,
-              });
-            } else if ("reason" in result) {
+            if ("skipped" in result) {
               logger.warn("[auth] Admin notification skipped", {
                 to: adminEmail,
                 reason: result.reason,
+              });
+            } else if (result.success) {
+              logger.info("[auth] Admin notification sent for new user", {
+                to: adminEmail,
+                newUserEmail: user.email,
               });
             } else {
               logger.error("[auth] Admin notification failed", {

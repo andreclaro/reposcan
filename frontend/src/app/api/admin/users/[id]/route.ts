@@ -152,11 +152,11 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       html,
     });
 
-    if (result.success === true) {
-      emailSent = true;
-    } else if (result.skipped === true) {
+    if ("skipped" in result) {
       emailSkipReason = result.reason;
       logger.warn("Account approval email skipped", { reason: result.reason });
+    } else if (result.success) {
+      emailSent = true;
     } else {
       emailError = result.error;
       logger.error("Account approval email failed", { error: result.error });

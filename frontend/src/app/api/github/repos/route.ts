@@ -37,10 +37,8 @@ export async function GET(request: Request) {
     // Try to get user's GitHub token first (5000 requests/hour per user)
     // Fall back to server token if available (5000 requests/hour shared)
     // Otherwise unauthenticated (60 requests/hour)
-    let token = await getUserGitHubToken(session.user.id);
-    if (!token) {
-      token = process.env.GITHUB_TOKEN || undefined;
-    }
+    const userToken = await getUserGitHubToken(session.user.id);
+    const token = userToken ?? process.env.GITHUB_TOKEN ?? null;
 
     const headers: Record<string, string> = {
       Accept: "application/vnd.github.v3+json",

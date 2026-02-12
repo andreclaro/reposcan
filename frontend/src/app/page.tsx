@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { Route } from "next";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { useSession } from "next-auth/react";
@@ -176,7 +177,7 @@ export default function HomePage() {
           </Link>
           <nav className="hidden items-center gap-8 md:flex">
             <Link
-              href="/docs"
+              href={"/docs" as Route}
               className="text-sm font-medium text-slate-600 hover:text-slate-900"
             >
               Docs
@@ -674,7 +675,7 @@ export default function HomePage() {
               <ul className="mt-4 space-y-2 text-sm">
                 <li>
                   <Link
-                    href="/docs"
+                    href={"/docs" as Route}
                     className="text-slate-500 hover:text-slate-900"
                   >
                     Documentation
@@ -682,7 +683,7 @@ export default function HomePage() {
                 </li>
                 <li>
                   <Link
-                    href="/docs/api-reference"
+                    href={"/docs/api-reference" as Route}
                     className="text-slate-500 hover:text-slate-900"
                   >
                     API Reference

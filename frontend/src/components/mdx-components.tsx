@@ -1,18 +1,12 @@
 import type { MDXComponents } from "mdx/types";
-import {
-  Accordion,
-  Accordions,
-  Callout,
-  Card,
-  Cards,
-  CodeBlock,
-  CodeGroup,
-  type CodeBlockProps,
-  type CodeGroupProps,
-  Tab,
-  Tabs,
-} from "fumadocs-ui/components";
 import { cn } from "@/lib/utils";
+
+// Import individual fumadocs-ui components
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
+import { Callout } from "fumadocs-ui/components/callout";
+import { Card, Cards } from "fumadocs-ui/components/card";
+import { CodeBlock, CodeBlockTabs } from "fumadocs-ui/components/codeblock";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
 export function getMDXComponents(): MDXComponents {
   return {
@@ -44,8 +38,8 @@ export function getMDXComponents(): MDXComponents {
     Cards,
     Tab,
     Tabs,
-    CodeBlock: CodeBlock as React.FC<CodeBlockProps>,
-    CodeGroup: CodeGroup as React.FC<CodeGroupProps>,
+    CodeBlock,
+    CodeBlockTabs,
     // Tables
     table: ({ className, ...props }: React.HTMLAttributes<HTMLTableElement>) => (
       <div className="my-6 w-full overflow-y-auto">

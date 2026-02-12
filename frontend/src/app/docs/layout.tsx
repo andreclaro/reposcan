@@ -1,8 +1,16 @@
 import type { ReactNode } from "react";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
-import { pageTree } from "@/lib/docs";
+import { docs } from "@/lib/docs";
+import { loader } from "fumadocs-core/source";
 
-export default function Layout({ children }: { children: ReactNode }) {
+export default async function Layout({ children }: { children: ReactNode }) {
+  // Convert the docs to a page tree using fumadocs-core loader
+  const source = docs.toFumadocsSource();
+  const pageTree = loader({
+    baseUrl: "/docs",
+    source,
+  }).pageTree;
+  
   return (
     <DocsLayout
       tree={pageTree}
