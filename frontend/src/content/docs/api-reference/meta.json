@@ -1,6 +1,5 @@
 {
   "title": "API Reference",
   "description": "API documentation for developers",
-  "icon": "Code",
   "pages": ["index", "authentication", "endpoints", "webhooks", "errors"]
 }
