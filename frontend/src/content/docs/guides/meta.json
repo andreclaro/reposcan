@@ -1,0 +1,6 @@
+{
+  "title": "Guides",
+  "description": "Step-by-step tutorials and how-tos",
+  "icon": "BookOpen",
+  "pages": ["index", "cli", "docker", "configuration", "github-integration", "ci-cd"]
+}

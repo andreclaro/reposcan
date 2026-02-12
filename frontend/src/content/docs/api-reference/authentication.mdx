@@ -1,0 +1,195 @@
+---
+title: Authentication
+description: How to authenticate with the SecurityKit API
+icon: Lock
+---
+
+# Authentication
+
+The SecurityKit API uses API keys for authentication. All requests must include a valid API key.
+
+## API Keys
+
+### Creating an API Key
+
+1. Sign in to your [SecurityKit dashboard](https://your-domain.com/app)
+2. Go to **Settings** → **API Keys**
+3. Click **"Create New Key"**
+4. Give your key a descriptive name
+5. Copy the key immediately (it won't be shown again)
+
+### Key Permissions
+
+API keys can have specific permissions:
+
+| Permission | Description |
+|------------|-------------|
+| `scans:read` | View scan results |
+| `scans:write` | Create new scans |
+| `findings:read` | Access vulnerability findings |
+| `ai:read` | Access AI analysis |
+| `webhooks:write` | Manage webhooks |
+
+### Revoking Keys
+
+To revoke a key:
+1. Go to **Settings** → **API Keys**
+2. Find the key you want to revoke
+3. Click **"Revoke"**
+4. Confirm the action
+
+## Using API Keys
+
+### Header Authentication
+
+Include your API key in the `Authorization` header:
+
+```bash
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  https://api.securitykit.com/health
+```
+
+### Query Parameter (Not Recommended)
+
+For testing only:
+
+```bash
+curl "https://api.securitykit.com/health?api_key=YOUR_API_KEY"
+```
+
+## Security Best Practices
+
+### 1. Store Keys Securely
+
+Never commit API keys to version control:
+
+```bash
+# .gitignore
+.env
+.env.local
+*.key
+```
+
+Use environment variables:
+
+```bash
+# .env
+SECURITYKIT_API_KEY=sk_...
+```
+
+```python
+import os
+
+api_key = os.getenv('SECURITYKIT_API_KEY')
+```
+
+### 2. Use Separate Keys per Environment
+
+| Environment | Key Name | Permissions |
+|-------------|----------|-------------|
+| Production | `prod-ci` | Limited, read-only |
+| Staging | `staging` | Full access |
+| Development | `dev-local` | Full access |
+
+### 3. Rotate Keys Regularly
+
+- Rotate production keys every 90 days
+- Rotate after team member departures
+- Rotate if a key is accidentally exposed
+
+### 4. Limit Key Scope
+
+Only grant permissions your application needs:
+
+- **CI/CD pipelines**: `scans:write`, `scans:read`
+- **Dashboards**: `scans:read`, `findings:read`
+- **Integrations**: Specific permissions only
+
+## Authentication Errors
+
+### Invalid API Key
+
+```json
+{
+  "success": false,
+  "error": "Invalid API key",
+  "code": "AUTH_INVALID_KEY"
+}
+```
+
+### Missing Authentication
+
+```json
+{
+  "success": false,
+  "error": "Authentication required",
+  "code": "AUTH_REQUIRED"
+}
+```
+
+### Insufficient Permissions
+
+```json
+{
+  "success": false,
+  "error": "Insufficient permissions",
+  "code": "AUTH_FORBIDDEN"
+}
+```
+
+## OAuth 2.0 (Enterprise)
+
+Enterprise plans support OAuth 2.0 for delegated access:
+
+### Authorization Flow
+
+1. Redirect user to authorization endpoint
+2. User approves access
+3. Exchange code for access token
+4. Use token for API requests
+
+### Scopes
+
+- `read:scans` - Read scan data
+- `write:scans` - Create scans
+- `admin` - Full access
+
+Contact support to enable OAuth for your organization.
+
+## IP Whitelisting (Enterprise)
+
+Restrict API access to specific IP addresses:
+
+1. Go to **Settings** → **Security**
+2. Add allowed IP addresses or CIDR ranges
+3. Save changes
+
+Only requests from whitelisted IPs will be accepted.
+
+## Troubleshooting
+
+### Key Not Working
+
+- Verify the full key is being sent
+- Check for extra spaces or newlines
+- Ensure the key hasn't been revoked
+- Confirm the key has required permissions
+
+### Rate Limit Errors
+
+```json
+{
+  "success": false,
+  "error": "Rate limit exceeded",
+  "code": "RATE_LIMIT_EXCEEDED",
+  "retry_after": 60
+}
+```
+
+Wait the specified time before retrying, or upgrade your plan.
+
+## Resources
+
+- [API Keys Dashboard](https://your-domain.com/app/settings/api-keys)
+- [Security Settings](https://your-domain.com/app/settings/security)
+- [Contact Support](/contact)

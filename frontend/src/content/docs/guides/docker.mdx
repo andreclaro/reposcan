@@ -1,0 +1,322 @@
+---
+title: Docker Deployment
+description: Run SecurityKit with Docker Compose
+icon: Container
+---
+
+# Docker Deployment
+
+Run the complete SecurityKit stack locally using Docker Compose.
+
+## Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/securitykit/platform.git
+cd platform
+
+# Start all services
+docker compose -f docker/docker-compose.yml up -d
+
+# Verify
+curl http://localhost:8000/health
+```
+
+## Services
+
+The Docker Compose stack includes:
+
+| Service | Port | Description |
+|---------|------|-------------|
+| API | 8000 | FastAPI backend |
+| Worker | - | Celery task processor |
+| PostgreSQL | 5432 | Database |
+| Redis | 6379 | Task queue |
+| Frontend | 3003 | Next.js web app |
+
+## Prerequisites
+
+- Docker Engine 20.10+
+- Docker Compose 2.0+
+- 4GB RAM minimum
+- 10GB free disk space
+
+## Configuration
+
+### Environment File
+
+Create `frontend/.env.local`:
+
+```bash
+# Required
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/sec_audit
+REDIS_URL=redis://redis:6379/0
+RESULTS_DIR=/work/results
+
+# For GitHub integration
+GITHUB_CLIENT_ID=your_client_id
+GITHUB_CLIENT_SECRET=your_client_secret
+NEXTAUTH_SECRET=$(openssl rand -base64 32)
+
+# For AI analysis (optional)
+AI_ANALYSIS_ENABLED=true
+AI_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-...
+```
+
+### Minimal Configuration
+
+```bash
+cat > frontend/.env.local << 'EOF'
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/sec_audit
+REDIS_URL=redis://redis:6379/0
+RESULTS_DIR=/work/results
+NEXTAUTH_SECRET=$(openssl rand -base64 32)
+EOF
+```
+
+## Usage
+
+### Start Services
+
+```bash
+# Start all services
+docker compose -f docker/docker-compose.yml up -d
+
+# Start specific services
+docker compose up -d api worker
+```
+
+### View Logs
+
+```bash
+# All services
+docker compose logs -f
+
+# Specific service
+docker compose logs -f api
+docker compose logs -f worker
+docker compose logs -f postgres
+```
+
+### Stop Services
+
+```bash
+# Stop gracefully
+docker compose down
+
+# Stop and remove volumes (WARNING: deletes data)
+docker compose down -v
+```
+
+## Development Mode
+
+Enable hot reload for development:
+
+```bash
+# API and worker auto-reload on code changes
+docker compose -f docker/docker-compose.yml up -d
+
+# Frontend (run separately for better HMR)
+cd frontend
+pnpm dev
+```
+
+## Data Persistence
+
+### Volumes
+
+| Volume | Purpose |
+|--------|---------|
+| `postgres_data` | Database storage |
+| `redis_data` | Task queue persistence |
+| `./results` | Scan results |
+
+### Backup Database
+
+```bash
+# Export
+docker compose exec postgres pg_dump -U postgres sec_audit > backup.sql
+
+# Import
+docker compose exec -T postgres psql -U postgres sec_audit < backup.sql
+```
+
+## Scaling
+
+### Multiple Workers
+
+Scale the worker service:
+
+```bash
+docker compose up -d --scale worker=3
+```
+
+### Resource Limits
+
+Add to `docker-compose.yml`:
+
+```yaml
+services:
+  worker:
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+```
+
+## Production Considerations
+
+### Security
+
+1. **Change default passwords**
+2. **Use secrets management**
+3. **Enable TLS**
+4. **Restrict network access**
+
+### Performance
+
+1. **Use external database**
+2. **Enable connection pooling**
+3. **Add caching layer**
+4. **Monitor resource usage**
+
+### Reliability
+
+1. **Health checks enabled**
+2. **Automatic restart policies**
+3. **Log aggregation**
+4. **Backup strategy**
+
+## Troubleshooting
+
+### Port Conflicts
+
+Change ports in `docker-compose.yml`:
+
+```yaml
+services:
+  api:
+    ports:
+      - "8001:8000"  # Use 8001 instead of 8000
+```
+
+### Permission Issues
+
+```bash
+# Linux: Add user to docker group
+sudo usermod -aG docker $USER
+# Log out and back in
+```
+
+### Database Connection Failed
+
+```bash
+# Check PostgreSQL
+docker compose ps
+docker compose logs postgres
+
+# Reset (WARNING: deletes data)
+docker compose down -v
+docker compose up -d postgres
+```
+
+### Worker Not Processing
+
+```bash
+# Check Redis connection
+docker compose exec redis redis-cli ping
+
+# Restart worker
+docker compose restart worker
+```
+
+## Advanced Configuration
+
+### Custom Networks
+
+```yaml
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true
+```
+
+### External Database
+
+```yaml
+services:
+  api:
+    environment:
+      DATABASE_URL: postgresql://user:pass@external-db:5432/sec_audit
+```
+
+### Reverse Proxy (nginx)
+
+```yaml
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+```
+
+## Updates
+
+### Update Images
+
+```bash
+# Pull latest images
+docker compose pull
+
+# Restart with new images
+docker compose up -d
+```
+
+### Update Code
+
+```bash
+# Pull latest code
+git pull
+
+# Rebuild images
+docker compose up -d --build
+```
+
+## Monitoring
+
+### Health Checks
+
+Built-in health checks for all services:
+
+```bash
+docker compose ps
+```
+
+### Resource Usage
+
+```bash
+docker stats
+```
+
+## Uninstall
+
+```bash
+# Stop and remove everything
+docker compose down -v
+
+# Remove images
+docker rmi securitykit-api securitykit-worker
+
+# Remove volumes
+docker volume rm securitykit_postgres_data securitykit_redis_data
+```

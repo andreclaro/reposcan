@@ -1,0 +1,6 @@
+{
+  "title": "Features",
+  "description": "Explore SecurityKit's scanning capabilities",
+  "icon": "Shield",
+  "pages": ["index", "sast", "containers", "infrastructure", "dependencies", "ai-analysis"]
+}

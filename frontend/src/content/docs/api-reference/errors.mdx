@@ -1,0 +1,315 @@
+---
+title: Error Handling
+description: API error codes and troubleshooting
+icon: AlertTriangle
+---
+
+# Error Handling
+
+This guide covers all API error codes and how to handle them properly.
+
+## Error Format
+
+All errors follow a consistent format:
+
+```json
+{
+  "success": false,
+  "error": "Human-readable error message",
+  "code": "ERROR_CODE",
+  "details": {
+    "field": "Additional context"
+  },
+  "request_id": "req_abc123"
+}
+```
+
+## HTTP Status Codes
+
+| Status | Meaning | Action |
+|--------|---------|--------|
+| 200 | Success | Request completed |
+| 400 | Bad Request | Check request format |
+| 401 | Unauthorized | Check authentication |
+| 403 | Forbidden | Check permissions |
+| 404 | Not Found | Resource doesn't exist |
+| 409 | Conflict | Resource already exists |
+| 422 | Validation Error | Check input data |
+| 429 | Rate Limited | Wait and retry |
+| 500 | Server Error | Contact support |
+| 503 | Service Unavailable | Retry with backoff |
+
+## Error Codes
+
+### Authentication Errors
+
+#### `AUTH_REQUIRED`
+**HTTP 401**
+
+Missing authentication token.
+
+```json
+{
+  "success": false,
+  "error": "Authentication required",
+  "code": "AUTH_REQUIRED"
+}
+```
+
+**Fix:** Include `Authorization: Bearer {token}` header.
+
+#### `AUTH_INVALID_KEY`
+**HTTP 401**
+
+Invalid or expired API key.
+
+```json
+{
+  "success": false,
+  "error": "Invalid API key",
+  "code": "AUTH_INVALID_KEY"
+}
+```
+
+**Fix:** Generate a new API key in dashboard settings.
+
+#### `AUTH_INSUFFICIENT_PERMISSIONS`
+**HTTP 403**
+
+Valid authentication but insufficient permissions.
+
+```json
+{
+  "success": false,
+  "error": "Insufficient permissions",
+  "code": "AUTH_INSUFFICIENT_PERMISSIONS",
+  "details": {
+    "required": "scans:write",
+    "granted": ["scans:read"]
+  }
+}
+```
+
+**Fix:** Use an API key with required permissions.
+
+### Validation Errors
+
+#### `VALIDATION_ERROR`
+**HTTP 422**
+
+Request validation failed.
+
+```json
+{
+  "success": false,
+  "error": "Validation failed",
+  "code": "VALIDATION_ERROR",
+  "details": {
+    "repo_url": "Invalid URL format",
+    "branch": "Branch name contains invalid characters"
+  }
+}
+```
+
+**Fix:** Check all fields meet requirements.
+
+#### `INVALID_JSON`
+**HTTP 400**
+
+Malformed JSON in request body.
+
+```json
+{
+  "success": false,
+  "error": "Invalid JSON in request body",
+  "code": "INVALID_JSON"
+}
+```
+
+**Fix:** Validate JSON syntax.
+
+### Resource Errors
+
+#### `NOT_FOUND`
+**HTTP 404**
+
+Requested resource doesn't exist.
+
+```json
+{
+  "success": false,
+  "error": "Scan not found",
+  "code": "NOT_FOUND",
+  "details": {
+    "scan_id": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+```
+
+**Fix:** Verify the resource ID is correct.
+
+#### `ALREADY_EXISTS`
+**HTTP 409**
+
+Resource already exists.
+
+```json
+{
+  "success": false,
+  "error": "Webhook already exists",
+  "code": "ALREADY_EXISTS"
+}
+```
+
+### Scan Errors
+
+#### `CLONE_FAILED`
+**HTTP 500**
+
+Failed to clone repository.
+
+```json
+{
+  "success": false,
+  "error": "Failed to clone repository",
+  "code": "CLONE_FAILED",
+  "details": {
+    "reason": "Repository not found or private"
+  }
+}
+```
+
+**Causes:**
+- Repository doesn't exist
+- Private repository without access
+- Invalid URL format
+
+#### `SCAN_TIMEOUT`
+**HTTP 500**
+
+Scan exceeded time limit.
+
+```json
+{
+  "success": false,
+  "error": "Scan timed out",
+  "code": "SCAN_TIMEOUT",
+  "details": {
+    "duration": 3600,
+    "limit": 3600
+  }
+}
+```
+
+**Fix:** Try scanning a smaller subset or upgrade your plan.
+
+#### `SCANNER_FAILED`
+**HTTP 500**
+
+One or more scanners failed.
+
+```json
+{
+  "success": false,
+  "error": "Scanner failed",
+  "code": "SCANNER_FAILED",
+  "details": {
+    "scanner": "semgrep",
+    "message": "Out of memory"
+  }
+}
+```
+
+### Rate Limiting
+
+#### `RATE_LIMIT_EXCEEDED`
+**HTTP 429**
+
+Too many requests.
+
+```json
+{
+  "success": false,
+  "error": "Rate limit exceeded",
+  "code": "RATE_LIMIT_EXCEEDED",
+  "details": {
+    "limit": 60,
+    "remaining": 0,
+    "reset_at": "2024-01-15T10:00:00Z"
+  }
+}
+```
+
+**Fix:** Wait until `reset_at` or upgrade your plan.
+
+## Error Handling Examples
+
+### Python
+
+```python
+from securitykit import Client, SecurityKitError
+
+client = Client(api_key="...")
+
+try:
+    scan = client.scan(repo_url="https://github.com/user/repo")
+except SecurityKitError as e:
+    if e.code == "AUTH_INVALID_KEY":
+        print("Invalid API key - check your credentials")
+    elif e.code == "RATE_LIMIT_EXCEEDED":
+        time.sleep(e.details["retry_after"])
+        retry()
+    else:
+        print(f"Error: {e.message}")
+```
+
+### JavaScript
+
+```javascript
+const client = new SecurityKit({ apiKey: '...' });
+
+try {
+  const scan = await client.scan({ repoUrl: '...' });
+} catch (error) {
+  switch (error.code) {
+    case 'AUTH_INVALID_KEY':
+      console.error('Invalid API key');
+      break;
+    case 'RATE_LIMIT_EXCEEDED':
+      await sleep(error.details.retry_after * 1000);
+      await retry();
+      break;
+    default:
+      console.error(`Error: ${error.message}`);
+  }
+}
+```
+
+## Retrying Requests
+
+Use exponential backoff for transient errors:
+
+```python
+import time
+
+def retry_with_backoff(func, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except SecurityKitError as e:
+            if e.status in [500, 502, 503, 504]:
+                wait = 2 ** attempt
+                time.sleep(wait)
+            else:
+                raise
+    raise Exception("Max retries exceeded")
+```
+
+## Getting Help
+
+If you encounter errors:
+
+1. Check the error code in this guide
+2. Verify your request format
+3. Check your authentication
+4. Contact support with the `request_id`

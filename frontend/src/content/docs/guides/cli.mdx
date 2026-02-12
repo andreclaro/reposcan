@@ -1,0 +1,303 @@
+---
+title: CLI Usage
+description: Use the SecurityKit command-line tool
+icon: Terminal
+---
+
+# CLI Usage
+
+The SecurityKit CLI allows you to run security scans from your terminal. Perfect for local development and CI/CD integration.
+
+## Installation
+
+### Using pip
+
+```bash
+pip install securitykit-cli
+```
+
+### From Source
+
+```bash
+git clone https://github.com/securitykit/cli.git
+cd cli
+pip install -e .
+```
+
+### Using Docker
+
+```bash
+docker pull securitykit/cli
+```
+
+## Quick Start
+
+```bash
+# Set your API key
+export SECURITYKIT_API_KEY="sk_..."
+
+# Scan a repository
+securitykit scan https://github.com/user/repo
+
+# Or use a CSV file for batch scanning
+securitykit batch repositories.csv
+```
+
+## Commands
+
+### Scan a Single Repository
+
+```bash
+securitykit scan [OPTIONS] REPO_URL
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--branch` | Branch to scan (default: main) |
+| `--type` | Scanner types (sast, dockerfile, terraform, etc.) |
+| `--output` | Output directory |
+| `--format` | Output format (json, sarif, table) |
+
+**Examples:**
+
+```bash
+# Basic scan
+securitykit scan https://github.com/user/repo
+
+# Specific branch
+securitykit scan https://github.com/user/repo --branch develop
+
+# Only SAST and dependencies
+securitykit scan https://github.com/user/repo \
+  --type sast,node,go
+
+# JSON output
+securitykit scan https://github.com/user/repo \
+  --format json \
+  --output results.json
+```
+
+### Batch Scanning
+
+Scan multiple repositories from a CSV file.
+
+**CSV Format:**
+
+```csv
+repository_url,branch
+https://github.com/org/repo1.git,main
+https://github.com/org/repo2.git,develop
+https://github.com/org/repo3.git,
+```
+
+**Command:**
+
+```bash
+securitykit batch [OPTIONS] CSV_FILE
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--output` | Output directory |
+| `--workers` | Concurrent scans (default: 2) |
+| `--type` | Scanner types |
+
+**Example:**
+
+```bash
+securitykit batch repos.csv \
+  --output ./results \
+  --workers 3 \
+  --type sast,dockerfile
+```
+
+### Check Scan Status
+
+```bash
+securitykit status SCAN_ID
+```
+
+### Get Scan Results
+
+```bash
+securitykit results SCAN_ID [OPTIONS]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--format` | Output format (json, table, sarif) |
+| `--severity` | Filter by severity |
+| `--output` | Save to file |
+
+**Example:**
+
+```bash
+# Get results as table
+securitykit results abc-123
+
+# JSON output, critical only
+securitykit results abc-123 \
+  --format json \
+  --severity critical,high \
+  --output findings.json
+```
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `SECURITYKIT_API_KEY` | Your API key |
+| `SECURITYKIT_API_URL` | API base URL |
+| `SECURITYKIT_OUTPUT` | Default output directory |
+
+### Config File
+
+Create `~/.securitykit/config.toml`:
+
+```toml
+api_key = "sk_..."
+api_url = "https://api.securitykit.com"
+default_output = "./results"
+```
+
+## Output Formats
+
+### Table (Default)
+
+```
+SEVERITY  SCANNER   FILE              LINE  MESSAGE
+─────────────────────────────────────────────────────────
+CRITICAL  semgrep   auth.js           42    SQL injection
+HIGH      trivy     Dockerfile        5     Running as root
+MEDIUM    npm       package.json      -     lodash@4.17.15
+```
+
+### JSON
+
+```json
+{
+  "scan_id": "abc-123",
+  "findings": [
+    {
+      "severity": "critical",
+      "scanner": "semgrep",
+      "file": "auth.js",
+      "line": 42,
+      "message": "SQL injection vulnerability"
+    }
+  ]
+}
+```
+
+### SARIF
+
+For integration with GitHub/CodeQL:
+
+```bash
+securitykit scan repo --format sarif --output results.sarif
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success, no findings |
+| 1 | Findings detected |
+| 2 | Error occurred |
+
+Useful for CI/CD:
+
+```bash
+securitykit scan repo
+if [ $? -eq 1 ]; then
+  echo "Security issues found!"
+  exit 1
+fi
+```
+
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+name: Security Scan
+on: [push, pull_request]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run SecurityKit
+        uses: securitykit/action@v1
+        with:
+          api-key: ${{ secrets.SECURITYKIT_API_KEY }}
+          repo-url: ${{ github.repository }}
+```
+
+### GitLab CI
+
+```yaml
+security_scan:
+  image: securitykit/cli
+  script:
+    - securitykit scan $CI_REPOSITORY_URL --branch $CI_COMMIT_REF_NAME
+  only:
+    - merge_requests
+    - main
+```
+
+## Tips
+
+### Faster Scans
+
+```bash
+# Skip large files
+securitykit scan repo --skip-lfs
+
+# Specific scanners only
+securitykit scan repo --type sast
+```
+
+### Quiet Mode
+
+```bash
+# Only show errors
+securitykit scan repo --quiet
+
+# No output, just exit code
+securitykit scan repo --silent
+```
+
+### Verbose Output
+
+```bash
+# Show all details
+securitykit scan repo --verbose
+
+# Debug mode
+securitykit scan repo --debug
+```
+
+## Getting Help
+
+```bash
+# General help
+securitykit --help
+
+# Command help
+securitykit scan --help
+securitykit batch --help
+
+# Version
+securitykit --version
+```

@@ -1,0 +1,433 @@
+---
+title: CI/CD Integration
+description: Add security scanning to your CI/CD pipeline
+icon: GitBranch
+---
+
+# CI/CD Integration
+
+Add automated security scanning to your continuous integration pipeline.
+
+## Overview
+
+Integrate SecurityKit into your CI/CD to:
+- Catch vulnerabilities before deployment
+- Block merges on critical issues
+- Track security over time
+- Generate compliance reports
+
+## Quick Start
+
+### GitHub Actions
+
+```yaml
+name: Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run SecurityKit Scan
+        uses: securitykit/action@v1
+        with:
+          api-key: ${{ secrets.SECURITYKIT_API_KEY }}
+          repo-url: ${{ github.repositoryUrl }}
+          branch: ${{ github.ref_name }}
+          fail-on: critical,high
+```
+
+## GitHub Actions
+
+### Basic Setup
+
+```yaml
+name: Security
+
+on: [push, pull_request]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: SecurityKit Scan
+        uses: securitykit/action@v1
+        with:
+          api-key: ${{ secrets.SECURITYKIT_API_KEY }}
+```
+
+### With Options
+
+```yaml
+- name: SecurityKit Scan
+  uses: securitykit/action@v1
+  with:
+    api-key: ${{ secrets.SECURITYKIT_API_KEY }}
+    repo-url: ${{ github.server_url }}/${{ github.repository }}
+    branch: ${{ github.head_ref || github.ref_name }}
+    audit-types: sast,dockerfile,node
+    fail-on: critical
+    output-format: sarif
+    output-file: securitykit-results.sarif
+
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v2
+  with:
+    sarif_file: securitykit-results.sarif
+```
+
+### Matrix Strategy
+
+```yaml
+strategy:
+  matrix:
+    scanner: [sast, dockerfile, terraform]
+    
+steps:
+  - name: Scan ${{ matrix.scanner }}
+    uses: securitykit/action@v1
+    with:
+      api-key: ${{ secrets.SECURITYKIT_API_KEY }}
+      audit-types: ${{ matrix.scanner }}
+```
+
+## GitLab CI
+
+### Basic Setup
+
+```yaml
+security_scan:
+  image: securitykit/cli:latest
+  stage: test
+  script:
+    - securitykit scan $CI_REPOSITORY_URL \\
+        --branch $CI_COMMIT_REF_NAME \\
+        --format sarif \\
+        --output gl-security-report.sarif
+  artifacts:
+    reports:
+      sast: gl-security-report.sarif
+    paths:
+      - gl-security-report.sarif
+  only:
+    - merge_requests
+    - main
+```
+
+### With Rules
+
+```yaml
+security_scan:
+  image: securitykit/cli:latest
+  stage: test
+  script:
+    - |
+      if [ "$CI_PIPELINE_SOURCE" = "merge_request_event" ]; then
+        securitykit scan $CI_REPOSITORY_URL \\
+          --branch $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME \\
+          --fail-on critical,high
+      else
+        securitykit scan $CI_REPOSITORY_URL \\
+          --branch $CI_COMMIT_REF_NAME
+      fi
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+```
+
+## CircleCI
+
+```yaml
+version: 2.1
+
+jobs:
+  security:
+    docker:
+      - image: securitykit/cli:latest
+    steps:
+      - checkout
+      - run:
+          name: Security Scan
+          command: |
+            securitykit scan . \\
+              --branch $CIRCLE_BRANCH \\
+              --format junit \\
+              --output test-results/security.xml
+      - store_test_results:
+          path: test-results
+
+workflows:
+  security:
+    jobs:
+      - security:
+          filters:
+            branches:
+              only: [main, develop]
+```
+
+## Jenkins
+
+### Pipeline
+
+```groovy
+pipeline {
+    agent any
+    
+    environment {
+        SECURITYKIT_API_KEY = credentials('securitykit-api-key')
+    }
+    
+    stages {
+        stage('Security Scan') {
+            steps {
+                script {
+                    docker.image('securitykit/cli:latest').inside {
+                        sh '''
+                            securitykit scan . \\
+                                --branch ${env.BRANCH_NAME} \\
+                                --format sarif \\
+                                --output results.sarif
+                        '''
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            archiveArtifacts artifacts: 'results.sarif'
+        }
+    }
+}
+```
+
+## Azure DevOps
+
+```yaml
+trigger:
+  - main
+  - develop
+
+pr:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - task: Docker@2
+    displayName: SecurityKit Scan
+    inputs:
+      command: run
+      arguments: |
+        -e SECURITYKIT_API_KEY=$(SECURITYKIT_API_KEY)
+        securitykit/cli:latest
+        scan $(Build.Repository.Uri)
+        --branch $(Build.SourceBranchName)
+        --format sarif
+        --output $(Build.ArtifactStagingDirectory)/results.sarif
+  
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathToPublish: $(Build.ArtifactStagingDirectory)
+      artifactName: security-results
+```
+
+## Bitbucket Pipelines
+
+```yaml
+image: securitykit/cli:latest
+
+pipelines:
+  default:
+    - step:
+        name: Security Scan
+        script:
+          - securitykit scan . \\
+              --branch $BITBUCKET_BRANCH \\
+              --fail-on critical
+        
+  pull-requests:
+    '**':
+      - step:
+          name: Security Scan
+          script:
+            - securitykit scan . \\
+                --branch $BITBUCKET_BRANCH \\
+                --fail-on critical,high
+```
+
+## Travis CI
+
+```yaml
+services:
+  - docker
+
+before_script:
+  - docker pull securitykit/cli:latest
+
+script:
+  - docker run --rm \\
+      -e SECURITYKIT_API_KEY=$SECURITYKIT_API_KEY \\
+      -v $(pwd):/repo \\
+      securitykit/cli:latest \\
+      scan /repo \\
+      --branch $TRAVIS_BRANCH
+```
+
+## Configuration Options
+
+### Fail Conditions
+
+Control when builds fail:
+
+```yaml
+# Fail on any finding
+--fail-on critical,high,medium,low
+
+# Fail only on critical
+--fail-on critical
+
+# Never fail (report only)
+# (don't use --fail-on)
+```
+
+### Scanner Selection
+
+```yaml
+# Run specific scanners
+--audit-types sast,dockerfile
+
+# Run all (default)
+--audit-types all
+```
+
+### Output Formats
+
+| Format | Use Case |
+|--------|----------|
+| `json` | Custom processing |
+| `sarif` | GitHub/CodeQL integration |
+| `junit` | Test result viewers |
+| `table` | Human-readable logs |
+
+## Best Practices
+
+### 1. Fail Fast
+
+```yaml
+security:
+  stage: test  # Run early
+  needs: []    # Don't wait for build
+```
+
+### 2. Parallel Scanning
+
+```yaml
+jobs:
+  sast:
+    steps:
+      - uses: securitykit/action@v1
+        with:
+          audit-types: sast
+          
+  dependencies:
+    steps:
+      - uses: securitykit/action@v1
+        with:
+          audit-types: node,go
+```
+
+### 3. Baseline Scanning
+
+```yaml
+# On main branch - full scan
+- name: Full Scan
+  if: github.ref == 'refs/heads/main'
+  uses: securitykit/action@v1
+
+# On PR - changed files only
+- name: PR Scan
+  if: github.event_name == 'pull_request'
+  uses: securitykit/action@v1
+  with:
+    changed-files-only: true
+```
+
+### 4. Notifications
+
+```yaml
+post:
+  failure:
+    - slack-notifier:
+        message: "Security scan failed!"
+```
+
+## Troubleshooting
+
+### Scan Fails in CI
+
+1. Check API key is set correctly
+2. Verify repository URL is accessible
+3. Check network connectivity
+4. Review scan logs
+
+### Timeout Issues
+
+```yaml
+# Increase timeout
+- name: Security Scan
+  uses: securitykit/action@v1
+  timeout-minutes: 30
+```
+
+### Rate Limiting
+
+- Reduce concurrent scans
+- Use caching for repeated runs
+- Upgrade plan for higher limits
+
+## Advanced Usage
+
+### Conditional Scanning
+
+```yaml
+- name: Security Scan
+  if: |
+    github.event_name == 'pull_request' ||
+    (github.event_name == 'push' && github.ref == 'refs/heads/main')
+  uses: securitykit/action@v1
+```
+
+### Multi-Repository
+
+```yaml
+strategy:
+  matrix:
+    repo:
+      - frontend
+      - backend
+      - api
+
+steps:
+  - name: Scan ${{ matrix.repo }}
+    uses: securitykit/action@v1
+    with:
+      repo-url: https://github.com/org/${{ matrix.repo }}
+```
+
+## Next Steps
+
+- [GitHub Integration](/docs/guides/github-integration) - Native GitHub App
+- [CLI Usage](/docs/guides/cli) - Command-line reference
+- [API Reference](/docs/api-reference) - Programmatic access

@@ -1,0 +1,152 @@
+---
+title: Container Scanning
+description: Scan Dockerfiles and container images for vulnerabilities
+icon: Container
+---
+
+# Container Scanning
+
+SecurityKit uses [Trivy](https://trivy.dev/) to scan Dockerfiles and container images for vulnerabilities, misconfigurations, and secrets.
+
+## What It Detects
+
+### Image Vulnerabilities
+- **OS packages** - Known CVEs in base image packages
+- **Application dependencies** - Vulnerable libraries in the image
+- **Base image issues** - Outdated or vulnerable base images
+
+### Dockerfile Misconfigurations
+- Running as root
+- Sensitive data in layers
+- Missing health checks
+- Exposed secrets
+- Insecure permissions
+
+### Best Practice Violations
+- Using `latest` tag
+- Large image sizes
+- Too many layers
+- Missing `.dockerignore`
+
+## Example Findings
+
+### Running as Root
+
+**Issue:**
+```dockerfile
+FROM node:18
+# No USER directive - runs as root
+```
+
+**Fix:**
+```dockerfile
+FROM node:18
+RUN useradd -m appuser
+USER appuser
+```
+
+### Vulnerable Base Image
+
+**Finding:**
+```
+Image: node:16-alpine
+Vulnerabilities: 15 (2 Critical, 5 High)
+Recommendation: Upgrade to node:20-alpine
+```
+
+### Hardcoded Secret
+
+**Issue:**
+```dockerfile
+ENV API_KEY="sk_live_abc123"
+```
+
+**Fix:**
+```dockerfile
+ENV API_KEY=""
+# Pass at runtime: docker run -e API_KEY=$API_KEY
+```
+
+## Scanning Options
+
+### Dockerfile Scan
+Analyzes the Dockerfile for misconfigurations:
+
+```bash
+trivy config Dockerfile
+```
+
+### Image Scan
+Scans a built image for vulnerabilities:
+
+```bash
+trivy image myapp:latest
+```
+
+### Filesystem Scan
+Scans the build context:
+
+```bash
+trivy fs .
+```
+
+## Severity Levels
+
+| Severity | Action | Timeframe |
+|----------|--------|-----------|
+| Critical | Immediate fix | 24 hours |
+| High | Prioritize | 1 week |
+| Medium | Plan fix | Next sprint |
+| Low | Optional | As convenient |
+
+## Best Practices
+
+1. **Use minimal base images** - Alpine or Distroless
+2. **Pin image versions** - Avoid `latest` tag
+3. **Run as non-root** - Create dedicated user
+4. **Multi-stage builds** - Minimize final image size
+5. **Scan in CI/CD** - Block vulnerable images
+6. **Regular updates** - Keep base images current
+
+## Base Image Recommendations
+
+### Good Choices
+```dockerfile
+# Minimal and secure
+FROM node:20-alpine
+FROM python:3.11-slim
+FROM gcr.io/distroless/nodejs20-debian12
+```
+
+### Avoid
+```dockerfile
+# Large attack surface
+FROM ubuntu:latest
+FROM node:latest
+```
+
+## CI/CD Integration
+
+### GitHub Actions
+```yaml
+- name: Scan container
+  uses: aquasecurity/trivy-action@master
+  with:
+    image-ref: 'myapp:${{ github.sha }}'
+    format: 'sarif'
+    output: 'trivy-results.sarif'
+```
+
+### GitLab CI
+```yaml
+container_scan:
+  image: aquasec/trivy
+  script:
+    - trivy image $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+```
+
+## Resources
+
+- [Trivy Documentation](https://trivy.dev/)
+- [Docker Security Best Practices](https://docs.docker.com/develop/dev-best-practices/)
+- [CIS Docker Benchmark](https://www.cisecurity.org/benchmark/docker)

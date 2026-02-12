@@ -1,0 +1,136 @@
+---
+title: Features Overview
+description: Explore all security scanning capabilities
+icon: Shield
+---
+
+# Features Overview
+
+SecurityKit combines multiple industry-leading security scanners into a unified platform. Each scanner specializes in detecting different types of vulnerabilities.
+
+## Scanner Categories
+
+### 1. Static Application Security Testing (SAST)
+
+Analyze your source code for security vulnerabilities without executing it.
+
+- **SQL Injection**
+- **Cross-Site Scripting (XSS)**
+- **Hardcoded secrets**
+- **Insecure cryptographic practices**
+- **Logic flaws**
+
+[Learn more about SAST →](/docs/features/sast)
+
+### 2. Container Security
+
+Scan Dockerfiles and container images for vulnerabilities and misconfigurations.
+
+- **Base image vulnerabilities**
+- **Insecure Dockerfile practices**
+- **OS package vulnerabilities**
+- **Sensitive data exposure**
+
+[Learn more about Container Scanning →](/docs/features/containers)
+
+### 3. Infrastructure as Code (IaC)
+
+Validate your infrastructure definitions before deployment.
+
+- **Terraform misconfigurations**
+- **Cloud security best practices**
+- **Compliance violations**
+- **Resource exposure risks**
+
+[Learn more about IaC Scanning →](/docs/features/infrastructure)
+
+### 4. Dependency Auditing
+
+Track vulnerable dependencies across multiple ecosystems.
+
+| Ecosystem | Tool | What It Finds |
+|-----------|------|---------------|
+| Node.js | npm audit / pnpm audit | Known CVEs in npm packages |
+| Go | govulncheck | Go vulnerability database entries |
+| Rust | cargo-audit | RustSec advisories |
+| Python | pip-audit | PyPI package vulnerabilities |
+
+[Learn more about Dependency Auditing →](/docs/features/dependencies)
+
+### 5. AI-Powered Analysis
+
+Get intelligent insights beyond raw findings.
+
+- **Risk scoring** (0-100)
+- **Prioritized recommendations**
+- **Executive summaries**
+- **Fix effort estimation**
+
+[Learn more about AI Analysis →](/docs/features/ai-analysis)
+
+## Finding Severity Levels
+
+All findings are categorized by severity:
+
+<div className="space-y-4 my-6">
+  <div className="flex items-center gap-3 p-3 rounded-lg bg-red-50 border border-red-200">
+    <span className="font-semibold text-red-700 w-20">Critical</span>
+    <span className="text-red-600">Immediate exploitation risk. Fix within 24 hours.</span>
+  </div>
+  <div className="flex items-center gap-3 p-3 rounded-lg bg-orange-50 border border-orange-200">
+    <span className="font-semibold text-orange-700 w-20">High</span>
+    <span className="text-orange-600">Significant security impact. Fix within 1 week.</span>
+  </div>
+  <div className="flex items-center gap-3 p-3 rounded-lg bg-yellow-50 border border-yellow-200">
+    <span className="font-semibold text-yellow-700 w-20">Medium</span>
+    <span className="text-yellow-600">Moderate risk. Address in next sprint.</span>
+  </div>
+  <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 border border-blue-200">
+    <span className="font-semibold text-blue-700 w-20">Low</span>
+    <span className="text-blue-600">Minor issue or informational. Fix when convenient.</span>
+  </div>
+  <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-200">
+    <span className="font-semibold text-gray-700 w-20">Info</span>
+    <span className="text-gray-600">Best practice recommendations and observations.</span>
+  </div>
+</div>
+
+## Scanner Comparison
+
+| Feature | SAST | Containers | IaC | Dependencies |
+|---------|------|------------|-----|--------------|
+| Languages | All major | Dockerfile | Terraform, CloudFormation | Node, Go, Rust, Python |
+| Scan Speed | Fast | Medium | Fast | Fast |
+| False Positives | Low-Medium | Low | Low | Very Low |
+| Remediation Guidance | Yes | Yes | Yes | Auto-fix available |
+| CI/CD Integration | Yes | Yes | Yes | Yes |
+
+## Integration Options
+
+### Web Dashboard
+- Manual scans
+- Scheduled scans
+- Result visualization
+- Team collaboration
+
+### API
+- Programmatic access
+- Custom integrations
+- Webhook support
+
+### CLI
+- Local development
+- CI/CD pipelines
+- Batch processing
+
+### GitHub App
+- Automatic PR scans
+- Status checks
+- Inline comments
+
+## Next Steps
+
+- Learn about [SAST scanning](/docs/features/sast)
+- Explore [container security](/docs/features/containers)
+- Set up [infrastructure scanning](/docs/features/infrastructure)
+- Enable [AI analysis](/docs/features/ai-analysis)

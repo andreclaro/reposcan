@@ -1,0 +1,69 @@
+---
+title: Introduction
+description: Welcome to SecurityKit - automated security scanning for your repositories
+icon: House
+---
+
+# Welcome to SecurityKit
+
+SecurityKit is a comprehensive security audit platform that helps you catch vulnerabilities before they reach production. Whether you're a solo developer or part of a large team, SecurityKit makes it easy to secure your code, dependencies, containers, and infrastructure.
+
+## What is SecurityKit?
+
+SecurityKit runs multiple industry-standard security scanners against your repositories and presents the results in a unified dashboard. Instead of learning and configuring multiple tools, you get everything in one place.
+
+## Key Features
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-8">
+  <Card title="Static Analysis (SAST)" icon="Bug">
+    Detect SQL injection, XSS, hardcoded secrets, and logic flaws using Semgrep
+  </Card>
+  <Card title="Container Scanning" icon="Container">
+    Scan Dockerfiles for vulnerabilities and misconfigurations with Trivy
+  </Card>
+  <Card title="Infrastructure as Code" icon="Server">
+    Validate Terraform and CloudFormation configurations with tfsec and Checkov
+  </Card>
+  <Card title="Dependency Audits" icon="Package">
+    Track vulnerable dependencies across Node.js, Go, Rust, and Python
+  </Card>
+  <Card title="AI-Powered Insights" icon="Sparkles">
+    Get prioritized recommendations and risk scores from our AI analysis
+  </Card>
+  <Card title="Unified Dashboard" icon="LayoutDashboard">
+    View all findings organized by severity with actionable remediation guidance
+  </Card>
+</div>
+
+## Supported Scanners
+
+| Scanner | Purpose | Languages/Formats |
+|---------|---------|-------------------|
+| Semgrep | Static analysis | All major languages |
+| Trivy | Container & filesystem scanning | Docker, Kubernetes |
+| tfsec | Terraform security | Terraform |
+| Checkov | Infrastructure as Code | Terraform, CloudFormation, Kubernetes |
+| tflint | Terraform linting | Terraform |
+| npm audit | Node.js dependencies | Node.js, JavaScript |
+| govulncheck | Go vulnerability database | Go |
+| cargo-audit | Rust crate auditing | Rust |
+
+## How It Works
+
+1. **Connect** your GitHub repository
+2. **Scan** runs automatically against your codebase
+3. **Review** findings in the unified dashboard
+4. **Fix** with AI-generated recommendations
+
+## Quick Links
+
+- [Quick Start Guide](/docs/getting-started/quickstart) - Get your first scan in 5 minutes
+- [Installation](/docs/getting-started/installation) - Set up SecurityKit locally
+- [API Reference](/docs/api-reference) - Integrate with our API
+- [Features](/docs/features) - Learn about each scanner
+
+## Getting Help
+
+- Browse our [FAQ](/docs/support/faq)
+- Check [Troubleshooting](/docs/support/troubleshooting) guides
+- Contact us through the [support page](/contact)

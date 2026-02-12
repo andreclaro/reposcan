@@ -1,0 +1,275 @@
+---
+title: Endpoints
+description: Complete API endpoint reference
+icon: Terminal
+---
+
+# API Endpoints
+
+Complete reference for all SecurityKit API endpoints.
+
+## Health Check
+
+Check if the API is operational.
+
+```http
+GET /health
+```
+
+### Response
+
+```json
+{
+  "status": "ok"
+}
+```
+
+## Create Scan
+
+Queue a new security scan.
+
+```http
+POST /scan
+Content-Type: application/json
+Authorization: Bearer {token}
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `repo_url` | string | Yes | Git repository URL |
+| `branch` | string | No | Branch to scan (default: main) |
+| `audit_types` | array | No | Scanners to run (default: all) |
+| `skip_lfs` | boolean | No | Skip Git LFS files |
+
+### Example Request
+
+```bash
+curl -X POST http://localhost:8000/scan \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "repo_url": "https://github.com/user/repo.git",
+    "branch": "main",
+    "audit_types": ["sast", "dockerfile", "node"],
+    "skip_lfs": false
+  }'
+```
+
+### Response
+
+```json
+{
+  "scan_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "queued"
+}
+```
+
+### Audit Types
+
+| Type | Description |
+|------|-------------|
+| `sast` | Static analysis (Semgrep) |
+| `dockerfile` | Container scanning (Trivy) |
+| `terraform` | Infrastructure scanning (tfsec, Checkov) |
+| `node` | Node.js dependency audit |
+| `go` | Go vulnerability check |
+| `rust` | Rust crate audit |
+
+## Get Scan Status
+
+Check the status of a scan.
+
+```http
+GET /scan/{scan_id}/status
+Authorization: Bearer {token}
+```
+
+### Response (Queued)
+
+```json
+{
+  "scan_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "queued",
+  "progress": 0
+}
+```
+
+### Response (Running)
+
+```json
+{
+  "scan_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "running",
+  "progress": 45,
+  "current_step": "Running SAST scan"
+}
+```
+
+### Response (Completed)
+
+```json
+{
+  "scan_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "completed",
+  "progress": 100,
+  "findings_count": 12,
+  "critical_count": 1,
+  "high_count": 3,
+  "medium_count": 5,
+  "low_count": 3,
+  "completed_at": "2024-01-15T10:30:00Z"
+}
+```
+
+### Response (Failed)
+
+```json
+{
+  "scan_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "failed",
+  "error": "Failed to clone repository",
+  "error_code": "CLONE_FAILED"
+}
+```
+
+## Get Scan Details
+
+Retrieve complete scan information.
+
+```http
+GET /scan/{scan_id}
+Authorization: Bearer {token}
+```
+
+### Response
+
+```json
+{
+  "scan_id": "550e8400-e29b-41d4-a716-446655440000",
+  "repo_url": "https://github.com/user/repo.git",
+  "branch": "main",
+  "commit_hash": "abc123def456",
+  "status": "completed",
+  "audit_types": ["sast", "dockerfile"],
+  "findings_count": 12,
+  "created_at": "2024-01-15T10:00:00Z",
+  "completed_at": "2024-01-15T10:30:00Z"
+}
+```
+
+## List Findings
+
+Get all findings from a scan.
+
+```http
+GET /scan/{scan_id}/findings
+Authorization: Bearer {token}
+```
+
+### Query Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `severity` | string | Filter by severity |
+| `scanner` | string | Filter by scanner |
+| `limit` | integer | Max results (default: 100) |
+| `offset` | integer | Pagination offset |
+
+### Example
+
+```bash
+curl "http://localhost:8000/scan/{id}/findings?severity=critical,high&limit=50" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Response
+
+```json
+{
+  "findings": [
+    {
+      "id": "finding-001",
+      "scanner": "semgrep",
+      "severity": "critical",
+      "title": "SQL Injection",
+      "description": "Unsanitized user input in SQL query",
+      "file_path": "src/auth.js",
+      "line_start": 42,
+      "line_end": 45,
+      "cwe": "CWE-89",
+      "message": "User input is directly concatenated into SQL query"
+    }
+  ],
+  "total": 12,
+  "limit": 100,
+  "offset": 0
+}
+```
+
+## Get AI Analysis
+
+Retrieve AI-generated analysis for a scan.
+
+```http
+GET /scan/{scan_id}/ai-analysis
+Authorization: Bearer {token}
+```
+
+### Response
+
+```json
+{
+  "scan_id": "550e8400-e29b-41d4-a716-446655440000",
+  "risk_score": 72,
+  "summary": "This scan identified 15 vulnerabilities...",
+  "recommendations": [
+    {
+      "priority": 1,
+      "title": "Fix SQL injection in auth.js",
+      "description": "The SQL injection vulnerability...",
+      "effort": "2 hours"
+    }
+  ],
+  "generated_at": "2024-01-15T10:32:00Z"
+}
+```
+
+## Error Codes
+
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `INVALID_REQUEST` | 400 | Malformed request |
+| `AUTH_REQUIRED` | 401 | Missing authentication |
+| `AUTH_INVALID` | 401 | Invalid credentials |
+| `FORBIDDEN` | 403 | Insufficient permissions |
+| `NOT_FOUND` | 404 | Resource not found |
+| `RATE_LIMITED` | 429 | Too many requests |
+| `INTERNAL_ERROR` | 500 | Server error |
+
+## Pagination
+
+List endpoints support pagination:
+
+```bash
+# First page
+curl "/scan/{id}/findings?limit=20&offset=0"
+
+# Second page
+curl "/scan/{id}/findings?limit=20&offset=20"
+```
+
+Response includes pagination info:
+
+```json
+{
+  "data": [...],
+  "pagination": {
+    "total": 150,
+    "limit": 20,
+    "offset": 0,
+    "has_more": true
+  }
+}
+```

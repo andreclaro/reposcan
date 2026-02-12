@@ -1,0 +1,6 @@
+{
+  "title": "Support",
+  "description": "Get help and troubleshooting assistance",
+  "icon": "HelpCircle",
+  "pages": ["index", "faq", "troubleshooting"]
+}

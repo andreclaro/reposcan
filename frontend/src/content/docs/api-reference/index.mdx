@@ -1,0 +1,141 @@
+---
+title: API Overview
+description: Programmatic access to SecurityKit
+icon: Code
+---
+
+# API Overview
+
+The SecurityKit API provides programmatic access to security scanning capabilities. Build custom integrations, automate workflows, and embed security scanning into your tools.
+
+## Base URL
+
+```
+https://api.securitykit.com
+```
+
+For local development:
+
+```
+http://localhost:8000
+```
+
+## Authentication
+
+All API requests require authentication. See the [Authentication](/docs/api-reference/authentication) guide for details.
+
+```bash
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  https://api.securitykit.com/health
+```
+
+## API Version
+
+Current version: **v1**
+
+The API version is included in the URL path:
+
+```
+/api/v1/scan
+```
+
+## Response Format
+
+All responses are JSON:
+
+```json
+{
+  "success": true,
+  "data": { }
+}
+```
+
+Errors include an error message:
+
+```json
+{
+  "success": false,
+  "error": "Invalid repository URL"
+}
+```
+
+## Rate Limits
+
+| Plan | Requests/minute | Scans/hour |
+|------|-----------------|------------|
+| Free | 60 | 5 |
+| Pro | 300 | 50 |
+| Enterprise | Unlimited | Unlimited |
+
+Rate limit headers are included in responses:
+
+```
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 45
+X-RateLimit-Reset: 1640995200
+```
+
+## Endpoints Overview
+
+### Scans
+- `POST /scan` - Queue a new scan
+- `GET /scan/{id}` - Get scan details
+- `GET /scan/{id}/status` - Check scan status
+- `GET /scan/{id}/findings` - List findings
+- `GET /scan/{id}/ai-analysis` - Get AI analysis
+
+### Health
+- `GET /health` - API health check
+
+## Client Libraries
+
+Official clients:
+- [Python](https://github.com/securitykit/python-client)
+- [JavaScript/TypeScript](https://github.com/securitykit/js-client)
+
+Community clients:
+- Go
+- Ruby
+
+## Interactive Documentation
+
+When running locally:
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+
+## Webhooks
+
+Receive real-time notifications:
+- Scan completed
+- New findings detected
+- AI analysis ready
+
+See [Webhooks](/docs/api-reference/webhooks) for configuration.
+
+## SDK Examples
+
+### Python
+```python
+from securitykit import Client
+
+client = Client(api_key="sk_...")
+scan = client.scan(repo_url="https://github.com/user/repo")
+print(scan.id)
+```
+
+### JavaScript
+```javascript
+import { SecurityKit } from '@securitykit/client';
+
+const client = new SecurityKit({ apiKey: 'sk_...' });
+const scan = await client.scan({
+  repoUrl: 'https://github.com/user/repo'
+});
+console.log(scan.id);
+```
+
+## Support
+
+- [API Changelog](/changelog)
+- [Status Page](https://status.securitykit.com)
+- [Contact Support](/contact)

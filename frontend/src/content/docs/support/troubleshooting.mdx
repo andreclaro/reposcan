@@ -1,0 +1,339 @@
+---
+title: Troubleshooting
+description: Solutions to common problems
+icon: Wrench
+---
+
+# Troubleshooting
+
+Solutions to common issues when using SecurityKit.
+
+## Scan Issues
+
+### Scan Fails to Start
+
+**Symptom:** Click "Start Scan" but nothing happens or error appears.
+
+**Solutions:**
+
+1. **Check repository URL**
+   ```
+   ✅ https://github.com/user/repo
+   ❌ github.com/user/repo
+   ❌ https://github.com/user/repo.git
+   ```
+
+2. **Verify repository is accessible**
+   - Private repos require Pro plan
+   - Check repository exists and is not archived
+   - Ensure GitHub App has access to repo
+
+3. **Check branch name**
+   - Branch must exist
+   - Case-sensitive
+   - Default is `main` if not specified
+
+### Scan Stuck or Taking Too Long
+
+**Symptom:** Scan shows "Running" for over 30 minutes.
+
+**Solutions:**
+
+1. **Check scan logs**
+   - Go to scan details → Logs
+   - Look for specific errors
+
+2. **Large repository?**
+   - Scans may take 30+ min for large repos
+   - Consider scanning specific paths
+   - Exclude large files (binaries, assets)
+
+3. **Retry the scan**
+   ```bash
+   # Via API
+curl -X POST https://api.securitykit.com/scan/{id}/retry \
+     -H "Authorization: Bearer TOKEN"
+   ```
+
+### No Findings Found
+
+**Symptom:** Scan completes but shows 0 findings.
+
+**Check:**
+
+1. **Is this expected?**
+   - Your code might be secure!
+   - Try scanning a known vulnerable repo for testing
+
+2. **Scanners enabled?**
+   - Check scan settings
+   - Enable all scanners for comprehensive coverage
+
+3. **File patterns**
+   - Some files might be excluded
+   - Check `.securitykit.yml` if present
+
+## Repository Connection Issues
+
+### GitHub Authentication Failed
+
+**Symptom:** "Failed to authenticate with GitHub" error.
+
+**Solutions:**
+
+1. **Re-install GitHub App**
+   - Go to GitHub → Settings → Applications
+   - Find SecurityKit
+   - Configure → Uninstall
+   - Re-install from SecurityKit dashboard
+
+2. **Check permissions**
+   - App needs repository access
+   - Verify access to specific repos
+
+3. **Token expired?**
+   - Reconnect GitHub account
+   - Refresh OAuth token
+
+### Cannot Access Private Repository
+
+**Symptom:** "Repository not found" for private repo.
+
+**Solutions:**
+
+1. **Check plan**
+   - Private repos require Pro plan
+   - Upgrade in Settings → Billing
+
+2. **Verify GitHub App access**
+   - GitHub → Settings → Applications → SecurityKit
+   - Ensure repo is selected
+
+3. **Repository transferred?**
+   - Re-install app for new organization
+   - Update repository URL
+
+## AI Analysis Issues
+
+### AI Analysis Not Available
+
+**Symptom:** "AI analysis not available" message.
+
+**Solutions:**
+
+1. **Check plan**
+   - AI requires Pro or Enterprise
+   - Free plan has limited AI scans
+
+2. **Verify AI is enabled**
+   - Check Settings → AI Analysis
+   - Ensure toggle is ON
+
+3. **Check API key**
+   - AI provider key must be valid
+   - Check Settings → Integrations
+
+4. **Scan must complete first**
+   - AI runs after scan finishes
+   - Wait for scan status = "completed"
+
+### AI Analysis Failed
+
+**Symptom:** "AI analysis failed" or 401 error.
+
+**Solutions:**
+
+1. **Check API key**
+   ```bash
+   # Verify key is valid
+   curl -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+     https://api.anthropic.com/v1/me
+   ```
+
+2. **Rate limiting?**
+   - Check API provider dashboard
+   - May need to wait or upgrade
+
+3. **Regenerate analysis**
+   - Click "Regenerate AI Analysis"
+   - Wait 1-2 minutes
+
+## API Issues
+
+### 401 Unauthorized
+
+**Symptom:** API returns "Invalid API key".
+
+**Solutions:**
+
+1. **Verify API key**
+   - Check Settings → API Keys
+   - Ensure key is active (not revoked)
+
+2. **Check header format**
+   ```bash
+   ✅ -H "Authorization: Bearer sk-..."
+   ❌ -H "Authorization: sk-..."
+   ❌ -H "X-API-Key: sk-..."
+   ```
+
+3. **Environment variables**
+   - Ensure key is loaded correctly
+   - Check for typos
+
+### 429 Rate Limit Exceeded
+
+**Symptom:** "Rate limit exceeded" error.
+
+**Solutions:**
+
+1. **Check limits**
+   | Plan | Requests/min |
+   |------|--------------|
+   | Free | 60 |
+   | Pro | 300 |
+   | Enterprise | Unlimited |
+
+2. **Implement backoff**
+   ```python
+   import time
+   
+   for attempt in range(3):
+       try:
+           return api.call()
+       except RateLimitError:
+           time.sleep(2 ** attempt)
+   ```
+
+3. **Upgrade plan**
+   - Higher limits on Pro/Enterprise
+
+## Docker/Local Setup Issues
+
+### Services Won't Start
+
+**Symptom:** `docker compose up` fails.
+
+**Solutions:**
+
+1. **Check ports**
+   ```bash
+   # Check if ports are in use
+   lsof -i :8000
+   lsof -i :5432
+   lsof -i :6379
+   ```
+
+2. **Change ports in docker-compose.yml**
+   ```yaml
+   ports:
+     - "8001:8000"  # Use 8001 instead
+   ```
+
+3. **Check disk space**
+   ```bash
+   df -h
+   docker system df
+   ```
+
+### Database Connection Failed
+
+**Symptom:** "Cannot connect to database" error.
+
+**Solutions:**
+
+1. **Check PostgreSQL is running**
+   ```bash
+   docker compose ps
+   docker compose logs postgres
+   ```
+
+2. **Verify connection string**
+   ```bash
+   # Test connection
+   psql $DATABASE_URL -c "SELECT 1"
+   ```
+
+3. **Reset database** (WARNING: loses data)
+   ```bash
+   docker compose down -v
+   docker compose up -d postgres
+   ```
+
+### Worker Not Processing Tasks
+
+**Symptom:** Scans stay in "queued" state.
+
+**Solutions:**
+
+1. **Check Redis connection**
+   ```bash
+   docker compose exec redis redis-cli ping
+   # Should return PONG
+   ```
+
+2. **Restart worker**
+   ```bash
+   docker compose restart worker
+   ```
+
+3. **Check worker logs**
+   ```bash
+   docker compose logs worker
+   ```
+
+## Performance Issues
+
+### Scans Are Slow
+
+**Improvements:**
+
+1. **Selective scanning**
+   - Only enable needed scanners
+   - Skip LFS files with `--skip-lfs`
+
+2. **Incremental scans**
+   - Scan changed files only
+   - Use PR scanning instead of full
+
+3. **Parallel workers**
+   ```bash
+   docker compose up -d --scale worker=3
+   ```
+
+### Dashboard Is Slow
+
+**Solutions:**
+
+1. **Clear browser cache**
+2. **Check network connection**
+3. **Try incognito mode**
+4. **Disable browser extensions**
+
+## Getting More Help
+
+### Still Stuck?
+
+1. **Check status page**
+   - [status.securitykit.com](https://status.securitykit.com)
+
+2. **Contact support**
+   - Include error messages
+   - Provide scan ID if relevant
+   - Describe steps to reproduce
+
+3. **Community help**
+   - [GitHub Discussions](https://github.com/securitykit/platform/discussions)
+   - [Discord Community](https://discord.gg/securitykit)
+
+### Debug Mode
+
+Enable debug logging:
+
+```bash
+# CLI
+securitykit scan repo --debug
+
+# Docker
+docker compose -e LOG_LEVEL=DEBUG up
+```

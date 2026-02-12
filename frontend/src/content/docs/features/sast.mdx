@@ -1,0 +1,158 @@
+---
+title: Static Analysis (SAST)
+description: Find security vulnerabilities in your source code with Semgrep
+icon: Bug
+---
+
+# Static Analysis (SAST)
+
+SecurityKit uses [Semgrep](https://semgrep.dev/) to analyze your source code for security vulnerabilities without executing it. This catches issues early in the development lifecycle.
+
+## What It Detects
+
+### Injection Vulnerabilities
+- **SQL Injection** - Unsafe SQL query construction
+- **Command Injection** - Unsanitized shell command execution
+- **LDAP Injection** - Unsafe LDAP filter construction
+- **XPath Injection** - Unsanitized XPath expressions
+
+### Cross-Site Scripting (XSS)
+- Reflected XSS
+- Stored XSS
+- DOM-based XSS
+- Unsafe HTML rendering
+
+### Authentication & Authorization
+- Hardcoded credentials
+- Weak password policies
+- Insecure session management
+- Missing authentication checks
+
+### Cryptographic Issues
+- Weak algorithms (MD5, SHA1)
+- Hardcoded encryption keys
+- Insecure random number generation
+- Certificate validation bypass
+
+### Data Protection
+- Sensitive data logging
+- Insecure storage
+- PII exposure
+- Secret leakage
+
+## Supported Languages
+
+| Language | Status | Coverage |
+|----------|--------|----------|
+| Python | ✅ Full | High |
+| JavaScript/TypeScript | ✅ Full | High |
+| Java | ✅ Full | High |
+| Go | ✅ Full | High |
+| Ruby | ✅ Full | Medium |
+| PHP | ✅ Full | Medium |
+| C/C++ | ✅ Full | Medium |
+| Rust | ✅ Partial | Growing |
+| C# | ✅ Partial | Growing |
+
+## Example Findings
+
+### SQL Injection
+
+**Vulnerable Code:**
+```python
+query = f"SELECT * FROM users WHERE id = {user_id}"
+cursor.execute(query)
+```
+
+**Recommendation:**
+```python
+query = "SELECT * FROM users WHERE id = %s"
+cursor.execute(query, (user_id,))
+```
+
+### Hardcoded Secret
+
+**Vulnerable Code:**
+```javascript
+const API_KEY = "sk_live_51HxZkl2eZvKYlo2C9x";
+```
+
+**Recommendation:**
+```javascript
+const API_KEY = process.env.API_KEY;
+```
+
+## Configuration
+
+### Custom Rules
+
+Add your own Semgrep rules by placing `.semgrep.yml` in your repository root:
+
+```yaml
+rules:
+  - id: no-debug-print
+    pattern: print($X)
+    languages: [python]
+    message: "Remove debug print statements"
+    severity: INFO
+```
+
+### Ignoring Findings
+
+Add a comment to suppress false positives:
+
+```python
+# nosemgrep: python.sql.cqrs.sql-injection
+query = f"SELECT * FROM {table_name}"  # table_name is from hardcoded whitelist
+```
+
+## Scan Configuration
+
+### API Request
+
+```bash
+curl -X POST http://localhost:8000/scan \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_url": "https://github.com/user/repo.git",
+    "audit_types": ["sast"]
+  }'
+```
+
+### CLI Usage
+
+```bash
+# Run SAST only
+python -m audit repos.csv ./output --audit sast
+```
+
+## Interpreting Results
+
+Each finding includes:
+- **File path** - Location of the vulnerability
+- **Line numbers** - Exact position
+- **CWE ID** - Common Weakness Enumeration reference
+- **Severity** - Critical, High, Medium, Low, Info
+- **Description** - Explanation of the issue
+- **Remediation** - How to fix it
+
+## Best Practices
+
+1. **Run early and often** - Integrate into CI/CD
+2. **Review all findings** - Don't ignore High/Critical
+3. **Fix promptly** - Address Critical within 24 hours
+4. **Suppress wisely** - Only suppress false positives with justification
+5. **Combine with other scans** - SAST works best with dependency and container scanning
+
+## Limitations
+
+- Cannot detect runtime vulnerabilities
+- May miss business logic flaws
+- Some false positives possible
+- Requires access to source code
+
+## Resources
+
+- [Semgrep Documentation](https://semgrep.dev/docs/)
+- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
+- [CWE Top 25](https://cwe.mitre.org/top25/)

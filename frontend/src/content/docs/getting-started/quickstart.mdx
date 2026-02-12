@@ -1,0 +1,93 @@
+---
+title: Quick Start
+description: Get your first security scan running in under 5 minutes
+icon: Zap
+---
+
+# Quick Start
+
+Get your first security scan running in under 5 minutes. No complex setup required.
+
+## Prerequisites
+
+- A GitHub account
+- A repository you want to scan (public repositories are free)
+
+## Step 1: Sign Up
+
+1. Go to [SecurityKit](https://your-domain.com)
+2. Click **"Get Started"** or **"Sign in with GitHub"**
+3. Authorize SecurityKit to access your repositories
+
+## Step 2: Run Your First Scan
+
+### Using the Web Dashboard
+
+1. After signing in, you'll land on the dashboard
+2. Enter your repository URL (e.g., `https://github.com/username/repo`)
+3. Select the branch to scan (defaults to `main`)
+4. Choose which scanners to run:
+   - **Quick Scan**: SAST and dependency checks
+   - **Full Scan**: All available scanners
+   - **Custom**: Select specific scanners
+5. Click **"Start Scan"**
+
+### Using the API
+
+```bash
+curl -X POST https://api.securitykit.com/scan \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -d '{
+    "repo_url": "https://github.com/username/repo.git",
+    "branch": "main",
+    "audit_types": ["sast", "dockerfile", "node"]
+  }'
+```
+
+Response:
+```json
+{
+  "scan_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "queued"
+}
+```
+
+## Step 3: View Results
+
+1. Go to the **Scans** page in your dashboard
+2. Click on your scan to view detailed findings
+3. Review findings organized by severity:
+   - 🔴 **Critical** - Immediate attention required
+   - 🟠 **High** - Fix as soon as possible
+   - 🟡 **Medium** - Address in next sprint
+   - 🔵 **Low** - Fix when convenient
+   - ⚪ **Info** - Good to know
+
+## Step 4: Enable AI Analysis (Optional)
+
+For enhanced insights:
+
+1. Open a completed scan
+2. Click the **"AI Analysis"** tab
+3. Click **"Generate AI Analysis"**
+4. Wait 1-2 minutes for the analysis to complete
+
+The AI will provide:
+- Overall risk score (0-100)
+- Executive summary
+- Prioritized fix recommendations
+- Effort estimation
+
+## What's Next?
+
+- **Set up CI/CD integration** - [Learn how](/docs/guides/ci-cd)
+- **Configure custom rules** - [See configuration](/docs/guides/configuration)
+- **Invite your team** - Share access to scan results
+- **Upgrade your plan** - More scans, private repos, and advanced features
+
+## Need Help?
+
+- Check our [FAQ](/docs/support/faq)
+- Visit [Troubleshooting](/docs/support/troubleshooting)
+- Contact support through the dashboard

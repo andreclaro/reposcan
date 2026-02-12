@@ -1,0 +1,77 @@
+---
+title: Guides Overview
+description: Step-by-step tutorials and how-to guides
+icon: BookOpen
+---
+
+# Guides Overview
+
+Practical guides to help you get the most out of SecurityKit.
+
+## Getting Started Guides
+
+New to SecurityKit? Start here:
+
+- [Quick Start](/docs/getting-started/quickstart) - Get scanning in 5 minutes
+- [Installation](/docs/getting-started/installation) - Set up locally
+
+## Using SecurityKit
+
+### Command Line
+
+- [CLI Guide](/docs/guides/cli) - Using the command-line tool
+
+### Deployment
+
+- [Docker Guide](/docs/guides/docker) - Run with Docker Compose
+
+### Configuration
+
+- [Configuration](/docs/guides/configuration) - Environment variables and settings
+
+### Integrations
+
+- [GitHub Integration](/docs/guides/github-integration) - Connect with GitHub
+- [CI/CD Integration](/docs/guides/ci-cd) - Add to your pipeline
+
+## Common Tasks
+
+### Scanning a Repository
+
+```bash
+# Using the web dashboard
+1. Sign in to your account
+2. Enter repository URL
+3. Click "Start Scan"
+```
+
+```bash
+# Using the API
+curl -X POST https://api.securitykit.com/scan \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{"repo_url": "https://github.com/user/repo"}'
+```
+
+### Enabling AI Analysis
+
+1. Go to a completed scan
+2. Click the **AI Analysis** tab
+3. Click **Generate Analysis**
+
+### Setting Up GitHub Integration
+
+1. Install the GitHub App
+2. Select repositories
+3. Automatic scanning on PRs
+
+## Troubleshooting
+
+Stuck? Check our troubleshooting resources:
+
+- [FAQ](/docs/support/faq) - Common questions
+- [Troubleshooting](/docs/support/troubleshooting) - Solutions to common issues
+
+## Need More Help?
+
+- [Contact Support](/contact)
+- [API Reference](/docs/api-reference)

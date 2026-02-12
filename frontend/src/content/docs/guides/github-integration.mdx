@@ -1,0 +1,276 @@
+---
+title: GitHub Integration
+description: Connect SecurityKit with your GitHub repositories
+icon: Github
+---
+
+# GitHub Integration
+
+Connect SecurityKit to your GitHub repositories for automatic scanning and pull request checks.
+
+## Installation
+
+### 1. Install the GitHub App
+
+1. Go to **Settings** → **Integrations** → **GitHub**
+2. Click **"Install GitHub App"**
+3. Select your account or organization
+4. Choose repositories to connect:
+   - **All repositories** - Future repos included
+   - **Select repositories** - Choose specific repos
+
+### 2. Authorize Access
+
+Grant permissions:
+
+| Permission | Purpose |
+|------------|---------|
+| Repository contents | Clone and scan code |
+| Pull requests | Post status checks |
+| Commit statuses | Set check status |
+| Webhooks | Receive push events |
+
+### 3. Configure Repositories
+
+After installation:
+
+1. Go to **Settings** → **Repositories**
+2. Select repositories to enable
+3. Configure scan settings per repo:
+   - Branch patterns (e.g., `main`, `develop`)
+   - Scanner types
+   - Auto-scan on push
+
+## Automatic Scanning
+
+### On Pull Requests
+
+SecurityKit automatically:
+1. Scans changed files
+2. Posts findings as PR comments
+3. Sets commit status (pass/fail)
+4. Updates as you push fixes
+
+### On Push
+
+```yaml
+# Example: Scan main branch pushes
+branches:
+  - main
+  - develop
+  - release/*
+```
+
+### Scheduled Scans
+
+Enable nightly scans:
+
+1. Go to repository settings
+2. Enable **"Scheduled Scans"**
+3. Select frequency: Daily, Weekly
+4. Choose time window
+
+## Pull Request Checks
+
+### Status Checks
+
+Require SecurityKit checks before merging:
+
+1. Go to GitHub repository **Settings** → **Branches**
+2. Add rule for `main` branch
+3. Enable **"Require status checks"**
+4. Select **"SecurityKit"** checks
+
+### Check Configuration
+
+Set thresholds for blocking merge:
+
+| Severity | Action |
+|----------|--------|
+| Critical | Always block |
+| High | Block by default |
+| Medium | Warn only |
+| Low | Ignore |
+
+### Inline Comments
+
+Findings appear as PR comments:
+
+```
+🔴 **Critical** - SQL Injection (CWE-89)
+File: src/auth.js:42
+Scanner: semgrep
+
+User input is directly concatenated into SQL query without sanitization.
+
+**Fix:**
+```javascript
+// Instead of:
+const query = `SELECT * FROM users WHERE id = ${userId}`;
+
+// Use parameterized queries:
+const query = 'SELECT * FROM users WHERE id = ?';
+db.query(query, [userId]);
+```
+```
+
+## Repository Settings
+
+### Scan Triggers
+
+Configure when scans run:
+
+- **On every push** - Scan all commits
+- **On pull requests** - Scan changed files
+- **Scheduled** - Nightly/weekly full scans
+- **Manual only** - Dashboard-triggered
+
+### Branch Patterns
+
+```
+main                    # Exact match
+release/*               # Wildcard pattern
+feature/*               # Feature branches
+```
+
+### Scanner Selection
+
+Choose which scanners to run:
+
+- ✅ SAST (Semgrep)
+- ✅ Container (Trivy)
+- ✅ Dependencies (npm/cargo)
+- ✅ Infrastructure (Terraform)
+- ❌ Secrets scanning
+
+## Monorepo Support
+
+For repositories with multiple projects:
+
+### Path-Based Scanning
+
+Configure paths to scan:
+
+```yaml
+paths:
+  - frontend/**
+  - backend/**
+  exclude:
+    - "**/node_modules/**"
+    - "**/.git/**"
+```
+
+### Project Detection
+
+SecurityKit automatically detects:
+- `package.json` → Node.js project
+- `go.mod` → Go project
+- `Cargo.toml` → Rust project
+- `Dockerfile` → Container
+- `*.tf` → Terraform
+
+## Access Control
+
+### Team Permissions
+
+Control who can:
+- View scan results
+- Trigger manual scans
+- Configure settings
+- Suppress findings
+
+### Private Repositories
+
+Private repos require:
+- Pro plan or higher
+- GitHub App installed with access
+- No additional configuration
+
+## Webhook Events
+
+SecurityKit responds to:
+
+| Event | Action |
+|-------|--------|
+| `push` | Scan pushed commits |
+| `pull_request` | Scan PR changes |
+| `pull_request.synchronize` | Update scan on push |
+| `installation` | Setup new repos |
+| `installation_repositories` | Handle repo changes |
+
+## Troubleshooting
+
+### App Not Showing
+
+1. Check GitHub App permissions
+2. Verify repository access
+3. Re-install if needed
+
+### Scans Not Running
+
+1. Check webhook delivery
+   - GitHub → Settings → Webhooks
+   - Look for failed deliveries
+
+2. Verify repository is enabled
+   - Dashboard → Settings → Repositories
+
+3. Check branch patterns match
+
+### Status Checks Missing
+
+1. Ensure branch protection is enabled
+2. Check SecurityKit is in required checks
+3. Verify scan completed successfully
+
+### Rate Limiting
+
+GitHub API limits:
+- 5,000 requests/hour (authenticated)
+- Reduce scan frequency if needed
+- Use caching for repeated scans
+
+## Security
+
+### Token Permissions
+
+The GitHub App uses minimal permissions:
+- Read repository contents
+- Write commit statuses
+- Read/write pull request comments
+
+### Data Handling
+
+- Source code is scanned temporarily
+- Results stored in your account
+- No code retained after scan
+- Configurable data retention
+
+## Migration
+
+### From Manual Scans
+
+1. Install GitHub App
+2. Enable auto-scanning
+3. Archive old manual scan configs
+
+### From Other Tools
+
+1. Export findings (SARIF format)
+2. Import to SecurityKit
+3. Set up GitHub App
+4. Disable previous tool
+
+## Best Practices
+
+1. **Start with warnings** - Don't block immediately
+2. **Gradually increase strictness** - Tune thresholds
+3. **Fix existing issues** - Address backlog before enforcement
+4. **Team training** - Help developers understand findings
+5. **Regular review** - Check for false positives
+
+## Next Steps
+
+- [CI/CD Integration](/docs/guides/ci-cd) - Add to your pipeline
+- [Configure Scans](/docs/guides/configuration) - Customize settings
+- [API Reference](/docs/api-reference) - Build custom integrations

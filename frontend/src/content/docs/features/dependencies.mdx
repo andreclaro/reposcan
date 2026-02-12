@@ -1,0 +1,145 @@
+---
+title: Dependency Auditing
+description: Track vulnerable dependencies across multiple ecosystems
+icon: Package
+---
+
+# Dependency Auditing
+
+SecurityKit checks your project's dependencies against vulnerability databases to find known security issues in third-party libraries.
+
+## Supported Ecosystems
+
+| Ecosystem | Tool | Lock Files |
+|-----------|------|------------|
+| Node.js | npm audit / pnpm audit | package-lock.json, pnpm-lock.yaml |
+| Go | govulncheck | go.mod |
+| Rust | cargo-audit | Cargo.lock |
+| Python | pip-audit | requirements.txt, poetry.lock |
+
+## What It Finds
+
+### Known Vulnerabilities
+- CVEs (Common Vulnerabilities and Exposures)
+- GitHub Security Advisories
+- Ecosystem-specific databases
+
+### Outdated Packages
+- End-of-life dependencies
+- Deprecated packages
+- Version drift
+
+### License Issues
+- Incompatible licenses
+- Missing license information
+- Restrictive licenses
+
+## Example Findings
+
+### Node.js Vulnerability
+
+```
+Package: lodash
+Installed: 4.17.15
+Patched: >=4.17.21
+Severity: High
+CVE: CVE-2021-23337
+Description: Command injection via template
+```
+
+**Fix:**
+```bash
+npm update lodash
+# or
+npm install lodash@latest
+```
+
+### Go Vulnerability
+
+```
+Package: golang.org/x/net
+Vulnerability: CVE-2022-27664
+Severity: High
+Description: HTTP/2 rapid reset vulnerability
+```
+
+**Fix:**
+```bash
+go get -u golang.org/x/net
+go mod tidy
+```
+
+### Rust Advisory
+
+```
+Crate: regex
+Version: 1.5.4
+Advisory: RUSTSEC-2022-0013
+Severity: Critical
+Description: Regex denial of service
+```
+
+**Fix:**
+```bash
+cargo update -p regex
+```
+
+## Severity Levels
+
+| Severity | CVSS Range | Action |
+|----------|------------|--------|
+| Critical | 9.0-10.0 | Update immediately |
+| High | 7.0-8.9 | Update this week |
+| Medium | 4.0-6.9 | Update next sprint |
+| Low | 0.1-3.9 | Update when convenient |
+
+## Automated Remediation
+
+### npm
+```bash
+npm audit fix          # Auto-fix non-breaking changes
+npm audit fix --force  # Fix all (may break things)
+```
+
+### cargo
+```bash
+cargo audit fix        # Apply automatic fixes
+```
+
+## CI/CD Integration
+
+### Fail on vulnerabilities
+```yaml
+- name: Audit dependencies
+  run: |
+    npm audit --audit-level=moderate
+    # or
+    cargo audit --deny warnings
+```
+
+### Generate reports
+```yaml
+- name: Security audit
+  run: npm audit --json > audit.json
+```
+
+## Best Practices
+
+1. **Regular audits** - Run with every build
+2. **Automated updates** - Use Dependabot or Renovate
+3. **Pin versions** - Lock file for reproducibility
+4. **Review changes** - Check changelogs before updating
+5. **Test updates** - Verify functionality after updates
+
+## Vulnerability Databases
+
+- [National Vulnerability Database (NVD)](https://nvd.nist.gov/)
+- [GitHub Security Advisories](https://github.com/advisories)
+- [Snyk Vulnerability DB](https://snyk.io/vuln/)
+- [RustSec Advisory DB](https://rustsec.org/)
+
+## Resources
+
+- [npm audit documentation](https://docs.npmjs.com/cli/commands/npm-audit)
+- [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck)
+- [cargo-audit](https://github.com/RustSec/cargo-audit)

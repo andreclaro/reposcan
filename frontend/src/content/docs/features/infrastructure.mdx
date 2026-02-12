@@ -1,0 +1,158 @@
+---
+title: Infrastructure Scanning
+description: Secure your Terraform and Infrastructure as Code
+icon: Server
+---
+
+# Infrastructure Scanning
+
+SecurityKit scans your Infrastructure as Code (IaC) for security misconfigurations and compliance violations using multiple specialized tools.
+
+## Tools Used
+
+| Tool | Purpose | Coverage |
+|------|---------|----------|
+| **tfsec** | Terraform security | 100+ checks |
+| **Checkov** | Multi-IaC security | 750+ policies |
+| **tflint** | Terraform linting | Best practices |
+
+## What It Detects
+
+### Cloud Security Issues
+- Unencrypted storage
+- Open security groups
+- Public S3 buckets
+- Missing encryption at rest
+- Unencrypted data in transit
+
+### Access Control
+- Overly permissive IAM policies
+- Missing MFA requirements
+- Public access enabled
+- Weak password policies
+
+### Compliance Violations
+- PCI DSS requirements
+- SOC 2 controls
+- CIS benchmarks
+- GDPR data protection
+
+### Resource Configuration
+- Missing backup policies
+- No logging enabled
+- Unversioned storage
+- Missing lifecycle policies
+
+## Terraform Examples
+
+### Unencrypted S3 Bucket
+
+**Issue:**
+```hcl
+resource "aws_s3_bucket" "data" {
+  bucket = "my-data-bucket"
+  # No encryption configured
+}
+```
+
+**Fix:**
+```hcl
+resource "aws_s3_bucket" "data" {
+  bucket = "my-data-bucket"
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "data" {
+  bucket = aws_s3_bucket.data.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+```
+
+### Open Security Group
+
+**Issue:**
+```hcl
+resource "aws_security_group" "web" {
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]  # Open to world
+  }
+}
+```
+
+**Fix:**
+```hcl
+resource "aws_security_group" "web" {
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/8"]  # Restrict to VPC
+  }
+}
+```
+
+## Supported Platforms
+
+- **AWS** - Full coverage
+- **Azure** - Full coverage
+- **GCP** - Full coverage
+- **Kubernetes** - Manifest scanning
+- **Docker** - Compose file scanning
+
+## Scan Results
+
+Each finding includes:
+- **Resource** - The affected resource
+- **Rule ID** - Specific rule violated
+- **Severity** - Impact assessment
+- **Explanation** - Why it's a problem
+- **Resolution** - How to fix it
+- **Documentation** - Link to more info
+
+## Suppressing Findings
+
+### tfsec
+```hcl
+# tfsec:ignore:aws-s3-enable-bucket-encryption
+resource "aws_s3_bucket" "public" {
+  # Intentionally unencrypted for public data
+}
+```
+
+### Checkov
+```hcl
+resource "aws_s3_bucket" "public" {
+  # checkov:skip=CKV_AWS_19:Public data, no encryption needed
+}
+```
+
+## Best Practices
+
+1. **Scan before apply** - Catch issues early
+2. **Version control** - Track infrastructure changes
+3. **Modularize** - Reusable, reviewable components
+4. **State management** - Secure remote state
+5. **Drift detection** - Regular compliance checks
+
+## CI/CD Integration
+
+```yaml
+# GitHub Actions
+- name: Scan Terraform
+  run: |
+    tfsec .
+    checkov -d .
+    tflint
+```
+
+## Resources
+
+- [tfsec Documentation](https://aquasecurity.github.io/tfsec/)
+- [Checkov Policies](https://www.checkov.io/5.Policy%20Index/all.html)
+- [Terraform Security Best Practices](https://www.terraform.io/docs/cloud/guides/recommended-practices/index.html)

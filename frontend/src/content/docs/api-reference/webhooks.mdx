@@ -1,0 +1,280 @@
+---
+title: Webhooks
+description: Receive real-time notifications from SecurityKit
+icon: Webhook
+---
+
+# Webhooks
+
+Webhooks allow your applications to receive real-time notifications when events occur in SecurityKit.
+
+## Overview
+
+Instead of polling the API for changes, webhooks push events to your endpoint as they happen.
+
+## Supported Events
+
+| Event | Description |
+|-------|-------------|
+| `scan.completed` | Scan finished successfully |
+| `scan.failed` | Scan failed to complete |
+| `finding.detected` | New finding identified |
+| `ai_analysis.ready` | AI analysis completed |
+
+## Creating a Webhook
+
+### 1. Configure Endpoint
+
+Set up an HTTPS endpoint that can receive POST requests:
+
+```javascript
+// Express.js example
+app.post('/webhooks/securitykit', (req, res) => {
+  const event = req.headers['x-securitykit-event'];
+  const payload = req.body;
+  
+  console.log(`Received ${event}:`, payload);
+  
+  // Process the event
+  
+  res.status(200).send('OK');
+});
+```
+
+### 2. Register Webhook
+
+```bash
+curl -X POST https://api.securitykit.com/webhooks \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://your-app.com/webhooks/securitykit",
+    "events": ["scan.completed", "scan.failed"],
+    "secret": "your-webhook-secret"
+  }'
+```
+
+### 3. Verify Receipt
+
+SecurityKit will send a test ping to verify your endpoint:
+
+```json
+{
+  "event": "webhook.ping",
+  "timestamp": "2024-01-15T10:00:00Z"
+}
+```
+
+## Webhook Payloads
+
+### Scan Completed
+
+```json
+{
+  "event": "scan.completed",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "data": {
+    "scan_id": "550e8400-e29b-41d4-a716-446655440000",
+    "repo_url": "https://github.com/user/repo",
+    "branch": "main",
+    "findings_count": 12,
+    "critical_count": 1,
+    "high_count": 3,
+    "status": "completed"
+  }
+}
+```
+
+### Scan Failed
+
+```json
+{
+  "event": "scan.failed",
+  "timestamp": "2024-01-15T10:15:00Z",
+  "data": {
+    "scan_id": "550e8400-e29b-41d4-a716-446655440000",
+    "repo_url": "https://github.com/user/repo",
+    "error": "Failed to clone repository",
+    "error_code": "CLONE_FAILED"
+  }
+}
+```
+
+### AI Analysis Ready
+
+```json
+{
+  "event": "ai_analysis.ready",
+  "timestamp": "2024-01-15T10:35:00Z",
+  "data": {
+    "scan_id": "550e8400-e29b-41d4-a716-446655440000",
+    "risk_score": 72,
+    "summary": "This scan identified 15 vulnerabilities..."
+  }
+}
+```
+
+## Security
+
+### Signature Verification
+
+Verify webhooks are from SecurityKit:
+
+```javascript
+const crypto = require('crypto');
+
+function verifyWebhook(payload, signature, secret) {
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(payload)
+    .digest('hex');
+  
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expected)
+  );
+}
+
+// Usage
+const signature = req.headers['x-securitykit-signature'];
+const payload = JSON.stringify(req.body);
+
+if (!verifyWebhook(payload, signature, WEBHOOK_SECRET)) {
+  return res.status(401).send('Invalid signature');
+}
+```
+
+### Headers
+
+| Header | Description |
+|--------|-------------|
+| `X-SecurityKit-Event` | Event type |
+| `X-SecurityKit-Delivery` | Unique delivery ID |
+| `X-SecurityKit-Signature` | HMAC signature |
+
+## Retry Policy
+
+If your endpoint returns a non-2xx status:
+
+1. Immediate retry
+2. After 5 seconds
+3. After 25 seconds
+4. After 2 minutes
+5. After 10 minutes
+
+Failed webhooks are logged and can be replayed from the dashboard.
+
+## Best Practices
+
+### 1. Respond Quickly
+
+Acknowledge receipt immediately, process asynchronously:
+
+```javascript
+app.post('/webhook', (req, res) => {
+  // Acknowledge immediately
+  res.status(200).send('OK');
+  
+  // Process asynchronously
+  processWebhook(req.body);
+});
+```
+
+### 2. Handle Duplicates
+
+Use the delivery ID to prevent duplicate processing:
+
+```javascript
+const processed = new Set();
+
+function processWebhook(payload, deliveryId) {
+  if (processed.has(deliveryId)) {
+    return; // Already processed
+  }
+  
+  // Process...
+  
+  processed.add(deliveryId);
+}
+```
+
+### 3. Use HTTPS
+
+Webhooks must use HTTPS endpoints in production.
+
+### 4. Implement Idempotency
+
+Ensure processing the same event multiple times is safe.
+
+## Testing Webhooks
+
+### Local Development
+
+Use ngrok to receive webhooks locally:
+
+```bash
+# Start ngrok
+ngrok http 3000
+
+# Register webhook with ngrok URL
+curl -X POST https://api.securitykit.com/webhooks \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "url": "https://abc123.ngrok.io/webhooks/securitykit",
+    "events": ["scan.completed"]
+  }'
+```
+
+### Test Events
+
+Trigger test events from the dashboard:
+1. Go to **Settings** → **Webhooks**
+2. Find your webhook
+3. Click **"Send Test"**
+
+## Managing Webhooks
+
+### List Webhooks
+
+```bash
+curl https://api.securitykit.com/webhooks \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Update Webhook
+
+```bash
+curl -X PATCH https://api.securitykit.com/webhooks/{id} \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "events": ["scan.completed", "scan.failed"]
+  }'
+```
+
+### Delete Webhook
+
+```bash
+curl -X DELETE https://api.securitykit.com/webhooks/{id} \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+## Troubleshooting
+
+### Webhook Not Received
+
+- Verify endpoint is publicly accessible
+- Check firewall rules
+- Ensure HTTPS certificate is valid
+- Check webhook logs in dashboard
+
+### Invalid Signature
+
+- Verify secret matches
+- Check payload isn't modified
+- Ensure correct encoding
+
+### Timeouts
+
+- Respond within 30 seconds
+- Process asynchronously
+- Return 200 status code

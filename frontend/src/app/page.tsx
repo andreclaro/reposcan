@@ -176,6 +176,12 @@ export default function HomePage() {
           </Link>
           <nav className="hidden items-center gap-8 md:flex">
             <Link
+              href="/docs"
+              className="text-sm font-medium text-slate-600 hover:text-slate-900"
+            >
+              Docs
+            </Link>
+            <Link
               href="#features"
               className="text-sm font-medium text-slate-600 hover:text-slate-900"
             >
@@ -618,7 +624,7 @@ export default function HomePage() {
         className="border-t bg-slate-50"
       >
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <div className="grid gap-8 md:grid-cols-3">
+          <div className="grid gap-8 md:grid-cols-4">
             <div className="space-y-4">
               <Link href="/" className="flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900">
@@ -664,8 +670,24 @@ export default function HomePage() {
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold text-slate-900">Legal</h4>
+              <h4 className="font-semibold text-slate-900">Resources</h4>
               <ul className="mt-4 space-y-2 text-sm">
+                <li>
+                  <Link
+                    href="/docs"
+                    className="text-slate-500 hover:text-slate-900"
+                  >
+                    Documentation
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/docs/api-reference"
+                    className="text-slate-500 hover:text-slate-900"
+                  >
+                    API Reference
+                  </Link>
+                </li>
                 <li>
                   <Link
                     href="/contact"
@@ -674,6 +696,11 @@ export default function HomePage() {
                     Contact
                   </Link>
                 </li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold text-slate-900">Legal</h4>
+              <ul className="mt-4 space-y-2 text-sm">
                 <li>
                   <Link
                     href="/privacy"
