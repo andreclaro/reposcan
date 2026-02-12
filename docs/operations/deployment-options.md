@@ -372,6 +372,37 @@ These platforms run your Docker containers without managing VMs or Kubernetes. T
 4. **Set environment variables** in Railway dashboard
 5. **Done** - Automatic deploys on every push
 
+### Infrastructure as Code (IaC) Support
+
+**Railway has LIMITED IaC support** compared to full infrastructure-as-code platforms:
+
+| IaC Tool | Railway Support | Notes |
+|----------|-----------------|-------|
+| **Terraform** | ⚠️ Community only | Unofficial provider: `terraform-community-providers/railway`. Railway feature request is "In Progress" for 3+ years |
+| **Pulumi** | ❌ Not supported | Feature requested, no official provider |
+| **railway.yaml** | ✅ Supported | Service configuration only (not full infrastructure provisioning) |
+| **Git-based** | ✅ Native | Primary deployment method - push to deploy |
+
+**railway.yaml** allows you to define:
+- Service build settings (Dockerfile path, start command)
+- Environment variables
+- Resource allocation (CPU, memory)
+- Health checks
+- Domains and networking
+
+However, it does **NOT** support:
+- Database provisioning (must use dashboard or API)
+- Environment creation
+- Complex multi-project setups
+- State management
+
+**Recommendation:** If you need full Infrastructure as Code (Terraform/Pulumi), consider:
+- **AWS ECS** (Option 3) with Terraform
+- **Kubernetes** (Option 1) with Helm/ArgoCD
+- **Single VM** (Option 2) with Ansible/Terraform
+
+Railway is best for **Git-based, dashboard-driven workflows** where you trade IaC maturity for deployment simplicity.
+
 ### Pros
 - **Zero server management** - No SSH, no OS updates, no security patches
 - **Git-based deploys** - Push to deploy, automatic rollbacks

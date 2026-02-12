@@ -986,6 +986,6 @@ See original document sections:
 
 **Next Steps:**
 1. Review updated design
-2. Set up CDP API keys for x402 facilitator
+2. Set up CDP API keys for x402 facilitator: https://docs.cdp.coinbase.com/x402/quickstart-for-sellers
 3. Create feature branch for agent API
 4. Begin Phase 1 implementation

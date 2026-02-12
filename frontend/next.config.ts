@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  // Configure page extensions to include MDX
+  pageExtensions: ["js", "jsx", "ts", "tsx", "md", "mdx"],
   // Security headers
   async headers() {
     return [
