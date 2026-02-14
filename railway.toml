@@ -1,0 +1,36 @@
+# Railway Configuration for API Service
+# https://docs.railway.com/reference/config-as-code
+#
+# IMPORTANT: In Railway dashboard, set this service's config file path to:
+#   /railway.toml
+#
+# This file configures the FastAPI service using docker/Dockerfile.api
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "./docker/Dockerfile.api"
+
+[deploy]
+startCommand = "uvicorn api.main:app --host 0.0.0.0 --port 8000"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+# Number of replicas (horizontal scaling)
+numReplicas = 1
+
+# Multi-region configuration (for enterprise plans)
+# [deploy.multiRegionConfig]
+# us-west1 = 2
+# us-east4 = 2
+
+# Resource allocation (can be overridden in Railway dashboard)
+# [deploy.resources]
+# memory = "1Gi"
+# cpu = 1
+
+# Deployment teardown settings for zero-downtime deployments
+[deploy.teardown]
+overlapSeconds = 30
+drainingSeconds = 60
