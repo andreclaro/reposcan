@@ -395,11 +395,6 @@ export default function ScanDashboard({
               <h2 className="text-lg font-semibold text-slate-900">
                 Start a new scan
               </h2>
-              <p className="text-sm text-slate-500">
-                Scans run: {enabledScanners.length > 0 
-                  ? enabledScanners.map((s) => s.key).join(", ")
-                  : "Loading..."}
-              </p>
             </div>
           </div>
 
