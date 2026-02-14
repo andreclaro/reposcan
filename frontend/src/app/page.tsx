@@ -328,7 +328,7 @@ export default function HomePage() {
       </section>
 
       {/* Stats Bar */}
-      <motion.section 
+      {/* <motion.section 
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, margin: "-100px" }}
@@ -356,7 +356,7 @@ export default function HomePage() {
             ))}
           </div>
         </div>
-      </motion.section>
+      </motion.section> */}
 
       {/* Features Grid */}
       <section id="features" className="bg-slate-50 py-20 sm:py-28">
