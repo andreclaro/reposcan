@@ -352,20 +352,22 @@ Railway supports **configuration as code**, but with important limitations:
 | Capability | `railway.toml` | Terraform Provider | Dashboard |
 |------------|----------------|-------------------|-----------|
 | **Create services** | ❌ No | ✅ Yes | ✅ Yes |
-| **Create databases** | ❌ No | ✅ Yes | ✅ Yes |
-| **Build & deploy settings** | ✅ Yes | ⚠️ Limited | ✅ Yes |
-| **Environment variables** | ⚠️ Per-service only | ✅ Yes | ✅ Yes |
+| **Create databases** | ❌ No | ❌ No | ✅ Yes |
+| **Build & deploy settings** | ✅ Yes | ⚠️ Via config_path | ✅ Yes |
+| **Environment variables** | ⚠️ Per-service only | ⚠️ Via variable resource | ✅ Yes |
 | **Custom domains** | ❌ No | ✅ Yes | ✅ Yes |
 
-**Key limitation:** `railway.toml` configures build/deploy settings for an **existing service** - it cannot create services or databases. You must provision the infrastructure first (Terraform or dashboard), then use `railway.toml` for per-service configuration.
+**Key limitation:** The Railway Terraform provider is limited - it can create projects and services, but NOT databases. Databases must always be created via Railway dashboard.
 
 ---
 
 #### Option A: Hybrid Approach (Recommended)
 
-**Step 1:** Create project, services, and databases via **Dashboard** or **Terraform**
+**Step 1:** Create project and services via **Terraform** (or Dashboard)
 
-**Step 2:** Add `railway.toml` to each service's directory for build/deploy configuration:
+**Step 2:** Create PostgreSQL and Redis databases via **Railway Dashboard**
+
+**Step 3:** Add `railway.toml` to each service's directory for build/deploy configuration:
 
 ```toml
 # frontend/railway.toml
@@ -405,82 +407,53 @@ cpu = 2
 
 ---
 
-#### Option B: Full Infrastructure as Code (Terraform)
+#### Option B: Infrastructure as Code (Terraform) - Limited
 
-For complete infrastructure as code, use the community Railway Terraform provider. This provisions **everything** - project, services, databases, environment variables, and domains:
+The Railway Terraform provider is **community-maintained and limited**. It can create projects and services, but NOT databases. Databases must be created via Railway dashboard.
 
 ```hcl
 terraform {
   required_providers {
     railway = {
       source  = "terraform-community-providers/railway"
-      version = "~> 0.3"
+      version = "~> 0.4"
     }
   }
 }
 
-# Project
+# Create project
 resource "railway_project" "sec_audit" {
   name = "security-audit-platform"
 }
 
-# PostgreSQL
-resource "railway_database" "postgres" {
-  project_id = railway_project.sec_audit.id
-  name       = "postgres"
-  type       = "postgresql"
-}
-
-# Redis
-resource "railway_database" "redis" {
-  project_id = railway_project.sec_audit.id
-  name       = "redis"
-  type       = "redis"
-}
-
-# API Service
+# Create services (databases must be created manually in dashboard!)
 resource "railway_service" "api" {
   project_id = railway_project.sec_audit.id
   name       = "api"
   
-  source_repo = "github.com/yourorg/sec-audit-repos"
-  source_branch = "main"
-  
-  build_command = "docker build -f backend/Dockerfile.api -t api ."
-  start_command = "uvicorn api.main:app --host 0.0.0.0 --port 8000"
-  
-  environment_variables = {
-    DATABASE_URL = railway_database.postgres.connection_string
-    REDIS_URL    = railway_database.redis.connection_string
-  }
-  
-  resources {
-    memory = "1Gi"
-    cpu    = 1
-  }
+  source_repo        = "github.com/yourorg/sec-audit-repos"
+  source_repo_branch = "main"
+  config_path        = "/railway.toml"
 }
 
-# Worker Service
 resource "railway_service" "worker" {
   project_id = railway_project.sec_audit.id
   name       = "worker"
   
-  source_repo   = "github.com/yourorg/sec-audit-repos"
-  source_branch = "main"
-  
-  build_command = "docker build -f backend/Dockerfile -t worker ."
-  start_command = "celery -A tasks.scan_worker worker"
-  
-  resources {
-    memory = "4Gi"
-    cpu    = 2
-  }
+  source_repo        = "github.com/yourorg/sec-audit-repos"
+  source_repo_branch = "main"
+  config_path        = "/railway.worker.toml"
 }
 ```
 
+**After `terraform apply`, you must:**
+1. Create PostgreSQL and Redis databases in Railway dashboard
+2. Copy connection strings to environment variables
+3. Add other required secrets (NEXTAUTH_SECRET, GITHUB_CLIENT_ID, etc.)
+
 Provider: [terraform-community-providers/terraform-provider-railway](https://github.com/terraform-community-providers/terraform-provider-railway)
 
-**Best practice:** Even with Terraform, add `railway.toml` files to your repo. Terraform handles infrastructure provisioning; `railway.toml` handles build/deploy configuration. This separation keeps your Terraform focused on resources that rarely change, while deployment tweaks can be version-controlled in git.
+**Best practice:** Even with Terraform, add `railway.toml` files to your repo. Terraform handles infrastructure provisioning; `railway.toml` handles build/deploy configuration.
 
 ---
 
