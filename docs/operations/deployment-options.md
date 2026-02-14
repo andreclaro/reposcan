@@ -347,16 +347,30 @@ These platforms run your Docker containers without managing VMs or Kubernetes. T
 
 ### Setup Example (Railway)
 
-Railway supports **configuration as code** via `railway.toml` or `railway.json` files committed to your repo. Settings defined in code override dashboard values.
+Railway supports **configuration as code**, but with important limitations:
 
-#### Option A: Config as Code (`railway.toml`)
+| Capability | `railway.toml` | Terraform Provider | Dashboard |
+|------------|----------------|-------------------|-----------|
+| **Create services** | ❌ No | ✅ Yes | ✅ Yes |
+| **Create databases** | ❌ No | ✅ Yes | ✅ Yes |
+| **Build & deploy settings** | ✅ Yes | ⚠️ Limited | ✅ Yes |
+| **Environment variables** | ⚠️ Per-service only | ✅ Yes | ✅ Yes |
+| **Custom domains** | ❌ No | ✅ Yes | ✅ Yes |
 
-Create a `railway.toml` in each service directory (or root with paths):
+**Key limitation:** `railway.toml` configures build/deploy settings for an **existing service** - it cannot create services or databases. You must provision the infrastructure first (Terraform or dashboard), then use `railway.toml` for per-service configuration.
+
+---
+
+#### Option A: Hybrid Approach (Recommended)
+
+**Step 1:** Create project, services, and databases via **Dashboard** or **Terraform**
+
+**Step 2:** Add `railway.toml` to each service's directory for build/deploy configuration:
 
 ```toml
-# railway.toml (frontend)
+# frontend/railway.toml
 [build]
-dockerfilePath = "./frontend/Dockerfile"
+dockerfilePath = "./Dockerfile"
 
 [deploy]
 startCommand = "pnpm start"
@@ -365,9 +379,9 @@ restartPolicyType = "on_failure"
 ```
 
 ```toml
-# railway.toml (api)
+# backend/railway.toml (for API service)
 [build]
-dockerfilePath = "./backend/Dockerfile.api"
+dockerfilePath = "./Dockerfile.api"
 
 [deploy]
 startCommand = "uvicorn api.main:app --host 0.0.0.0 --port 8000"
@@ -376,13 +390,12 @@ numReplicas = 2
 ```
 
 ```toml
-# railway.toml (worker)
+# backend/railway.worker.toml (for Worker service)
 [build]
-dockerfilePath = "./backend/Dockerfile"
+dockerfilePath = "./Dockerfile"
 
 [deploy]
 startCommand = "celery -A tasks.scan_worker worker"
-# Worker-specific resource allocation
 [deploy.resources]
 memory = "4Gi"
 cpu = 2
@@ -390,9 +403,11 @@ cpu = 2
 
 **JSON format** is also supported (`railway.json`) with an official schema at `railway.com/railway.schema.json` for IDE autocomplete.
 
-#### Option B: Terraform Provider (Community)
+---
 
-For teams already using Terraform, use the community Railway provider:
+#### Option B: Full Infrastructure as Code (Terraform)
+
+For complete infrastructure as code, use the community Railway Terraform provider. This provisions **everything** - project, services, databases, environment variables, and domains:
 
 ```hcl
 terraform {
@@ -402,10 +417,6 @@ terraform {
       version = "~> 0.3"
     }
   }
-}
-
-provider "railway" {
-  token = var.railway_api_token
 }
 
 # Project
@@ -468,6 +479,10 @@ resource "railway_service" "worker" {
 ```
 
 Provider: [terraform-community-providers/terraform-provider-railway](https://github.com/terraform-community-providers/terraform-provider-railway)
+
+**Best practice:** Even with Terraform, add `railway.toml` files to your repo. Terraform handles infrastructure provisioning; `railway.toml` handles build/deploy configuration. This separation keeps your Terraform focused on resources that rarely change, while deployment tweaks can be version-controlled in git.
+
+---
 
 #### Option C: Manual Dashboard Setup
 
