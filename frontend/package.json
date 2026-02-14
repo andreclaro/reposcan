@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3003",
-    "build": "next build",
+    "build": "next build && pnpm db:migrate",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "drizzle-kit generate",
