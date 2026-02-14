@@ -13,7 +13,7 @@ ARG GO_VERSION=1.22.6
 ARG RUST_VERSION=1.80.0
 
 # Security scanner versions
-ARG CARGO_AUDIT_VERSION=0.22.0
+ARG CARGO_AUDIT_VERSION=0.21.1
 ARG TFSEC_VERSION=1.28.14
 ARG TFLINT_VERSION=0.60.0
 ARG TRIVY_VERSION=0.68.2
@@ -75,8 +75,7 @@ RUN ARCH="$(dpkg --print-architecture)" \
     && curl -fsSL https://sh.rustup.rs | sh -s -- -y \
         --default-toolchain ${RUST_VERSION} \
         --component rustfmt \
-    && cargo install cargo-audit --locked --version ${CARGO_AUDIT_VERSION} \
-    && rustup self uninstall -y || true
+    && cargo install cargo-audit --locked --version ${CARGO_AUDIT_VERSION}
 
 # Install security scanners (single layer to reduce layers)
 RUN ARCH="$(dpkg --print-architecture)" \
