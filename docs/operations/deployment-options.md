@@ -1,5 +1,33 @@
 # Production Deployment Options
 
+## Quick Answer: Where Should I Deploy?
+
+**For simplest setup → Put everything on Railway** (recommended for most teams)
+
+**For maximum control → Single VM with Docker Compose**
+
+**For enterprise scale → Kubernetes**
+
+---
+
+## FAQ: Can I Put Everything on Railway?
+
+**YES!** Railway is the recommended platform for this application. You can run **all 5 services** on Railway:
+
+| Component | Runs on Railway? | Notes |
+|-----------|------------------|-------|
+| **Frontend** | ✅ Yes | Next.js with `railway.toml` |
+| **API** | ✅ Yes | FastAPI with Dockerfile |
+| **Worker** | ✅ Yes | Large 3-5GB image supported |
+| **PostgreSQL** | ✅ Yes | One-click managed database |
+| **Redis** | ✅ Yes | One-click managed Redis |
+
+**Cost: ~$25-35/mo** for everything (Frontend ~$5 + API ~$5 + Worker ~$15 + Postgres ~$5 + Redis free)
+
+**Time to production: 10 minutes**
+
+---
+
 ## FAQ: Can Everything Run on Vercel?
 
 **No.** The security scanning **worker** cannot run on Vercel (or any serverless platform) due to fundamental architectural constraints:
@@ -240,6 +268,93 @@ This is essentially what the existing `docker-compose.yml` already defines. Depl
 
 **Best for: Teams that want zero-ops frontend with managed backend services.**
 
+### FAQ: Can I use Vercel + Supabase Postgres + Upstash Redis?
+
+**Partially yes, but with a critical caveat:**
+
+| Component | Can Run On | Notes |
+|-----------|------------|-------|
+| **Frontend** | ✅ Vercel | Perfect fit - Next.js SSR, automatic deploys, global CDN |
+| **PostgreSQL** | ✅ Supabase | Excellent choice - managed Postgres, free tier, good performance |
+| **Redis** | ✅ Upstash | Excellent choice - serverless Redis, free tier, low latency |
+| **API** | ❌ Not Vercel | Needs persistent connection to DB/Redis; better on a VM/container |
+| **Worker** | ❌ Not Vercel | **Absolutely cannot run on Vercel** - needs 2-30 min execution, 3-5GB image |
+
+**Required architecture:**
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Vercel (Edge/Serverless)                                    │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │  Next.js Frontend                                    │    │
+│  │  - Automatic deploys from Git                        │    │
+│  │  - Global CDN                                        │    │
+│  │  - OAuth callbacks, Stripe webhooks                  │    │
+│  └──────────────────┬───────────────────────────────────┘    │
+└──────────────────────┼───────────────────────────────────────┘
+                       │ HTTPS API calls
+                       ▼
+┌──────────────────────────────────────────────────────────────┐
+│  Backend VM / Railway / Render / Fly.io (Required!)          │
+│  ┌─────────────┐  ┌──────────────────────────────────────┐   │
+│  │  FastAPI    │  │  Worker (Celery)                     │   │
+│  │  API Server │  │  - 3-5GB image                       │   │
+│  │  - Stateless│  │  - Long-running scans                │   │
+│  │  - Queues   │  │  - Clones repos to disk              │   │
+│  │    jobs     │  │  - Runs semgrep/trivy/etc.           │   │
+│  └──────┬──────┘  └──────────────────────────────────────┘   │
+└───────┼──────────────────────────────────────────────────────┘
+        │
+        ├──▶ PostgreSQL connection ──▶ ┌──────────────────────┐
+        │                                │  Supabase Postgres   │
+        │                                │  - Free tier: 500MB  │
+        │                                │  - Good performance  │
+        │                                │  - Connection pooling│
+        │                                └──────────────────────┘
+        │
+        └──▶ Redis connection ───────▶ ┌──────────────────────┐
+                                       │  Upstash Redis       │
+                                       │  - Free tier: 10K cmd│
+                                       │  - REST/Redis API    │
+                                       │  - Global regions    │
+                                       └──────────────────────┘
+```
+
+**Why the Worker can't be on Vercel:**
+- Execution time: Vercel max = 5 min (Pro) / 300s; Worker needs 2-30 min
+- Image size: Vercel max = 250MB; Worker image = 3-5 GB
+- Storage: Vercel = 4GB ephemeral max; Worker needs to clone full repos with node_modules
+- Background jobs: Vercel functions are request/response; Worker needs persistent Celery process
+
+**Connection strings for Supabase + Upstash:**
+
+```bash
+# Supabase Postgres (get from Supabase Dashboard → Settings → Database)
+DATABASE_URL=postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+
+# Upstash Redis (get from Upstash Console → Database → Connect)
+# Use the "redis://" URL, not the REST API
+REDIS_URL=rediss://default:[PASSWORD]@[HOST]:6379
+CELERY_BROKER_URL=rediss://default:[PASSWORD]@[HOST]:6379
+CELERY_RESULT_BACKEND=rediss://default:[PASSWORD]@[HOST]:6379
+```
+
+**Recommended cheap stack with Supabase + Upstash:**
+
+| Component | Service | Cost |
+|-----------|---------|------|
+| Frontend | Vercel Hobby/Pro | $0-20/mo |
+| API + Worker | Railway / Fly.io | $15-30/mo |
+| PostgreSQL | Supabase (free tier) | $0/mo (500MB) |
+| Redis | Upstash (free tier) | $0/mo (10K cmds/day) |
+| **Total** | | **$15-50/mo** |
+
+**When to upgrade:**
+- Supabase free: 500MB limit → Paid plan ($25/mo) for more storage
+- Upstash free: 10K commands/day → Paid plan ($10/mo) for higher throughput
+- Or move to self-hosted Postgres/Redis on the same VM as API+Worker
+
+---
+
 ### Architecture
 
 ```
@@ -318,6 +433,71 @@ You could theoretically split each scanner into a separate Lambda function orche
 **Best for: Teams wanting zero server management with Docker-native deployments.**
 
 These platforms run your Docker containers without managing VMs or Kubernetes. They offer Git-based deploys, automatic HTTPS, and managed databases.
+
+### 🚀 Railway Quick Start (Everything on One Platform)
+
+**Deploy everything in 10 minutes:**
+
+1. **Fork/clone this repo** to your GitHub account
+
+2. **Create Railway project:**
+   ```bash
+   # Install Railway CLI (optional)
+   npm install -g @railway/cli
+   
+   # Or just use the Railway Dashboard (easier)
+   ```
+
+3. **In Railway Dashboard:**
+   - Click "New Project" → "Deploy from GitHub repo"
+   - Select your `sec-audit-repos` repo
+
+4. **Add databases** (one-click):
+   - Click "New" → "Database" → "Add PostgreSQL"
+   - Click "New" → "Database" → "Add Redis"
+
+5. **Create services:**
+   - **Frontend service:**
+     - Source: GitHub repo, root `/frontend`
+     - Dockerfile: `frontend/Dockerfile`
+     - Start command: `pnpm start`
+     - Add env vars: `NEXTAUTH_SECRET`, `GITHUB_CLIENT_ID`, etc.
+   
+   - **API service:**
+     - Source: GitHub repo, root `/backend`
+     - Dockerfile: `backend/Dockerfile.api`
+     - Start command: `uvicorn api.main:app --host 0.0.0.0 --port 8000`
+     - Add env vars from PostgreSQL/Redis connection strings
+   
+   - **Worker service:**
+     - Source: GitHub repo, root `/backend`
+     - Dockerfile: `backend/Dockerfile` (full worker image)
+     - Start command: `celery -A worker.scan_worker worker --loglevel=info --concurrency=50`
+     - Resources: Set to 4GB RAM, 2 CPU
+
+6. **Set environment variables** (Railway generates DB/Redis URLs automatically)
+
+7. **Done!** Every push to `main` auto-deploys.
+
+**Architecture on Railway:**
+```
+┌─────────────────────────────────────────┐
+│           Railway Platform              │
+│                                         │
+│  ┌──────────┐ ┌──────┐ ┌────────────┐  │
+│  │ Frontend  │ │ API  │ │   Worker   │  │
+│  │  (Next.js)│ │(FastAPI)│ │  (Celery) │  │
+│  │   ~$5/mo  │ │ ~$5/mo│ │  ~$15/mo  │  │
+│  └──────────┘ └──────┘ └────────────┘  │
+│                                         │
+│  ┌──────────┐ ┌──────────────────────┐ │
+│  │  Redis    │ │  PostgreSQL          │ │
+│  │  (free)   │ │  (~$5/mo)           │ │
+│  └──────────┘ └──────────────────────┘ │
+│                                         │
+│  Total: ~$25-35/month                   │
+└─────────────────────────────────────────┘
+```
 
 ### Comparison
 
@@ -513,37 +693,63 @@ If using a VM or want to reduce costs:
 
 ## Recommendation Matrix
 
-| Factor | Single VM | Railway/Render | ECS | Kubernetes | Vercel + VM |
-|--------|-----------|----------------|-----|------------|-------------|
-| **Simplicity** | Good | Best | Medium | Complex | Good |
-| **Cost (low traffic)** | $28-125 | $20-54 | ~$187 | ~$315 | $38-133 |
-| **Cost (with free tiers)** | $28 | $18-25 | - | - | $38 |
-| **Auto-scaling** | None | Basic | Good | Best | Partial |
-| **Zero-ops** | No | Yes | Partial | No | Partial |
-| **Time to production** | Hours | Minutes | Days | Days-Weeks | Hours |
-| **HA / Reliability** | None | Good | Good | Best | Good (frontend) |
-| **Operational overhead** | Low | Lowest | Medium | High | Low-Medium |
-| **Scale ceiling** | Low | Medium | High | Highest | Medium |
+| Factor | Single VM | 🏆 **Railway** | Render | Fly.io | ECS | Kubernetes | Vercel + VM |
+|--------|-----------|----------------|--------|--------|-----|------------|-------------|
+| **Best for** | Control | **Everything in one place** | Predictable pricing | Multi-region | AWS native | Scale/complexity | Vercel frontend |
+| **Simplicity** | Good | **Best** | Best | Good | Medium | Complex | Good |
+| **Cost (low traffic)** | $28-125 | **$25-35** | $54 | $26 | ~$187 | ~$315 | $38-133 |
+| **Cost (free tiers)** | $28 | **$5-25** | $0* | $5-20 | - | - | $18-38 |
+| **Auto-scaling** | None | **Basic** | Basic | Good | Good | Best | Partial |
+| **Zero-ops** | No | **Yes** | Yes | Yes | Partial | No | Partial |
+| **Time to production** | Hours | **10 min** | 15 min | 20 min | Days | Days-Weeks | Hours |
+| **Everything in one place** | ✅ | **✅** | ✅ | ✅ | ✅ | ✅ | ❌ (split) |
+| **Operational overhead** | Low | **Lowest** | Lowest | Low | Medium | High | Low-Medium |
+| **Scale ceiling** | Low | **Medium** | Medium | Medium | High | Highest | Medium |
+
+*Render has free tier but limited; Railway gives $5 credit/month
+
+**🏆 Winner for most teams: Railway** - Simplest, everything in one place, fastest to deploy, reasonable cost.
 
 ### Suggested progression
 
-1. **Start with**: **Managed Container Platform** (Option 6 - Railway/Render/Fly.io). 
-   - Best for: Rapid prototyping, zero-ops, lowest time-to-production
-   - Cost: $20-40/mo with free database tiers
-   - Setup: Connect GitHub repo, add environment variables, deploy
+#### 🏆 **Recommended: Start with Railway (Option 6)**
 
-2. **Alternative start**: **Single VM with Docker Compose** (Option 2).
-   - Best for: Maximum control, lowest cost at small scale
+**Put everything on Railway** - Frontend, API, Worker, PostgreSQL, Redis. One platform, zero ops.
+
+| Why Railway? | |
+|--------------|---|
+| **All services in one place** | No splitting across platforms |
+| **Fastest time to production** | 10 minutes from repo to live |
+| **Git-based deploys** | Push to deploy, automatic rollbacks |
+| **Managed databases** | One-click Postgres + Redis |
+| **Cost** | ~$25-35/mo for everything |
+| **Free to start** | $5 credit/month, databases have free tiers |
+
+**Setup:**
+1. Connect GitHub repo to Railway
+2. Add PostgreSQL + Redis (one-click)
+3. Add Frontend, API, Worker services
+4. Set environment variables
+5. Done - automatic deploys on every push
+
+---
+
+#### Alternative paths:
+
+2. **Maximum control**: **Single VM with Docker Compose** (Option 2).
+   - Best for: Lowest cost, full SSH access, learning/debugging
    - Cost: $28/mo (Hetzner) to $125/mo (AWS)
    - Setup: Provision VM, install Docker, run docker-compose
 
-3. **When you outgrow the VM**: Move to **Vercel + beefier VM** (Option 4).
-   - Deploy the frontend to Vercel for zero-ops CDN/SSR
-   - Keep the backend on a larger VM or split into API VM + Worker VM
+3. **Best of both worlds**: **Vercel + Railway/VM** (Option 4).
+   - Frontend on Vercel (global CDN, edge functions)
+   - API + Worker on Railway or VM
+   - Cost: $38-88/mo
 
-4. **When you need auto-scaling**: Move to **ECS** (Option 3) or **Kubernetes** (Option 1).
-   - Use managed database/redis
-   - Scale workers independently based on queue depth
+4. **Enterprise scale**: Move to **ECS** (Option 3) or **Kubernetes** (Option 1).
+   - When you need complex auto-scaling, multi-region, or have DevOps expertise
+   - Cost: $187-315/mo
+   - Setup: Days to weeks
 
 ---
 
@@ -580,6 +786,591 @@ Push to main
        ├── K8s: kubectl rollout restart / Argo CD / Flux
        └── Railway/Render/Fly: Automatic deploy on git push (zero config)
 ```
+
+---
+
+## ArgoCD + Image Updater: Continuous Deployment for Kubernetes
+
+**Best for: Teams using Kubernetes who want fully automated GitOps-style continuous deployment.**
+
+This section explains how to set up **ArgoCD** with **ArgoCD Image Updater** to automatically deploy new Docker images to your cluster whenever they're pushed to your container registry.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              GitHub Actions                                  │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  Push to main branch                                                │    │
+│  │    ├── Run tests                                                    │    │
+│  │    ├── Build images: api:v1.2.3, worker:v1.2.3, frontend:v1.2.3    │    │
+│  │    └── Push to GHCR (GitHub Container Registry)                     │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────┬───────────────────────────────────────────┘
+                                  │ New image tags pushed
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ArgoCD Image Updater                                 │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  Watches GHCR for new tags matching semver pattern (e.g., 1.2.3)    │    │
+│  │  └── Updates Git repo: k8s/overlays/production/kustomization.yaml   │    │
+│  │      with specific image tags (replaces 'latest')                   │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────┬───────────────────────────────────────────┘
+                                  │ Commits & pushes to Git
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              ArgoCD                                          │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  Detects Git change → Syncs cluster state to match desired state    │    │
+│  │  └── Performs rolling update of deployments                         │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────┬───────────────────────────────────────────┘
+                                  │ Applies changes
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Kubernetes Cluster                                   │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐  ┌─────────┐        │
+│  │ Frontend │  │   API    │  │  Worker  │  │ Postgres│  │  Redis  │        │
+│  │  v1.2.3  │  │  v1.2.3  │  │  v1.2.3  │  │         │  │         │        │
+│  └──────────┘  └──────────┘  └──────────┘  └─────────┘  └─────────┘        │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Why ArgoCD + Image Updater?
+
+| Feature | Benefit |
+|---------|---------|
+| **GitOps** | Cluster state = Git state. Full audit trail of what was deployed when. |
+| **Automatic Updates** | New images are automatically detected and deployed without manual intervention. |
+| **Image Tag Immutability** | Uses specific semver tags (v1.2.3) instead of `latest` → no cache issues, reproducible deployments. |
+| **Rollback** | Revert to any previous Git commit to instantly rollback. |
+| **Drift Detection** | ArgoCD alerts if cluster state diverges from Git. |
+| **Multi-Environment** | Easily manage dev/staging/prod with Kustomize overlays. |
+
+---
+
+### Step 1: Install ArgoCD
+
+```bash
+# Create namespace
+kubectl create namespace argocd
+
+# Install ArgoCD (stable version)
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# Wait for pods to be ready
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=120s
+
+# Access ArgoCD UI (port-forward)
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+
+# Get initial admin password
+argocd admin initial-password -n argocd
+# OR
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+```
+
+Access UI at https://localhost:8080 (accept self-signed cert), login as `admin` with the password.
+
+---
+
+### Step 2: Install ArgoCD Image Updater
+
+```bash
+# Install Image Updater
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj-labs/argocd-image-updater/stable/manifests/install.yaml
+
+# Create secret for GHCR access (so Image Updater can query new tags)
+kubectl create secret docker-registry ghcr-credentials \
+  --docker-server=ghcr.io \
+  --docker-username=YOUR_GITHUB_USERNAME \
+  --docker-password=YOUR_GITHUB_PAT \
+  -n argocd
+```
+
+**Generate GitHub PAT:**
+- Go to GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
+- Create token with `read:packages` scope (for reading container registry)
+- For Image Updater to commit back to Git, also need `repo` scope
+
+---
+
+### Step 3: Update Kustomize for Image Updater
+
+Image Updater works by writing image tag changes back to your Git repo. Update your production overlay to use a comment annotation:
+
+**`k8s/overlays/production/kustomization.yaml`** (updated):
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: secaudit
+
+resources:
+  - ../../base
+
+namePrefix: prod-
+
+commonLabels:
+  environment: production
+
+# Images - ArgoCD Image Updater will update these tags automatically
+# The comments below tell Image Updater which update strategy to use
+images:
+  - name: ghcr.io/YOUR_USERNAME/sec-audit-api
+    newName: ghcr.io/YOUR_USERNAME/sec-audit-api
+    newTag: 1.0.0  # argocd-image-updater: allow-tags=regexp:^\d+\.\d+\.\d+$,update-strategy=semver
+  - name: ghcr.io/YOUR_USERNAME/sec-audit-worker
+    newName: ghcr.io/YOUR_USERNAME/sec-audit-worker
+    newTag: 1.0.0  # argocd-image-updater: allow-tags=regexp:^\d+\.\d+\.\d+$,update-strategy=semver
+  - name: ghcr.io/YOUR_USERNAME/sec-audit-frontend
+    newName: ghcr.io/YOUR_USERNAME/sec-audit-frontend
+    newTag: 1.0.0  # argocd-image-updater: allow-tags=regexp:^\d+\.\d+\.\d+$,update-strategy=semver
+
+patchesStrategicMerge:
+  - api-patch.yaml
+  - worker-patch.yaml
+  - frontend-patch.yaml
+
+configMapGenerator:
+  - name: secaudit-config
+    behavior: merge
+    literals:
+      - LOG_LEVEL=INFO
+      - ENVIRONMENT=production
+```
+
+**Important:** Change `YOUR_USERNAME` to your actual GitHub username/org.
+
+---
+
+### Step 4: Create the ArgoCD Application
+
+**`k8s/argocd/application.yaml`** (create this file):
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: secaudit-production
+  namespace: argocd
+  # Enable Image Updater annotations
+  annotations:
+    # Allow Image Updater to write back to Git
+    argocd-image-updater.argoproj.io/write-back-method: git
+    argocd-image-updater.argoproj.io/git-branch: main
+    argocd-image-updater.argoproj.io/write-back-target: kustomization
+    
+    # Configure images to watch
+    argocd-image-updater.argoproj.io/image-list: |
+      api=ghcr.io/YOUR_USERNAME/sec-audit-api:~1.x
+      worker=ghcr.io/YOUR_USERNAME/sec-audit-worker:~1.x
+      frontend=ghcr.io/YOUR_USERNAME/sec-audit-frontend:~1.x
+    
+    # Update strategy: semver (respects major.minor.patch)
+    argocd-image-updater.argoproj.io/api.update-strategy: semver
+    argocd-image-updater.argoproj.io/api.allow-tags: regexp:^\d+\.\d+\.\d+$
+    argocd-image-updater.argoproj.io/worker.update-strategy: semver
+    argocd-image-updater.argoproj.io/worker.allow-tags: regexp:^\d+\.\d+\.\d+$
+    argocd-image-updater.argoproj.io/frontend.update-strategy: semver
+    argocd-image-updater.argoproj.io/frontend.allow-tags: regexp:^\d+\.\d+\.\d+$
+    
+    # Pull secret for private registry
+    argocd-image-updater.argoproj.io/api.pull-secret: pullsecret:argocd/ghcr-credentials
+    argocd-image-updater.argoproj.io/worker.pull-secret: pullsecret:argocd/ghcr-credentials
+    argocd-image-updater.argoproj.io/frontend.pull-secret: pullsecret:argocd/ghcr-credentials
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/YOUR_ORG/sec-audit-repos.git
+    targetRevision: main
+    path: k8s/overlays/production
+    
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: secaudit
+    
+  syncPolicy:
+    automated:
+      prune: true        # Remove resources not in Git
+      selfHeal: true     # Revert manual changes to cluster
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  revisionHistoryLimit: 10
+```
+
+Apply it:
+```bash
+kubectl apply -f k8s/argocd/application.yaml
+```
+
+---
+
+### Step 5: Configure Git Write-Back (Required for Image Updater)
+
+Image Updater needs to commit changes back to Git. Create a Kubernetes secret with Git credentials:
+
+**Option A: HTTPS with Personal Access Token (Recommended)**
+
+```bash
+# Create secret with Git credentials
+kubectl create secret generic git-creds \
+  --from-literal=username=YOUR_GITHUB_USERNAME \
+  --from-literal=password=YOUR_GITHUB_PAT \
+  -n argocd
+
+# Label it for Image Updater
+kubectl label secret git-creds -n argocd argocd-image-updater.argoproj.io/secret-type=git-creds
+```
+
+**Option B: SSH Key**
+
+```bash
+# Generate SSH key pair
+ssh-keygen -t ed25519 -C "argocd-image-updater" -f /tmp/argocd-image-updater
+
+# Add public key to GitHub repo: Settings → Deploy keys → Add deploy key
+
+# Create secret
+kubectl create secret generic git-ssh-creds \
+  --from-file=sshPrivateKey=/tmp/argocd-image-updater \
+  -n argocd
+
+# Label it
+kubectl label secret git-ssh-creds -n argocd argocd-image-updater.argoproj.io/secret-type=git-creds
+```
+
+---
+
+### Step 6: Update GitHub Actions for Semantic Versioning
+
+Your CI pipeline needs to tag images with semantic versions (e.g., `1.2.3`), not just `latest`.
+
+**`.github/workflows/deploy.yaml`** (update or create):
+
+```yaml
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Determine version
+        id: version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            # Use tag version (strip 'v' prefix)
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            # Use commit SHA for main branch builds
+            VERSION=$(git rev-parse --short HEAD)
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+  build-api:
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Build and push API
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile.api
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/sec-audit-api:${{ needs.version.outputs.version }}
+            ${{ env.IMAGE_PREFIX }}/sec-audit-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-worker:
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Build and push Worker
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/sec-audit-worker:${{ needs.version.outputs.version }}
+            ${{ env.IMAGE_PREFIX }}/sec-audit-worker:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-frontend:
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Build and push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/sec-audit-frontend:${{ needs.version.outputs.version }}
+            ${{ env.IMAGE_PREFIX }}/sec-audit-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+```
+
+**For proper semver tagging, use Git tags:**
+
+```bash
+# When ready to release
+git tag -a v1.2.3 -m "Release version 1.2.3"
+git push origin v1.2.3
+```
+
+This triggers the workflow with `VERSION=1.2.3`, and Image Updater will detect and deploy it.
+
+---
+
+### Step 7: Alternative - Use Commit SHA for Continuous Deployment
+
+If you want **every commit to main** to deploy immediately (instead of only tagged releases):
+
+**Update Image Updater annotations in Application:**
+
+```yaml
+metadata:
+  annotations:
+    # Change from semver to latest (newest) strategy
+    argocd-image-updater.argoproj.io/api.update-strategy: latest
+    argocd-image-updater.argoproj.io/api.allow-tags: regexp:^[a-f0-9]{7,8}$
+    argocd-image-updater.argoproj.io/worker.update-strategy: latest
+    argocd-image-updater.argoproj.io/worker.allow-tags: regexp:^[a-f0-9]{7,8}$
+    # ... same for frontend
+```
+
+This watches for 7-8 character hex strings (short SHA format).
+
+---
+
+### Step 8: Verify the Setup
+
+```bash
+# Check ArgoCD Application status
+argocd app get secaudit-production
+
+# View Image Updater logs
+kubectl logs -n argocd -l app.kubernetes.io/name=argocd-image-updater -f
+
+# Trigger a manual check (for testing)
+kubectl exec -n argocd deployment/argocd-image-updater -- /usr/local/bin/argocd-image-updater run --once
+
+# Watch your kustomization.yaml - it should update automatically
+git pull  # After a new image is pushed
+```
+
+---
+
+### How It All Works Together
+
+```
+1. Developer pushes code to main
+   └── GitHub Actions builds images: api:abc1234, worker:abc1234
+
+2. Image Updater polls GHCR every 2 minutes (configurable)
+   └── Detects new tag: abc1234
+
+3. Image Updater updates Git repo
+   └── Changes k8s/overlays/production/kustomization.yaml
+       from: newTag: 1.0.0
+       to:   newTag: abc1234
+
+4. ArgoCD detects Git change within 3 minutes (or webhook instant)
+   └── Syncs cluster: updates Deployments with new image tags
+
+5. Kubernetes performs rolling update
+   └── Zero-downtime deployment of new version
+
+Total time from push to deploy: ~3-5 minutes
+```
+
+---
+
+### Image Update Strategies
+
+| Strategy | Description | Use Case |
+|----------|-------------|----------|
+| `semver` | Follows semantic versioning (1.2.3). Can pin to `~1.2.x` or `^1.x` | Production - controlled updates |
+| `latest` | Always uses the newest image tag | Development - latest and greatest |
+| `name` | Alphanumeric sort (newest by name) | Special naming schemes |
+| `digest` | Uses SHA256 digest (immutable) | Maximum reproducibility |
+
+**Pinning to major versions:**
+```yaml
+# Only update within v1.x.x (won't auto-deploy v2.0.0)
+argocd-image-updater.argoproj.io/image-list: api=ghcr.io/user/sec-audit-api:~1
+
+# Only update within v1.2.x (won't auto-deploy v1.3.0)
+argocd-image-updater.argoproj.io/image-list: api=ghcr.io/user/sec-audit-api:~1.2
+```
+
+---
+
+### Multi-Environment Setup
+
+Create separate ArgoCD Applications for each environment:
+
+```
+k8s/
+├── argocd/
+│   ├── application-dev.yaml      # Development: latest images, auto-sync
+│   ├── application-staging.yaml  # Staging: tagged images, auto-sync
+│   └── application-prod.yaml     # Production: semver images, manual sync
+├── base/
+└── overlays/
+    ├── development/
+    ├── staging/
+    └── production/
+```
+
+**Production with manual sync** (requires human approval):
+```yaml
+spec:
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # BUT add this for production to require manual sync:
+  # syncPolicy: {}  # No automated sync - manual approval required
+```
+
+---
+
+### Monitoring and Alerts
+
+**PrometheusRule for ArgoCD:**
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: argocd-alerts
+  namespace: argocd
+spec:
+  groups:
+    - name: argocd
+      rules:
+        - alert: ArgoCDAppOutOfSync
+          expr: argocd_app_info{sync_status!="Synced"} == 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ArgoCD app {{ $labels.name }} is out of sync"
+            
+        - alert: ArgoCDAppUnhealthy
+          expr: argocd_app_info{health_status!="Healthy"} == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "ArgoCD app {{ $labels.name }} is unhealthy"
+```
+
+---
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Images not updating | Check `kubectl logs -n argocd deployment/argocd-image-updater`. Verify GHCR credentials. |
+| Git write-back fails | Ensure PAT has `repo` scope. Check `git-creds` secret exists and is labeled. |
+| ArgoCD won't sync | Check Application status: `argocd app get secaudit-production`. Look for sync errors. |
+| Image pull errors | Verify `imagePullSecrets` in deployments. Check GHCR is accessible from cluster. |
+| Rollback needed | In ArgoCD UI: Click app → History & Rollback → Select previous version → Rollback. |
+
+---
+
+### Summary: ArgoCD vs Other Options
+
+| Feature | ArgoCD + Image Updater | Manual Kubectl | Helm + Flux |
+|---------|------------------------|----------------|-------------|
+| **GitOps** | ✅ Full | ❌ No | ✅ Full |
+| **Auto image updates** | ✅ Yes | ❌ Manual | ✅ Yes |
+| **UI visibility** | ✅ Excellent | ❌ CLI only | ⚠️ Limited |
+| **Rollback** | ✅ One-click | ⚠️ Manual | ✅ Yes |
+| **Drift detection** | ✅ Yes | ❌ No | ✅ Yes |
+| **Learning curve** | Medium | Low | Medium |
+| **Best for** | Teams wanting full CD | Simple setups | Helm-centric orgs |
+
+**Recommendation:** Use **ArgoCD + Image Updater** for production Kubernetes deployments. It provides the best developer experience with automatic deployments, full visibility, and easy rollbacks.
 
 ### Worker image optimization
 The worker image is the biggest bottleneck for deployments and cold starts. Consider:
