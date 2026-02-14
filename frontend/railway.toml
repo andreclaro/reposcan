@@ -1,0 +1,27 @@
+# Railway Configuration for Frontend Service
+# https://docs.railway.com/reference/config-as-code
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "./Dockerfile"
+
+[deploy]
+startCommand = "pnpm start"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 60
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+# Sleep settings for zero-downtime deployments
+[deploy.sleep]
+# Prevent sleeping for production (set to null or remove for always-on)
+# For hobby plans, services sleep after inactivity
+enabled = true
+
+# Resource allocation (can be overridden in Railway dashboard)
+# [deploy.resources]
+# memory = "1Gi"
+# cpu = 1
+
+# Cron schedule (if needed for scheduled tasks)
+# cronSchedule = "0 2 * * *"
