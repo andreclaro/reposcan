@@ -1,5 +1,5 @@
-# Worker image (scanner tools). Build context: repo root (..)
-# Used by: docker-compose. Standalone: docker build -f docker/Dockerfile -t sec-audit-worker .
+# Worker image (scanner tools) - OPTIMIZED
+# Build context: repo root (..)
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -7,25 +7,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Create non-root user early
 RUN groupadd -r appgroup && useradd -r -g appgroup -m -s /bin/bash appuser
 
-# Primary/default versions
-ARG NODE_MAJOR=20
+# Single versions (not multiple)
+ARG NODE_VERSION=20
 ARG GO_VERSION=1.22.6
-ARG RUST_VERSION=1.93.0
-
-# Additional Node.js versions to install
-ARG NODE_VERSION_18=18
-ARG NODE_VERSION_20=20
-ARG NODE_VERSION_22=22
-
-# Additional Go versions to install
-ARG GO_VERSION_1_21=1.21.6
-ARG GO_VERSION_1_22=1.22.6
-ARG GO_VERSION_1_23=1.23.0
-
-# Additional Rust toolchains to install
-ARG RUST_VERSION_1_75=1.75.0
-ARG RUST_VERSION_1_80=1.80.0
-ARG RUST_VERSION_1_89=1.89.0
+ARG RUST_VERSION=1.80.0
 
 # Security scanner versions
 ARG CARGO_AUDIT_VERSION=0.22.0
@@ -35,14 +20,11 @@ ARG TRIVY_VERSION=0.68.2
 ARG GITLEAKS_VERSION=8.23.3
 ARG OSV_SCANNER_VERSION=2.3.2
 ARG HADOLINT_VERSION=2.12.0
-ARG ZAP_VERSION=2.17.0
 ARG TRUFFLEHOG_VERSION=3.93.0
 
+# Install only essential packages (no build-essential, no default-jre)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        build-essential \
-        bison \
-        bsdmainutils \
         ca-certificates \
         curl \
         git \
@@ -55,176 +37,101 @@ RUN apt-get update \
         python3-venv \
         unzip \
         xz-utils \
-        default-jre \
-        # Add docker-ce-cli dependencies for TLS
-        openssl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
-# Configure git to rewrite SSH URLs to HTTPS for GitHub (works for public repos)
+# Configure git to rewrite SSH URLs to HTTPS
 RUN git config --global url."https://github.com/".insteadOf "git@github.com:" \
     && git config --global url."https://".insteadOf "ssh://"
 
-# Install nvm (Node Version Manager) and multiple Node.js versions for appuser
-USER appuser
-ENV NVM_DIR="/home/appuser/.nvm"
-RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash \
-    && export NVM_DIR="/home/appuser/.nvm" \
-    && [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" \
-    && nvm install ${NODE_VERSION_18} \
-    && nvm install ${NODE_VERSION_20} \
-    && nvm install ${NODE_VERSION_22} \
-    && nvm alias default ${NODE_MAJOR} \
-    && nvm use default \
-    && corepack enable \
-    && corepack prepare pnpm@latest --activate
+# Install Node.js (single version via NodeSource, not nvm)
+RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g pnpm \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
-# Install gvm (Go Version Manager) and multiple Go versions for appuser
-ENV GVM_ROOT="/home/appuser/.gvm"
-ENV PATH="/home/appuser/.gvm/pkgsets/go${GO_VERSION}/global/bin:/home/appuser/.gvm/gos/go${GO_VERSION}/bin:$PATH"
-RUN curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer | bash \
-    && bash -c "export GVM_ROOT=\"/home/appuser/.gvm\" \
-    && [ -s \"\$GVM_ROOT/scripts/gvm\" ] && source \"\$GVM_ROOT/scripts/gvm\" \
-    && gvm install go${GO_VERSION_1_21} -B || true \
-    && gvm install go${GO_VERSION_1_22} -B || true \
-    && gvm install go${GO_VERSION_1_23} -B || true \
-    && gvm use go${GO_VERSION} --default || (gvm install go${GO_VERSION} -B && gvm use go${GO_VERSION} --default)" \
-    && bash -c "export GVM_ROOT=\"/home/appuser/.gvm\" \
-    && [ -s \"\$GVM_ROOT/scripts/gvm\" ] && source \"\$GVM_ROOT/scripts/gvm\" \
-    && go install golang.org/x/vuln/cmd/govulncheck@latest"
+# Install Go (single version, direct download)
+ENV GOROOT=/usr/local/go
+ENV PATH="${GOROOT}/bin:${PATH}"
+RUN ARCH="$(dpkg --print-architecture)" \
+    && case "${ARCH}" in \
+        amd64) GO_ARCH="amd64" ;; \
+        arm64) GO_ARCH="arm64" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz \
+        | tar -C /usr/local -xzf - \
+    && go install golang.org/x/vuln/cmd/govulncheck@latest
 
-# Rust + cargo-audit (rustup supports multiple toolchains) for appuser
-ENV CARGO_HOME="/home/appuser/.cargo"
-ENV RUSTUP_HOME="/home/appuser/.rustup"
-ENV PATH="/home/appuser/.cargo/bin:${PATH}"
+# Install Rust (single stable toolchain)
+ENV CARGO_HOME="/usr/local/cargo"
+ENV RUSTUP_HOME="/usr/local/rustup"
+ENV PATH="${CARGO_HOME}/bin:${PATH}"
 RUN ARCH="$(dpkg --print-architecture)" \
     && case "${ARCH}" in \
         amd64) RUST_ARCH="x86_64" ;; \
         arm64) RUST_ARCH="aarch64" ;; \
         *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
     esac \
-    && curl -fsSL https://static.rust-lang.org/rustup/dist/${RUST_ARCH}-unknown-linux-gnu/rustup-init -o /tmp/rustup-init \
-    && chmod +x /tmp/rustup-init \
-    && /tmp/rustup-init -y --default-toolchain ${RUST_VERSION} \
-    && rm /tmp/rustup-init \
-    && rustup toolchain install ${RUST_VERSION_1_75} \
-    && rustup toolchain install ${RUST_VERSION_1_80} \
-    && rustup toolchain install ${RUST_VERSION_1_89} \
-    && rustup toolchain install stable \
-    && rustup default ${RUST_VERSION} \
-    && cargo install cargo-audit --locked --version ${CARGO_AUDIT_VERSION}
+    && curl -fsSL https://sh.rustup.rs | sh -s -- -y \
+        --default-toolchain ${RUST_VERSION} \
+        --component rustfmt \
+    && cargo install cargo-audit --locked --version ${CARGO_AUDIT_VERSION} \
+    && rustup self uninstall -y || true
 
-# Switch back to root for installing system-wide tools
-USER root
-
-# Terraform security scanners
+# Install security scanners (single layer to reduce layers)
 RUN ARCH="$(dpkg --print-architecture)" \
     && case "${ARCH}" in \
-        amd64) TFSEC_ARCH="amd64" ;; \
-        arm64) TFSEC_ARCH="arm64" ;; \
+        amd64) TRIVY_ARCH="64bit"; TFSEC_ARCH="amd64"; TFLINT_ARCH="amd64"; \
+                GITLEAKS_ARCH="x64"; OSV_ARCH="amd64"; HADOLINT_ARCH="x86_64"; \
+                TRUFFLEHOG_ARCH="linux_amd64" ;; \
+        arm64) TRIVY_ARCH="ARM64"; TFSEC_ARCH="arm64"; TFLINT_ARCH="arm64"; \
+                GITLEAKS_ARCH="arm64"; OSV_ARCH="arm64"; HADOLINT_ARCH="arm64"; \
+                TRUFFLEHOG_ARCH="linux_arm64" ;; \
         *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
     esac \
-    && curl -fsSL https://github.com/aquasecurity/tfsec/releases/download/v${TFSEC_VERSION}/tfsec-linux-${TFSEC_ARCH} -o /usr/local/bin/tfsec \
-    && chmod +x /usr/local/bin/tfsec
+    # tfsec
+    && curl -fsSL https://github.com/aquasecurity/tfsec/releases/download/v${TFSEC_VERSION}/tfsec-linux-${TFSEC_ARCH} \
+        -o /usr/local/bin/tfsec && chmod +x /usr/local/bin/tfsec \
+    # tflint
+    && curl -fsSL https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_linux_${TFLINT_ARCH}.zip \
+        -o /tmp/tflint.zip && unzip -q /tmp/tflint.zip -d /usr/local/bin && rm /tmp/tflint.zip \
+    # trivy
+    && curl -fsSL https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-${TRIVY_ARCH}.tar.gz \
+        | tar -xzf - -C /usr/local/bin trivy \
+    # gitleaks
+    && curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_${GITLEAKS_ARCH}.tar.gz \
+        | tar -xzf - -C /usr/local/bin gitleaks \
+    # osv-scanner
+    && curl -fsSL https://github.com/google/osv-scanner/releases/download/v${OSV_SCANNER_VERSION}/osv-scanner_linux_${OSV_ARCH} \
+        -o /usr/local/bin/osv-scanner && chmod +x /usr/local/bin/osv-scanner \
+    # hadolint
+    && curl -fsSL https://github.com/hadolint/hadolint/releases/download/v${HADOLINT_VERSION}/hadolint-Linux-${HADOLINT_ARCH} \
+        -o /usr/local/bin/hadolint && chmod +x /usr/local/bin/hadolint \
+    # trufflehog
+    && curl -fsSL https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/trufflehog_${TRUFFLEHOG_VERSION}_${TRUFFLEHOG_ARCH}.tar.gz \
+        | tar -xzf - -C /usr/local/bin trufflehog
 
-RUN ARCH="$(dpkg --print-architecture)" \
-    && case "${ARCH}" in \
-        amd64) TFLINT_ARCH="amd64" ;; \
-        arm64) TFLINT_ARCH="arm64" ;; \
-        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
-    esac \
-    && curl -fsSL https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_linux_${TFLINT_ARCH}.zip -o /tmp/tflint.zip \
-    && unzip -q /tmp/tflint.zip -d /usr/local/bin \
-    && rm /tmp/tflint.zip
-
-# Trivy (Dockerfile/image scans)
-RUN ARCH="$(dpkg --print-architecture)" \
-    && case "${ARCH}" in \
-        amd64) TRIVY_ARCH="64bit" ;; \
-        arm64) TRIVY_ARCH="ARM64" ;; \
-        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
-    esac \
-    && curl -fsSL https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-${TRIVY_ARCH}.tar.gz -o /tmp/trivy.tgz \
-    && tar -xzf /tmp/trivy.tgz -C /usr/local/bin trivy \
-    && rm /tmp/trivy.tgz
-
-# Gitleaks (Secret Detection)
-RUN ARCH="$(dpkg --print-architecture)" \
-    && case "${ARCH}" in \
-        amd64) GITLEAKS_ARCH="x64" ;; \
-        arm64) GITLEAKS_ARCH="arm64" ;; \
-        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
-    esac \
-    && curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_${GITLEAKS_ARCH}.tar.gz -o /tmp/gitleaks.tgz \
-    && tar -xzf /tmp/gitleaks.tgz -C /usr/local/bin gitleaks \
-    && rm /tmp/gitleaks.tgz
-
-# OSV-Scanner (Universal SCA for Python, Java, .NET)
-RUN ARCH="$(dpkg --print-architecture)" \
-    && case "${ARCH}" in \
-        amd64) OSV_ARCH="amd64" ;; \
-        arm64) OSV_ARCH="arm64" ;; \
-        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
-    esac \
-    && curl -fsSL https://github.com/google/osv-scanner/releases/download/v${OSV_SCANNER_VERSION}/osv-scanner_linux_${OSV_ARCH} -o /usr/local/bin/osv-scanner \
-    && chmod +x /usr/local/bin/osv-scanner
-
-# Hadolint (Dockerfile linting)
-RUN ARCH="$(dpkg --print-architecture)" \
-    && case "${ARCH}" in \
-        amd64) HADOLINT_ARCH="x86_64" ;; \
-        arm64) HADOLINT_ARCH="arm64" ;; \
-        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
-    esac \
-    && curl -fsSL https://github.com/hadolint/hadolint/releases/download/v${HADOLINT_VERSION}/hadolint-Linux-${HADOLINT_ARCH} -o /usr/local/bin/hadolint \
-    && chmod +x /usr/local/bin/hadolint
-
-# OWASP ZAP (DAST - Dynamic Application Security Testing)
-# Note: ZAP requires a running application to scan
-RUN curl -fsSL "https://github.com/zaproxy/zaproxy/releases/download/v${ZAP_VERSION}/ZAP_${ZAP_VERSION}_Linux.tar.gz" -o /tmp/zap.tgz \
-    && tar -xzf /tmp/zap.tgz -C /opt \
-    && ln -s /opt/ZAP_${ZAP_VERSION}/zap.sh /usr/local/bin/zap \
-    && rm /tmp/zap.tgz
-
-# TruffleHog (Enhanced Secret Detection)
-RUN ARCH="$(dpkg --print-architecture)" \
-    && case "${ARCH}" in \
-        amd64) TRUFFLEHOG_ARCH="linux_amd64" ;; \
-        arm64) TRUFFLEHOG_ARCH="linux_arm64" ;; \
-        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
-    esac \
-    && curl -fsSL "https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/trufflehog_${TRUFFLEHOG_VERSION}_${TRUFFLEHOG_ARCH}.tar.gz" -o /tmp/trufflehog.tgz \
-    && tar -xzf /tmp/trufflehog.tgz -C /usr/local/bin trufflehog \
-    && rm /tmp/trufflehog.tgz
-
-# Python-based scanners (system-wide for all users)
+# Python scanners (no cache)
 RUN python3 -m pip install --no-cache-dir --upgrade pip \
-    && python3 -m pip install --no-cache-dir semgrep checkov bandit[sarif]
-
-# Docker CLI (required by Dockerfile scan in scanners.py)
-RUN ARCH="$(dpkg --print-architecture)" \
-    && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
-    && echo "deb [arch=${ARCH} signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
-        > /etc/apt/sources.list.d/docker.list \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends docker-ce-cli \
-    && rm -rf /var/lib/apt/lists/*
+    && python3 -m pip install --no-cache-dir semgrep checkov bandit[sarif] \
+    && rm -rf ~/.cache/pip /tmp/pip-*
 
 # Install Python dependencies for API and workers
 COPY backend/requirements.txt /work/
-RUN python3 -m pip install --no-cache-dir -r /work/requirements.txt
+RUN python3 -m pip install --no-cache-dir -r /work/requirements.txt \
+    && rm -rf ~/.cache/pip /tmp/pip-*
 
-# Set up work directory with proper permissions
+# Set up work directory
 WORKDIR /work
 RUN chown -R appuser:appgroup /work
 
-# Copy application code with proper ownership
+# Copy application code
 COPY --chown=appuser:appgroup backend/src/ /work/
 
-# Create results directory with proper permissions
+# Create results directory
 RUN mkdir -p /work/results && chown -R appuser:appgroup /work/results
 
 # Switch to non-root user
 USER appuser
 
-# Default entrypoint (can be overridden in docker-compose)
 ENTRYPOINT ["python3", "-m", "audit"]
