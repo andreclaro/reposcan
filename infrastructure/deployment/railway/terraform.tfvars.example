@@ -1,0 +1,41 @@
+# =============================================================================
+# Railway Terraform Variables - Example
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your values
+# DO NOT commit terraform.tfvars to git (it's in .gitignore)
+# =============================================================================
+
+# Railway API Token (required)
+# Get yours from: https://railway.app/account/tokens
+# Or set via environment variable: export RAILWAY_API_TOKEN="your_token"
+railway_api_token = "your-railway-api-token-here"
+
+# Project Configuration
+project_name = "securitykit"
+environment  = "production"
+
+# GitHub Repository
+github_repo   = "https://github.com/yourusername/sec-audit-repos"
+github_branch = "main"
+
+# Database Plans (free, starter, pro)
+# Note: Database plans are managed via Railway dashboard after creation
+# postgres_plan = "starter"
+# redis_plan    = "free"
+
+# API Service Resources
+# api_memory   = "1Gi"
+# api_cpu      = 1
+# api_replicas = 1
+
+# Worker Service Resources (scanners need more resources)
+# worker_memory = "4Gi"
+# worker_cpu    = 2
+
+# Frontend Service Resources
+# frontend_memory = "1Gi"
+# frontend_cpu    = 1
+
+# Custom Domains (optional)
+# custom_domain = "app.yourdomain.com"
+# api_domain    = "api.yourdomain.com"
