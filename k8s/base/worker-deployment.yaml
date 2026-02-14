@@ -1,0 +1,131 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: secaudit
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 3  # Multiple workers for parallel processing
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1  # Can afford 1 worker down during update
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      terminationGracePeriodSeconds: 120  # Workers need more time for long tasks
+      containers:
+        - name: worker
+          image: ghcr.io/YOUR_USERNAME/sec-audit-worker:latest
+          imagePullPolicy: Always
+          command:
+            - celery
+            - -A
+            - worker.scan_worker
+            - worker
+            - --loglevel=info
+            - --concurrency=50
+          envFrom:
+            - configMapRef:
+                name: secaudit-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DATABASE_URL
+            - name: REDIS_URL
+              value: "redis://redis:6379/0"
+            - name: CELERY_BROKER_URL
+              value: "redis://redis:6379/0"
+            - name: CELERY_RESULT_BACKEND
+              value: "redis://redis:6379/0"
+            - name: RESULTS_DIR
+              value: "/work/results"
+            - name: AI_ANALYSIS_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: AI_ANALYSIS_ENABLED
+                  optional: true
+            - name: AI_PROVIDER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: AI_PROVIDER
+                  optional: true
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: ANTHROPIC_API_KEY
+                  optional: true
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"  # Workers are CPU-intensive during scans
+          livenessProbe:
+            exec:
+              command:
+                - python3
+                - -c
+                - "import celery; print('alive')"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+      imagePullSecrets:
+        - name: ghcr-secret
+---
+# Optional: Horizontal Pod Autoscaler for workers
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: worker-hpa
+  namespace: secaudit
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: worker
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60

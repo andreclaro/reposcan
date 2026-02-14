@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: secaudit-config
+  namespace: secaudit
+data:
+  RESULTS_DIR: "/work/results"
+  REDIS_URL: "redis://redis:6379/0"
+  # API-specific
+  FASTAPI_HOST: "0.0.0.0"
+  FASTAPI_PORT: "8000"
+  # Worker-specific
+  CELERY_BROKER_URL: "redis://redis:6379/0"
+  CELERY_RESULT_BACKEND: "redis://redis:6379/0"

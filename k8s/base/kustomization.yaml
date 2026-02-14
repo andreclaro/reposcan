@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: secaudit
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - postgres.yaml
+  - redis.yaml
+  - api-deployment.yaml
+  - worker-deployment.yaml
+  - frontend-deployment.yaml
+  # Note: secrets.yaml is not included here - create manually!
+
+# Common labels added to all resources
+commonLabels:
+  app.kubernetes.io/part-of: secaudit
+  app.kubernetes.io/managed-by: kustomize
+
+# Images to be overridden by overlays
+images:
+  - name: ghcr.io/YOUR_USERNAME/sec-audit-api
+    newTag: latest
+  - name: ghcr.io/YOUR_USERNAME/sec-audit-worker
+    newTag: latest
+  - name: ghcr.io/YOUR_USERNAME/sec-audit-frontend
+    newTag: latest

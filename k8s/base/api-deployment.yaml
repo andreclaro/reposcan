@@ -1,0 +1,140 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: secaudit
+  labels:
+    app.kubernetes.io/name: api
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 2  # Minimum 2 for zero-downtime
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1         # Can exceed desired by 1
+      maxUnavailable: 0   # Never drop below desired
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      terminationGracePeriodSeconds: 60  # Time for graceful shutdown
+      containers:
+        - name: api
+          image: ghcr.io/YOUR_USERNAME/sec-audit-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: secaudit-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DATABASE_URL
+            - name: REDIS_URL
+              value: "redis://redis:6379/0"
+            - name: AI_ANALYSIS_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: AI_ANALYSIS_ENABLED
+                  optional: true
+            - name: AI_PROVIDER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: AI_PROVIDER
+                  optional: true
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: ANTHROPIC_API_KEY
+                  optional: true
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 15"]  # Graceful shutdown
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: false
+      imagePullSecrets:
+        - name: ghcr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: secaudit
+  labels:
+    app.kubernetes.io/name: api
+    app.kubernetes.io/component: backend
+spec:
+  selector:
+    app: api
+  ports:
+    - port: 80
+      targetPort: 8000
+      name: http
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api
+  namespace: secaudit
+  annotations:
+    # Traefik annotations (default in k3s)
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    # For cert-manager with Let's Encrypt (uncomment if using HTTPS)
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    # traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  # tls:  # Uncomment for HTTPS
+  #   - hosts:
+  #       - api.yourdomain.com
+  #     secretName: api-tls
+  rules:
+    - host: api.yourdomain.com  # CHANGE THIS
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 80

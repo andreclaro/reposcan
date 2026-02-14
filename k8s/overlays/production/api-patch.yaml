@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: secaudit
+spec:
+  replicas: 3  # More replicas for production
+  template:
+    spec:
+      containers:
+        - name: api
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "2000m"
+          # Production-specific env vars
+          env:
+            - name: LOG_LEVEL
+              value: "INFO"

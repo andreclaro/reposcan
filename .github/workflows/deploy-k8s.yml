@@ -1,0 +1,260 @@
+name: Build and Deploy to Kubernetes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_API: ${{ github.repository }}/api
+  IMAGE_NAME_WORKER: ${{ github.repository }}/worker
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
+
+jobs:
+  # Build and push Docker images
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      api_image: ${{ steps.meta-api.outputs.tags }}
+      worker_image: ${{ steps.meta-worker.outputs.tags }}
+      frontend_image: ${{ steps.meta-frontend.outputs.tags }}
+      api_digest: ${{ steps.build-api.outputs.digest }}
+      worker_digest: ${{ steps.build-worker.outputs.digest }}
+      frontend_digest: ${{ steps.build-frontend.outputs.digest }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build and push API image
+      - name: Extract API metadata
+        id: meta-api
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}
+          tags: |
+            type=sha,prefix=,suffix=,format=short
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push API image
+        id: build-api
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.api
+          push: true
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      # Build and push Worker image
+      - name: Extract Worker metadata
+        id: meta-worker
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WORKER }}
+          tags: |
+            type=sha,prefix=,suffix=,format=short
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Worker image
+        id: build-worker
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta-worker.outputs.tags }}
+          labels: ${{ steps.meta-worker.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      # Build and push Frontend image
+      - name: Extract Frontend metadata
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
+          tags: |
+            type=sha,prefix=,suffix=,format=short
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Frontend image
+        id: build-frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  # Run security scan on images
+  security-scan:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - name: Run Trivy vulnerability scanner on API
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}@${{ needs.build.outputs.api_digest }}
+          format: 'sarif'
+          output: 'trivy-api-results.sarif'
+
+      - name: Run Trivy vulnerability scanner on Worker
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WORKER }}@${{ needs.build.outputs.worker_digest }}
+          format: 'sarif'
+          output: 'trivy-worker-results.sarif'
+
+      - name: Run Trivy vulnerability scanner on Frontend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}@${{ needs.build.outputs.frontend_digest }}
+          format: 'sarif'
+          output: 'trivy-frontend-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: '.'
+
+  # Deploy to Kubernetes
+  deploy:
+    needs: [build, security-scan]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.29.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+          kubectl config current-context
+          kubectl get nodes
+
+      - name: Setup Kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Update image tags in Kustomize
+        run: |
+          cd k8s/overlays/production
+          
+          # Update API image tag
+          kustomize edit set image \
+            ghcr.io/YOUR_USERNAME/sec-audit-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:${{ github.sha }}
+          
+          # Update Worker image tag  
+          kustomize edit set image \
+            ghcr.io/YOUR_USERNAME/sec-audit-worker=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WORKER }}:${{ github.sha }}
+          
+          # Update Frontend image tag
+          kustomize edit set image \
+            ghcr.io/YOUR_USERNAME/sec-audit-frontend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ github.sha }}
+          
+          # Show the updated kustomization
+          cat kustomization.yaml
+
+      - name: Deploy to Kubernetes
+        run: |
+          cd k8s/overlays/production
+          
+          # Apply the manifests
+          kustomize build . | kubectl apply -f -
+          
+          # Wait for rollout to complete (zero-downtime check)
+          kubectl rollout status deployment/prod-api -n secaudit --timeout=300s
+          kubectl rollout status deployment/prod-worker -n secaudit --timeout=300s
+          kubectl rollout status deployment/prod-frontend -n secaudit --timeout=300s
+          
+          # Verify pods are running
+          kubectl get pods -n secaudit
+          kubectl get svc -n secaudit
+          kubectl get ingress -n secaudit
+
+      - name: Run smoke tests
+        run: |
+          # Get the API endpoint
+          API_URL=$(kubectl get ingress prod-api -n secaudit -o jsonpath='{.spec.rules[0].host}')
+          echo "API URL: $API_URL"
+          
+          # Wait for pods to be ready
+          kubectl wait --for=condition=ready pod -l app=api -n secaudit --timeout=120s
+          kubectl wait --for=condition=ready pod -l app=frontend -n secaudit --timeout=120s
+          
+          # Port forward for testing
+          kubectl port-forward svc/prod-api 8080:80 -n secaudit &
+          kubectl port-forward svc/prod-frontend 3000:80 -n secaudit &
+          sleep 5
+          
+          # Health check API
+          curl -f http://localhost:8080/health || exit 1
+          
+          # Health check Frontend
+          curl -f http://localhost:3000/api/health || exit 1
+          
+          echo "✅ Deployment successful and health checks passed!"
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed, rolling back..."
+          kubectl rollout undo deployment/prod-api -n secaudit
+          kubectl rollout undo deployment/prod-worker -n secaudit
+          kubectl rollout undo deployment/prod-frontend -n secaudit
+          kubectl rollout status deployment/prod-api -n secaudit --timeout=120s
+          kubectl rollout status deployment/prod-worker -n secaudit --timeout=120s
+          kubectl rollout status deployment/prod-frontend -n secaudit --timeout=120s
+          echo "✅ Rollback completed"
+
+      - name: Notify deployment status
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          fields: repo,message,commit,author,action,eventName,ref,workflow
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true

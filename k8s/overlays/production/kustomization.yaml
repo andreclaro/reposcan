@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: secaudit
+
+resources:
+  - ../../base
+
+namePrefix: prod-
+
+# Production-specific labels
+commonLabels:
+  environment: production
+
+# Production image tags (GitHub Actions will update these)
+images:
+  - name: ghcr.io/YOUR_USERNAME/sec-audit-api
+    newName: ghcr.io/YOUR_USERNAME/sec-audit-api
+    newTag: latest
+  - name: ghcr.io/YOUR_USERNAME/sec-audit-worker
+    newName: ghcr.io/YOUR_USERNAME/sec-audit-worker
+    newTag: latest
+  - name: ghcr.io/YOUR_USERNAME/sec-audit-frontend
+    newName: ghcr.io/YOUR_USERNAME/sec-audit-frontend
+    newTag: latest
+
+# Production-specific patches
+patchesStrategicMerge:
+  - api-patch.yaml
+  - worker-patch.yaml
+  - frontend-patch.yaml
+
+# ConfigMap overrides
+configMapGenerator:
+  - name: secaudit-config
+    behavior: merge
+    literals:
+      - LOG_LEVEL=INFO
+      - ENVIRONMENT=production
