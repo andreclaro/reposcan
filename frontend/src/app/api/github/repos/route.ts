@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     // Otherwise unauthenticated (60 requests/hour)
     let token = await getUserGitHubToken(session.user.id);
     if (!token) {
-      token = process.env.GITHUB_TOKEN || undefined;
+      token = process.env.GITHUB_TOKEN || null;
     }
 
     const headers: Record<string, string> = {
