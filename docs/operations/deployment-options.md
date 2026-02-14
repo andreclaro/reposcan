@@ -347,27 +347,132 @@ These platforms run your Docker containers without managing VMs or Kubernetes. T
 
 ### Setup Example (Railway)
 
+Railway supports **configuration as code** via `railway.toml` or `railway.json` files committed to your repo. Settings defined in code override dashboard values.
+
+#### Option A: Config as Code (`railway.toml`)
+
+Create a `railway.toml` in each service directory (or root with paths):
+
+```toml
+# railway.toml (frontend)
+[build]
+dockerfilePath = "./frontend/Dockerfile"
+
+[deploy]
+startCommand = "pnpm start"
+healthcheckPath = "/api/health"
+restartPolicyType = "on_failure"
+```
+
+```toml
+# railway.toml (api)
+[build]
+dockerfilePath = "./backend/Dockerfile.api"
+
+[deploy]
+startCommand = "uvicorn api.main:app --host 0.0.0.0 --port 8000"
+healthcheckPath = "/health"
+numReplicas = 2
+```
+
+```toml
+# railway.toml (worker)
+[build]
+dockerfilePath = "./backend/Dockerfile"
+
+[deploy]
+startCommand = "celery -A tasks.scan_worker worker"
+# Worker-specific resource allocation
+[deploy.resources]
+memory = "4Gi"
+cpu = 2
+```
+
+**JSON format** is also supported (`railway.json`) with an official schema at `railway.com/railway.schema.json` for IDE autocomplete.
+
+#### Option B: Terraform Provider (Community)
+
+For teams already using Terraform, use the community Railway provider:
+
+```hcl
+terraform {
+  required_providers {
+    railway = {
+      source  = "terraform-community-providers/railway"
+      version = "~> 0.3"
+    }
+  }
+}
+
+provider "railway" {
+  token = var.railway_api_token
+}
+
+# Project
+resource "railway_project" "sec_audit" {
+  name = "security-audit-platform"
+}
+
+# PostgreSQL
+resource "railway_database" "postgres" {
+  project_id = railway_project.sec_audit.id
+  name       = "postgres"
+  type       = "postgresql"
+}
+
+# Redis
+resource "railway_database" "redis" {
+  project_id = railway_project.sec_audit.id
+  name       = "redis"
+  type       = "redis"
+}
+
+# API Service
+resource "railway_service" "api" {
+  project_id = railway_project.sec_audit.id
+  name       = "api"
+  
+  source_repo = "github.com/yourorg/sec-audit-repos"
+  source_branch = "main"
+  
+  build_command = "docker build -f backend/Dockerfile.api -t api ."
+  start_command = "uvicorn api.main:app --host 0.0.0.0 --port 8000"
+  
+  environment_variables = {
+    DATABASE_URL = railway_database.postgres.connection_string
+    REDIS_URL    = railway_database.redis.connection_string
+  }
+  
+  resources {
+    memory = "1Gi"
+    cpu    = 1
+  }
+}
+
+# Worker Service
+resource "railway_service" "worker" {
+  project_id = railway_project.sec_audit.id
+  name       = "worker"
+  
+  source_repo   = "github.com/yourorg/sec-audit-repos"
+  source_branch = "main"
+  
+  build_command = "docker build -f backend/Dockerfile -t worker ."
+  start_command = "celery -A tasks.scan_worker worker"
+  
+  resources {
+    memory = "4Gi"
+    cpu    = 2
+  }
+}
+```
+
+Provider: [terraform-community-providers/terraform-provider-railway](https://github.com/terraform-community-providers/terraform-provider-railway)
+
+#### Option C: Manual Dashboard Setup
+
 1. **Connect GitHub repo** to Railway
-2. **Deploy services** via `railway.yaml` or dashboard:
-   ```yaml
-   services:
-     frontend:
-       build:
-         dockerfilePath: ./frontend/Dockerfile
-       startCommand: "pnpm start"
-       
-     api:
-       build:
-         dockerfilePath: ./backend/Dockerfile.api
-       startCommand: "uvicorn api.main:app --host 0.0.0.0 --port 8000"
-       
-     worker:
-       build:
-         dockerfilePath: ./backend/Dockerfile
-       startCommand: "celery -A tasks.scan_worker worker"
-       resources:
-         memory: 4GB  # Worker needs more RAM
-   ```
+2. **Add services** via dashboard and point to Dockerfiles
 3. **Add managed databases**: Click "New Database" → PostgreSQL, Redis
 4. **Set environment variables** in Railway dashboard
 5. **Done** - Automatic deploys on every push
