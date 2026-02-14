@@ -2,40 +2,43 @@
 
 This directory contains Terraform configuration to provision the SecurityKit infrastructure on Railway.
 
+## ⚠️ Important Limitations
+
+The Railway Terraform provider has significant limitations:
+
+| Feature | Supported | Notes |
+|---------|-----------|-------|
+| **Create project** | ✅ Yes | `railway_project` resource |
+| **Create services** | ✅ Yes | `railway_service` resource |
+| **Create databases** | ❌ No | Must create via Railway dashboard |
+| **Set environment variables** | ⚠️ Partial | Use `railway_variable` resource or dashboard |
+| **Custom domains** | ✅ Yes | `railway_custom_domain` resource |
+
+**Bottom line:** Terraform creates the project and services. You must manually create PostgreSQL and Redis databases via Railway dashboard and set environment variables.
+
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────┐
-│           Railway Project               │
-│         (securitykit)                   │
+│         Railway Project                 │
+│       (securitykit)                     │
 │                                         │
 │  ┌──────────┐ ┌──────┐ ┌────────────┐  │
 │  │ Frontend │ │ API  │ │   Worker   │  │
 │  │ (Next.js)│ │(FastAPI)│ │ (Celery)  │  │
 │  └──────────┘ └──────┘ └────────────┘  │
 │                                         │
-│  ┌──────────┐ ┌──────────────────────┐ │
-│  │  Redis   │ │     PostgreSQL       │ │
+│  ┌──────────┐ ┌──────────────────────┐ │  ← Created manually
+│  │  Redis   │ │     PostgreSQL       │ │     in dashboard
 │  │ (managed)│ │     (managed)        │ │
 │  └──────────┘ └──────────────────────┘ │
 └─────────────────────────────────────────┘
 ```
 
-## Two-Layer Configuration
-
-| Layer | Tool | Purpose |
-|-------|------|---------|
-| **Infrastructure** | Terraform | Creates project, services, databases |
-| **Build & Deploy** | `railway.toml` | Configures build and runtime settings |
-
-Terraform handles resources that rarely change (services, databases).  
-`railway.toml` handles deployment settings that change more frequently (commands, healthchecks).
-
 ## Prerequisites
 
 1. [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.5.0
-2. [Railway CLI](https://docs.railway.com/guides/cli) (optional, for local testing)
-3. Railway API Token from https://railway.app/account/tokens
+2. Railway API Token from https://railway.app/account/tokens
 
 ## Quick Start
 
@@ -44,7 +47,7 @@ Terraform handles resources that rarely change (services, databases).
 cd infrastructure/deployment/railway
 
 # 2. Set your Railway API token
-export RAILWAY_API_TOKEN="your_token_here"
+export RAILWAY_TOKEN="your_token_here"
 
 # 3. Copy and edit variables
 cp terraform.tfvars.example terraform.tfvars
@@ -62,29 +65,60 @@ terraform apply
 # 7. Note the output values for next steps
 ```
 
+## Post-Deployment Steps (Required)
+
+After `terraform apply`, you **must** complete these steps in Railway dashboard:
+
+### 1. Create Databases
+1. Go to your project: https://railway.app/project/{project_id}
+2. Click **New** → **Database** → **Add PostgreSQL**
+3. Click **New** → **Database** → **Add Redis**
+
+### 2. Configure Environment Variables
+
+**API Service:**
+- `DATABASE_URL` - Copy from PostgreSQL service
+- `REDIS_URL` - Copy from Redis service
+- `RESULTS_DIR=/work/results`
+- `LOG_LEVEL=info`
+
+**Worker Service:**
+- `DATABASE_URL` - Copy from PostgreSQL service
+- `REDIS_URL` - Copy from Redis service
+- `RESULTS_DIR=/work/results`
+- `LOG_LEVEL=info`
+
+**Frontend Service:**
+- `NEXTAUTH_SECRET` - Generate: `openssl rand -base64 32`
+- `NEXTAUTH_URL` - Your frontend URL
+- `GITHUB_CLIENT_ID` - From GitHub OAuth app
+- `GITHUB_CLIENT_SECRET` - From GitHub OAuth app
+- `FASTAPI_BASE_URL` - Your API URL
+- `STRIPE_SECRET_KEY` - If using billing
+
+### 3. Verify Config File Paths
+
+In Railway dashboard, under each service's **Settings** → **Build**:
+
+| Service | Config File Path |
+|---------|------------------|
+| Frontend | `/frontend/railway.toml` (or leave empty if in root) |
+| API | `/railway.toml` |
+| Worker | `/railway.worker.toml` |
+
+### 4. Deploy
+
+Push to your configured branch to trigger deployment.
+
 ## Service Configuration Files
 
-After running Terraform, configure each service to use the appropriate `railway.toml`:
+Each service has a `railway.toml` file that configures build and deploy settings:
 
-| Service | Config File Path | Location in Repo |
-|---------|------------------|------------------|
-| Frontend | Default (auto-detected) | `/frontend/railway.toml` |
-| API | `/railway.toml` | Repo root |
-| Worker | `/railway.worker.toml` | Repo root |
-
-Set these paths in the Railway dashboard under each service's Settings → Build → Config File Path.
-
-## Environment Variables
-
-Terraform automatically sets:
-- `DATABASE_URL` - PostgreSQL connection string
-- `REDIS_URL` - Redis connection string
-
-You must manually add (via Railway dashboard or CLI):
-- `NEXTAUTH_SECRET` - Generate with `openssl rand -base64 32`
-- `GITHUB_CLIENT_ID` & `GITHUB_CLIENT_SECRET` - GitHub OAuth credentials
-- `STRIPE_SECRET_KEY` & `STRIPE_WEBHOOK_SECRET` - For billing (optional)
-- `AI_PROVIDER_API_KEY` - For AI analysis (optional)
+| Service | Config File | Docker Image |
+|---------|-------------|--------------|
+| Frontend | `/frontend/railway.toml` | `frontend/Dockerfile` |
+| API | `/railway.toml` | `docker/Dockerfile.api` |
+| Worker | `/railway.worker.toml` | `docker/Dockerfile` |
 
 ## Updating Infrastructure
 
@@ -96,7 +130,7 @@ terraform apply  # Apply changes
 
 ## Destroying Infrastructure
 
-⚠️ **WARNING**: This will delete all data!
+⚠️ **WARNING**: This will delete all services but NOT databases. Delete databases manually.
 
 ```bash
 terraform destroy
@@ -105,16 +139,22 @@ terraform destroy
 ## Troubleshooting
 
 ### Error: "Invalid API token"
-- Ensure `RAILWAY_API_TOKEN` is set correctly
+- Ensure `RAILWAY_TOKEN` is set (not `RAILWAY_API_TOKEN`)
 - Verify token hasn't expired at https://railway.app/account/tokens
 
 ### Services not using railway.toml
 - Check config file path is set correctly in service settings
 - Ensure files are committed to the deployed branch
+- Path should be relative to repository root (e.g., `/railway.toml`)
 
 ### Database connection issues
-- Verify services are in the same Railway project (they share a private network)
-- Check environment variables were applied after database creation
+- Verify databases were created manually in dashboard
+- Check environment variables were copied correctly
+- Ensure services are in the same project (share private network)
+
+### Worker service crashes
+- Check that `RESULTS_DIR=/work/results` is set
+- Verify worker has sufficient resources (4GB RAM minimum)
 
 ## Resources
 

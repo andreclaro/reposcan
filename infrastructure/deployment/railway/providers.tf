@@ -4,7 +4,7 @@ terraform {
   required_providers {
     railway = {
       source  = "terraform-community-providers/railway"
-      version = "~> 0.3"
+      version = "~> 0.4"
     }
   }
 
@@ -17,6 +17,6 @@ terraform {
 }
 
 provider "railway" {
-  # Set RAILWAY_API_TOKEN environment variable
-  # Or use: token = var.railway_api_token
+  # Set RAILWAY_TOKEN environment variable
+  # Or use: token = var.railway_token
 }

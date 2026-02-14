@@ -10,68 +10,10 @@ variable "environment" {
   default     = "production"
 }
 
-variable "railway_api_token" {
-  description = "Railway API token (set via RAILWAY_API_TOKEN env var)"
+variable "railway_token" {
+  description = "Railway API token (set via RAILWAY_TOKEN env var)"
   type        = string
   sensitive   = true
-}
-
-# Database Configuration
-variable "postgres_plan" {
-  description = "Railway plan for PostgreSQL"
-  type        = string
-  default     = "free" # Options: free, starter, pro
-}
-
-variable "redis_plan" {
-  description = "Railway plan for Redis"
-  type        = string
-  default     = "free" # Options: free, starter, pro
-}
-
-# API Service Configuration
-variable "api_memory" {
-  description = "Memory allocation for API service (in MB)"
-  type        = string
-  default     = "1Gi"
-}
-
-variable "api_cpu" {
-  description = "CPU allocation for API service"
-  type        = number
-  default     = 1
-}
-
-variable "api_replicas" {
-  description = "Number of API replicas"
-  type        = number
-  default     = 1
-}
-
-# Worker Service Configuration
-variable "worker_memory" {
-  description = "Memory allocation for Worker service (in MB)"
-  type        = string
-  default     = "4Gi"
-}
-
-variable "worker_cpu" {
-  description = "CPU allocation for Worker service"
-  type        = number
-  default     = 2
-}
-
-# Frontend Service Configuration
-variable "frontend_memory" {
-  description = "Memory allocation for Frontend service"
-  type        = string
-  default     = "1Gi"
-}
-
-variable "frontend_cpu" {
-  description = "CPU allocation for Frontend service"
-  type        = number
-  default     = 1
 }
 
 # GitHub Repository

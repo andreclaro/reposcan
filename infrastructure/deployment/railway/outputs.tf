@@ -8,21 +8,21 @@ output "project_url" {
   value       = "https://railway.app/project/${railway_project.securitykit.id}"
 }
 
-output "database_connection_strings" {
-  description = "Database connection strings (sensitive)"
+output "service_ids" {
+  description = "Service IDs for reference"
   value = {
-    postgres = railway_database.postgres.connection_string
-    redis    = railway_database.redis.connection_string
+    frontend = railway_service.frontend.id
+    api      = railway_service.api.id
+    worker   = railway_service.worker.id
   }
-  sensitive = true
 }
 
 output "service_urls" {
   description = "Default Railway URLs for each service"
   value = {
-    frontend = "https://${railway_service.frontend.default_domain}"
-    api      = "https://${railway_service.api.default_domain}"
-    worker   = "https://${railway_service.worker.default_domain}"
+    frontend = "https://${railway_service.frontend.domain}"
+    api      = "https://${railway_service.api.domain}"
+    worker   = "https://${railway_service.worker.domain}"
   }
 }
 
@@ -42,20 +42,35 @@ output "next_steps" {
     🚀 Railway Infrastructure Created!
     =========================================
 
-    1. Configure service config file paths in Railway dashboard:
-       - API service: Set config file to "/railway.toml"
-       - Worker service: Set config file to "/railway.worker.toml"
-       - Frontend service: Uses "/frontend/railway.toml" (default)
+    1. Create databases in Railway dashboard:
+       - Go to: https://railway.app/project/${railway_project.securitykit.id}
+       - Click "New" → "Database" → "Add PostgreSQL"
+       - Click "New" → "Database" → "Add Redis"
 
-    2. Add required environment variables in Railway dashboard:
-       - NEXTAUTH_SECRET (generate with: openssl rand -base64 32)
-       - GITHUB_CLIENT_ID & GITHUB_CLIENT_SECRET
-       - STRIPE_SECRET_KEY & STRIPE_WEBHOOK_SECRET (if using billing)
-       - AI_PROVIDER_API_KEY (if using AI analysis)
+    2. Configure environment variables for API service:
+       - DATABASE_URL (from PostgreSQL)
+       - REDIS_URL (from Redis)
+       - RESULTS_DIR=/work/results
 
-    3. Deploy by pushing to the ${var.github_branch} branch
+    3. Configure environment variables for Worker service:
+       - DATABASE_URL (from PostgreSQL)
+       - REDIS_URL (from Redis)
+       - RESULTS_DIR=/work/results
 
-    4. View logs: https://railway.app/project/${railway_project.securitykit.id}
+    4. Configure environment variables for Frontend service:
+       - NEXTAUTH_SECRET (generate: openssl rand -base64 32)
+       - NEXTAUTH_URL (your frontend URL)
+       - GITHUB_CLIENT_ID
+       - GITHUB_CLIENT_SECRET
+       - FASTAPI_BASE_URL (your API URL)
+       - STRIPE_SECRET_KEY (if using billing)
+
+    5. Verify config file paths in service settings:
+       - API service: /railway.toml
+       - Worker service: /railway.worker.toml
+       - Frontend service: /frontend/railway.toml (auto-detected)
+
+    6. Deploy by pushing to the ${var.github_branch} branch
 
     =========================================
   EOT
