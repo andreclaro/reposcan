@@ -84,9 +84,10 @@ async function applyMigration() {
           const isSkip =
             errorMsg.includes("already exists") ||
             errorMsg.includes("duplicate key") ||
-            errorMsg.includes("violates unique constraint");
+            errorMsg.includes("violates unique constraint") ||
+            errorMsg.includes("violates foreign key constraint");
           if (isSkip) {
-            console.log(`⚠ [${i + 1}/${statements.length}] Skipped (already exists)`);
+            console.log(`⚠ [${i + 1}/${statements.length}] Skipped (${errorMsg.includes("foreign key") ? "FK constraint" : "already exists"})`);
           } else {
             console.error("✗ [%d/%d] Failed: %s", i + 1, statements.length, String(error.message || error));
             throw error;
