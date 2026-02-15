@@ -15,7 +15,7 @@ if (githubClientId && githubClientSecret) {
       clientSecret: githubClientSecret,
       authorization: {
         params: {
-          scope: "read:user user:email repo"
+          scope: "read:user user:email"
         }
       }
     })

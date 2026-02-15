@@ -146,7 +146,7 @@ FASTAPI_BASE_URL=http://localhost:8000
 | `AUTH_GITHUB_ID` | GitHub OAuth app client ID |
 | `AUTH_GITHUB_SECRET` | GitHub OAuth app client secret |
 | `AUTH_SECRET` | NextAuth.js v5 encryption key |
-| `GITHUB_TOKEN` | GitHub API token (optional, for scan caching) |
+| `GITHUB_TOKEN` | GitHub API token (optional, for private repos & rate limits) |
 
 Generate `AUTH_SECRET`:
 ```bash
