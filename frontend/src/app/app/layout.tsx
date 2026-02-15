@@ -39,7 +39,7 @@ export default async function AppLayout({
                 <Shield className="h-5 w-5 text-white" />
               </div>
               <span className="text-lg font-semibold text-slate-900">
-                SecurityKit
+                SecureFast
               </span>
             </Link>
             <AppNav isAdmin={userIsAdmin} />

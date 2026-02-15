@@ -67,7 +67,7 @@ function LoginForm() {
               />
             </svg>
           </div>
-          <span className="text-xl font-semibold text-slate-900">SecurityKit</span>
+          <span className="text-xl font-semibold text-slate-900">SecureFast</span>
         </Link>
       </div>
 

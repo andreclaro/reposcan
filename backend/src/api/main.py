@@ -20,8 +20,8 @@ limiter = Limiter(
 )
 
 app = FastAPI(
-    title="Security Audit API",
-    description="Simple API for running security scans on repositories",
+    title="SecureFast API",
+    description="Fast, secure code analysis API",
     version="0.1.0"
 )
 

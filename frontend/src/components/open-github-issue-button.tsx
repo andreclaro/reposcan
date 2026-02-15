@@ -81,7 +81,7 @@ function buildDefaultIssueBody(props: {
   }
 
   lines.push("---");
-  lines.push("*Powered by [SecurityKit](https://securitykit.dev)*");
+  lines.push("*Powered by [SecureFast](https://securefast.io)*");
   return lines.join("\n");
 }
 

@@ -80,7 +80,7 @@ function buildIssueBody(
   }
 
   lines.push("---");
-  lines.push("*This scan was performed using [SecurityKit](https://securitykit.dev), a free security scanning service for open-source projects.*");
+  lines.push("*This scan was performed using [SecureFast](https://securefast.io), a free security scanning service for open-source projects.*");
   lines.push("");
   lines.push("*This issue was created to help improve the security posture of the project. Feedback is welcome!*");
 

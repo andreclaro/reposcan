@@ -19,7 +19,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SecurityKit - Ship Code with Confidence",
+  title: "SecureFast - Ship Code with Confidence",
   icons: {
     icon: "/icon.svg",
   },
@@ -33,9 +33,9 @@ export const metadata: Metadata = {
     "DevSecOps",
     "GitHub security",
   ],
-  authors: [{ name: "SecurityKit" }],
+  authors: [{ name: "SecureFast" }],
   openGraph: {
-    title: "SecurityKit - Ship Code with Confidence",
+    title: "SecureFast - Ship Code with Confidence",
     description:
       "Automated security scanning for GitHub repositories. Catch vulnerabilities before they reach production.",
     type: "website",

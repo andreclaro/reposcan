@@ -4,8 +4,8 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const metadata = {
-  title: "Privacy Policy - SecurityKit",
-  description: "Privacy Policy for SecurityKit automated security scanning service."
+  title: "Privacy Policy - SecureFast",
+  description: "Privacy Policy for SecureFast automated security scanning service."
 };
 
 export default function PrivacyPolicyPage() {
@@ -14,7 +14,7 @@ export default function PrivacyPolicyPage() {
       <header className="border-b">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
           <Link href="/" className="text-sm font-semibold">
-            SecurityKit
+            SecureFast
           </Link>
           <Button asChild variant="ghost" size="sm">
             <Link href="/">
@@ -33,7 +33,7 @@ export default function PrivacyPolicyPage() {
           </p>
 
           <p>
-            SecurityKit (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) is committed to protecting your privacy.
+            SecureFast (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) is committed to protecting your privacy.
             This Privacy Policy explains how we collect, use, disclose, and safeguard your information
             when you use our automated security scanning service.
           </p>
