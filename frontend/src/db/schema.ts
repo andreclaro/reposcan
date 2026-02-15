@@ -248,6 +248,29 @@ export const scannerSettings = pgTable("scanner_setting", {
   updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow()
 });
 
+// GitHub App installations for private repository access
+export const githubAppInstallations = pgTable(
+  "github_app_installation",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    installationId: integer("installation_id").notNull().unique(),
+    accountLogin: text("account_login").notNull(), // User or org name
+    accountType: text("account_type").notNull(), // 'User' or 'Organization'
+    accountId: integer("account_id").notNull(), // GitHub account ID
+    repositories: jsonb("repositories").$type<string[]>(), // Selected repo full names
+    suspended: boolean("suspended").notNull().default(false),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow()
+  },
+  (table) => [
+    index("idx_github_app_installation_user_id").on(table.userId),
+    index("idx_github_app_installation_installation_id").on(table.installationId)
+  ]
+);
+
 // Outreach activity tracking for marketing (GitHub issues, etc.)
 export const outreachActivity = pgTable(
   "outreach_activity",

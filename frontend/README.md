@@ -40,11 +40,44 @@ GitHub OAuth callback URL:
 **OAuth Scope:** `read:user user:email` (no repository access)
 - Reads your profile and email for authentication only
 - **Public repositories:** Can be scanned without authentication
-- **Private repositories:** Add a `GITHUB_TOKEN` in Settings for secure private repos scanning
+- **Private repositories:** Via GitHub App (see below)
 
 This approach respects your privacy by not requesting broad repository permissions.
 
-**OAuth App vs GitHub App:** This app uses a [GitHub OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app) (client ID + client secret) for "Sign in with GitHub". That is different from [GitHub Apps](https://docs.github.com/en/apps/creating-github-apps/writing-code-for-a-github-app/building-a-login-with-github-button-with-a-github-app) (App ID, private key, user access tokens). Use **Developer settings → OAuth Apps**, not GitHub Apps.
+### GitHub App Setup (for private repos)
+
+For private repository scanning, create a GitHub App:
+
+1. Go to **GitHub → Settings → Developer settings → GitHub Apps → New GitHub App**
+
+2. Configure the app:
+   - **GitHub App name**: `SecurityKit` (or `SecurityKit Local` for dev)
+   - **Homepage URL**: `http://localhost:3003` (or your production URL)
+   - **Callback URL**: `http://localhost:3003/api/github/install/callback`
+   - **Webhook URL**: `http://localhost:3003/api/github/webhook` (use ngrok for local dev)
+   - **Webhook secret**: Generate with `openssl rand -hex 32`
+
+3. Permissions:
+   - **Contents**: Read-only
+   - **Metadata**: Read-only
+
+4. Subscribe to events:
+   - Installation
+   - Installation repositories
+
+5. Copy credentials to `.env.local`:
+   ```bash
+   GITHUB_APP_ID=123456
+   GITHUB_APP_NAME=securitykit
+   GITHUB_APP_CLIENT_ID=Iv1.xxx
+   GITHUB_APP_CLIENT_SECRET=xxx
+   GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n..."
+   GITHUB_APP_WEBHOOK_SECRET=xxx
+   ```
+
+6. Run migration: `pnpm db:migrate`
+
+**Note:** We use both OAuth App (for auth) and GitHub App (for private repos). They serve different purposes.
 
 ## Install & run
 

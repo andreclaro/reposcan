@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { User, Trash2, AlertTriangle, CreditCard } from "lucide-react";
+import { GitHubAppIntegration } from "@/components/github-app-integration";
 
 import { Button } from "@/components/ui/button";
 import { HIDE_PLANS } from "@/lib/config";
@@ -243,6 +244,9 @@ export default function ProfilePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* GitHub App Integration */}
+      {user?.id && <GitHubAppIntegration userId={user.id} />}
 
       {/* Danger Zone */}
       <Card className="border-destructive/20">
