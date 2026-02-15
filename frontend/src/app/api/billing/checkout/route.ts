@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const appUrl = process.env.NEXTAUTH_URL ?? process.env.VERCEL_URL
+  const appUrl = process.env.APP_URL ?? process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}`
     : "http://localhost:3003";
 

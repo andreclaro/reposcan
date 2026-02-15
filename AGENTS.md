@@ -145,9 +145,9 @@ ANTHROPIC_API_KEY=sk-ant-api03-...
 AI_MODEL=claude-3-sonnet-20240229
 
 # For frontend (in frontend/.env.local)
-NEXTAUTH_SECRET=$(openssl rand -base64 32)
-GITHUB_CLIENT_ID=your_github_oauth_client_id
-GITHUB_CLIENT_SECRET=your_github_oauth_client_secret
+AUTH_SECRET=$(openssl rand -base64 32)
+AUTH_GITHUB_ID=your_github_oauth_client_id
+AUTH_GITHUB_SECRET=your_github_oauth_client_secret
 FASTAPI_BASE_URL=http://localhost:8000
 ```
 

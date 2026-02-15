@@ -84,9 +84,9 @@ kubectl create namespace secaudit
 kubectl create secret generic app-secrets \
   --from-literal=DATABASE_URL="postgresql://postgres:yourpassword@postgres:5432/sec_audit" \
   --from-literal=REDIS_URL="redis://redis:6379/0" \
-  --from-literal=NEXTAUTH_SECRET="$(openssl rand -base64 32)" \
-  --from-literal=GITHUB_CLIENT_ID="your_github_client_id" \
-  --from-literal=GITHUB_CLIENT_SECRET="your_github_client_secret" \
+  --from-literal=AUTH_SECRET="$(openssl rand -base64 32)" \
+  --from-literal=AUTH_GITHUB_ID="your_github_client_id" \
+  --from-literal=AUTH_GITHUB_SECRET="your_github_client_secret" \
   -n secaudit
 
 # Optional: AI analysis

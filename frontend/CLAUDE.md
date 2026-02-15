@@ -108,8 +108,8 @@ if (!isAdmin(session.user.email)) {
 
 Required in `.env.local`:
 - `DATABASE_URL` - PostgreSQL connection string
-- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` - OAuth app credentials
-- `NEXTAUTH_SECRET` - Session encryption key
+- `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` - OAuth app credentials
+- `AUTH_SECRET` - Session encryption key
 - `FASTAPI_BASE_URL` - Backend service URL (default `http://localhost:8000`)
 
 Optional:

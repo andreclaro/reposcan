@@ -282,7 +282,7 @@ export async function POST(request: Request) {
   if (!allowed) {
     const usage = await getUsageForCurrentPeriod(session.user.id);
     const appUrl =
-      process.env.NEXTAUTH_URL ||
+      process.env.APP_URL ||
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
     const upgradeUrl = appUrl ? `${appUrl}/plans` : "/plans";
     return NextResponse.json(

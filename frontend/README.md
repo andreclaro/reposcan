@@ -15,9 +15,9 @@ Copy `.env.local.example` to `.env.local` and fill in values:
 
 - `FASTAPI_BASE_URL` (default `http://localhost:8000`)
 - `DATABASE_URL`
-- `GITHUB_CLIENT_ID`
-- `GITHUB_CLIENT_SECRET`
-- `NEXTAUTH_SECRET`
+- `AUTH_GITHUB_ID`
+- `AUTH_GITHUB_SECRET`
+- `AUTH_SECRET`
 - `DEV_BYPASS_AUTH` (optional, set `true` to skip GitHub login in dev)
 - `BETA_MODE_ENABLED` (optional, set `true` to require admin approval for new accounts)
 - `ADMIN_EMAIL` (comma-separated list of admin emails)

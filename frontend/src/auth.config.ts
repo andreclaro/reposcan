@@ -3,8 +3,8 @@ import GitHub from "next-auth/providers/github";
 import Credentials from "next-auth/providers/credentials";
 import { DEV_BYPASS_AUTH, DEV_USER } from "@/lib/dev-auth";
 
-const githubClientId = process.env.AUTH_GITHUB_ID || process.env.GITHUB_CLIENT_ID;
-const githubClientSecret = process.env.AUTH_GITHUB_SECRET || process.env.GITHUB_CLIENT_SECRET;
+const githubClientId = process.env.AUTH_GITHUB_ID;
+const githubClientSecret = process.env.AUTH_GITHUB_SECRET;
 
 const providers = [];
 
@@ -33,7 +33,7 @@ if (DEV_BYPASS_AUTH) {
 }
 
 export const authConfig: NextAuthConfig = {
-  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  secret: process.env.AUTH_SECRET,
   trustHost: process.env.NODE_ENV === "development",
   cookies: {
     sessionToken: {
