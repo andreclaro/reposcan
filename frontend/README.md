@@ -33,8 +33,13 @@ When `BETA_MODE_ENABLED=true`:
 - Admins can enable/disable users from the admin dashboard (`/app/admin/users`)
 - Disabled users see a "Pending Approval" message when trying to log in
 
-GitHub OAuth callback URL for local dev:
-`http://localhost:3003/api/auth/callback/github`
+GitHub OAuth callback URLs for local dev (add both to your OAuth app):
+- `http://localhost:3003/api/auth/callback/github`
+- `http://localhost:3003/api/auth/callback/github-repos`
+
+For production, add your domain equivalents:
+- `https://yourdomain.com/api/auth/callback/github`
+- `https://yourdomain.com/api/auth/callback/github-repos`
 
 **OAuth Scopes:** The app offers two login options:
 - **Basic** (`read:user user:email`): Only profile and email, no repository access

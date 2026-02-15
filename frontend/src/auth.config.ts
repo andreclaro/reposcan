@@ -17,14 +17,18 @@ if (githubClientId && githubClientSecret) {
       clientId: githubClientId,
       clientSecret: githubClientSecret,
       authorization: {
+        url: "https://github.com/login/oauth/authorize",
         params: {
           scope: "read:user user:email"
         }
-      }
+      },
+      token: "https://github.com/login/oauth/access_token",
+      userinfo: "https://api.github.com/user"
     })
   );
 
   // Extended provider - adds public_repo read-only access
+  // Uses explicit endpoints to share the same callback URL as the basic provider
   providers.push(
     GitHub({
       id: "github-repos",
@@ -32,10 +36,13 @@ if (githubClientId && githubClientSecret) {
       clientId: githubClientId,
       clientSecret: githubClientSecret,
       authorization: {
+        url: "https://github.com/login/oauth/authorize",
         params: {
           scope: "read:user user:email public_repo"
         }
-      }
+      },
+      token: "https://github.com/login/oauth/access_token",
+      userinfo: "https://api.github.com/user"
     })
   );
 }
