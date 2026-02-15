@@ -38,11 +38,19 @@ export async function GET() {
   }
 
   try {
+    console.log("[github-install] Fetching installations for user:", session.user.id);
+    
     const { getDb } = await import("@/db");
+    console.log("[github-install] Imported getDb");
+    
     const { githubAppInstallations } = await import("@/db/schema");
+    console.log("[github-install] Imported schema");
+    
     const { eq } = await import("drizzle-orm");
+    console.log("[github-install] Imported drizzle-orm");
     
     const db = getDb();
+    console.log("[github-install] Got DB instance");
     
     const installations = await db
       .select({
@@ -55,6 +63,8 @@ export async function GET() {
       })
       .from(githubAppInstallations)
       .where(eq(githubAppInstallations.userId, session.user.id));
+    
+    console.log("[github-install] Found installations:", installations.length);
 
     return NextResponse.json({
       connected: installations.length > 0,
@@ -64,10 +74,16 @@ export async function GET() {
       }))
     });
   } catch (error) {
-    console.error("Error fetching GitHub App installations:", error);
+    console.error("[github-install] Error fetching installations:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const stack = error instanceof Error ? error.stack : "";
+    console.error("[github-install] Stack:", stack);
+    
     return NextResponse.json(
-      { error: `Database error: ${errorMessage}. Please run: pnpm db:migrate` },
+      { 
+        error: `Database error: ${errorMessage}`,
+        details: "Please run: cd frontend && pnpm db:migrate"
+      },
       { status: 500 }
     );
   }
