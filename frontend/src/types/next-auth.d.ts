@@ -8,7 +8,7 @@ declare module "next-auth" {
       email?: string | null;
       image?: string | null;
       isEnabled?: boolean;
-      hasRepoAccess?: boolean;
+      repoAccess?: "none" | "public" | "private";
     };
   }
 
@@ -21,6 +21,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     id?: string;
     isEnabled?: boolean;
-    hasRepoAccess?: boolean;
+    repoAccess?: "none" | "public" | "private";
   }
 }

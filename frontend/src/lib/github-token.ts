@@ -15,9 +15,15 @@ import { accounts } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
 /**
+ * GitHub provider IDs used for authentication
+ */
+const GITHUB_PROVIDERS = ["github", "github-public", "github-private"];
+
+/**
  * Get the GitHub OAuth access token for a user.
  * 
  * Retrieves the token from the NextAuth accounts table.
+ * Checks all GitHub provider variants (github, github-public, github-private).
  * The token is used for private repository access and GitHub API calls.
  * 
  * @param userId - The user's ID from the session
@@ -25,23 +31,29 @@ import { eq, and } from "drizzle-orm";
  */
 export async function getUserGitHubToken(userId: string): Promise<string | null> {
   try {
-    const account = await db.query.accounts.findFirst({
-      where: and(
-        eq(accounts.userId, userId),
-        eq(accounts.provider, "github")
-      ),
-      columns: {
-        access_token: true,
-        scope: true
-      }
-    });
+    // Check all GitHub provider variants
+    for (const provider of GITHUB_PROVIDERS) {
+      const account = await db.query.accounts.findFirst({
+        where: and(
+          eq(accounts.userId, userId),
+          eq(accounts.provider, provider)
+        ),
+        columns: {
+          access_token: true,
+          scope: true
+        }
+      });
 
-    // Debug: log the scopes we have
-    if (account?.scope) {
-      console.log("[github-token] Token scopes for user %s: %s", userId, String(account.scope));
+      if (account?.access_token) {
+        // Debug: log the scopes we have
+        if (account?.scope) {
+          console.log("[github-token] Token scopes for user %s (%s): %s", userId, provider, String(account.scope));
+        }
+        return account.access_token;
+      }
     }
 
-    return account?.access_token ?? null;
+    return null;
   } catch (error) {
     console.error("Error retrieving GitHub token:", error);
     return null;
@@ -50,23 +62,32 @@ export async function getUserGitHubToken(userId: string): Promise<string | null>
 
 /**
  * Check if the user's GitHub token has the required scopes.
+ * Checks all GitHub provider variants.
  */
 export async function hasRequiredScopes(userId: string, requiredScopes: string[]): Promise<boolean> {
   try {
-    const account = await db.query.accounts.findFirst({
-      where: and(
-        eq(accounts.userId, userId),
-        eq(accounts.provider, "github")
-      ),
-      columns: {
-        scope: true
-      }
-    });
+    // Check all GitHub provider variants
+    for (const provider of GITHUB_PROVIDERS) {
+      const account = await db.query.accounts.findFirst({
+        where: and(
+          eq(accounts.userId, userId),
+          eq(accounts.provider, provider)
+        ),
+        columns: {
+          scope: true
+        }
+      });
 
-    if (!account?.scope) return false;
+      if (account?.scope) {
+        const grantedScopes = account.scope.split(/[,\s]+/).map(s => s.trim());
+        // Check if this provider has all required scopes
+        if (requiredScopes.every(req => grantedScopes.includes(req))) {
+          return true;
+        }
+      }
+    }
     
-    const grantedScopes = account.scope.split(/[,\s]+/).map(s => s.trim());
-    return requiredScopes.every(req => grantedScopes.includes(req));
+    return false;
   } catch {
     return false;
   }
