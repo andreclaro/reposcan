@@ -37,11 +37,12 @@ GitHub OAuth callback URL:
 - Local dev: `http://localhost:3003/api/auth/callback/github`
 - Production: `https://yourdomain.com/api/auth/callback/github`
 
-**OAuth Scope:** `read:user user:email repo`
-- Reads your profile and email
-- Access to public and private repositories for security scanning
+**OAuth Scope:** `read:user user:email` (no repository access)
+- Reads your profile and email for authentication only
+- **Public repositories:** Can be scanned without authentication
+- **Private repositories:** Add a `GITHUB_TOKEN` in Settings (server-side, secure)
 
-For server-side scanning without OAuth, you can also add a `GITHUB_TOKEN` in your settings.
+This approach respects your privacy by not requesting broad repository permissions.
 
 **OAuth App vs GitHub App:** This app uses a [GitHub OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app) (client ID + client secret) for "Sign in with GitHub". That is different from [GitHub Apps](https://docs.github.com/en/apps/creating-github-apps/writing-code-for-a-github-app/building-a-login-with-github-button-with-a-github-app) (App ID, private key, user access tokens). Use **Developer settings → OAuth Apps**, not GitHub Apps.
 

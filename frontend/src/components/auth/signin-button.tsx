@@ -1,7 +1,7 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { Github } from "lucide-react";
+import { Github, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface SignInButtonProps {
@@ -16,13 +16,23 @@ export function GitHubSignInButton({ callbackUrl = "/app" }: SignInButtonProps) 
         className="w-full h-11 gap-2"
         size="lg"
       >
-        <Github className="h-5 w-5" />
+        <Lock className="h-4 w-4" />
         Continue with GitHub
       </Button>
 
-      <p className="text-xs text-muted-foreground text-center">
-        Access your public and private repositories for security scanning.
-      </p>
+      <div className="space-y-2 text-xs text-muted-foreground">
+        <p>
+          <strong>Permissions:</strong> Email and profile only. 
+          No repository access requested.
+        </p>
+        <p>
+          <strong>Public repos:</strong> Can be scanned without authentication.
+        </p>
+        <p>
+          <strong>Private repos:</strong> Add a GitHub token in Settings for secure, 
+          server-side scanning.
+        </p>
+      </div>
     </div>
   );
 }

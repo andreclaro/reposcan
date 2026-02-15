@@ -9,7 +9,9 @@ const githubClientSecret = process.env.AUTH_GITHUB_SECRET;
 const providers = [];
 
 if (githubClientId && githubClientSecret) {
-  // Single GitHub provider with repo access for private repositories
+  // Login with minimal permissions - NO repository access
+  // Public repos don't need authentication
+  // Private repos handled via GITHUB_TOKEN (user adds in settings)
   providers.push(
     GitHub({
       id: "github",
@@ -19,7 +21,7 @@ if (githubClientId && githubClientSecret) {
       authorization: {
         url: "https://github.com/login/oauth/authorize",
         params: {
-          scope: "read:user user:email repo"
+          scope: "read:user user:email"
         }
       },
       token: "https://github.com/login/oauth/access_token",
