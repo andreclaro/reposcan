@@ -55,8 +55,9 @@ export function GitHubAppIntegration({ userId }: GitHubAppIntegrationProps) {
       }
       const data = await response.json();
       
-      // Redirect to GitHub App installation page
-      window.location.href = data.url;
+      // Open GitHub App installation in new window
+      window.open(data.url, "_blank", "noopener,noreferrer");
+      setConnecting(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect");
       setConnecting(false);
