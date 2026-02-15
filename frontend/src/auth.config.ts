@@ -9,13 +9,31 @@ const githubClientSecret = process.env.AUTH_GITHUB_SECRET;
 const providers = [];
 
 if (githubClientId && githubClientSecret) {
+  // Basic provider - only profile and email, no repo access
   providers.push(
     GitHub({
+      id: "github",
+      name: "GitHub",
       clientId: githubClientId,
       clientSecret: githubClientSecret,
       authorization: {
         params: {
           scope: "read:user user:email"
+        }
+      }
+    })
+  );
+
+  // Extended provider - adds public_repo read-only access
+  providers.push(
+    GitHub({
+      id: "github-repos",
+      name: "GitHub (with Repo Access)",
+      clientId: githubClientId,
+      clientSecret: githubClientSecret,
+      authorization: {
+        params: {
+          scope: "read:user user:email public_repo"
         }
       }
     })
@@ -77,10 +95,14 @@ export const authConfig: NextAuthConfig = {
     error: "/login"
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
         token.isEnabled = (user as { isEnabled?: boolean }).isEnabled ?? true;
+      }
+      // Store whether user granted repo access
+      if (account?.provider === "github-repos") {
+        token.hasRepoAccess = true;
       }
       return token;
     },
@@ -88,6 +110,7 @@ export const authConfig: NextAuthConfig = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.isEnabled = (token.isEnabled as boolean) ?? true;
+        (session.user as { hasRepoAccess?: boolean }).hasRepoAccess = token.hasRepoAccess as boolean;
       }
       return session;
     }

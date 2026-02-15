@@ -3,7 +3,6 @@
 import { signIn } from "next-auth/react";
 import { Github, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface SignInButtonProps {
   callbackUrl?: string;
@@ -28,12 +27,7 @@ export function GitHubSignInButton({ callbackUrl = "/app" }: SignInButtonProps) 
 
       {/* With Public Repo Access */}
       <Button
-        onClick={() => signIn("github", { 
-          callbackUrl,
-          authorizationParams: {
-            scope: "read:user user:email public_repo"
-          }
-        })}
+        onClick={() => signIn("github-repos", { callbackUrl })}
         className="w-full h-11 gap-2"
         size="lg"
       >
