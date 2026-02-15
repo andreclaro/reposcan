@@ -33,11 +33,13 @@ export function GitHubAppIntegration({ userId }: GitHubAppIntegrationProps) {
     try {
       const response = await fetch("/api/github/install");
       if (!response.ok) {
-        throw new Error("Failed to fetch installations");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to fetch installations: ${response.status}`);
       }
       const data = await response.json();
       setInstallations(data.installations || []);
     } catch (err) {
+      console.error("Error fetching installations:", err);
       setError(err instanceof Error ? err.message : "Failed to load installations");
     } finally {
       setLoading(false);

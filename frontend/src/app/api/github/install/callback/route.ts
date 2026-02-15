@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerAuth } from "@/lib/server-auth";
+import { generateAppJWT } from "@/lib/github-app";
 
 /**
  * GET /api/github/install/callback
@@ -72,16 +73,13 @@ export async function GET(request: NextRequest) {
  * Verify installation with GitHub API
  */
 async function verifyInstallation(installationId: number) {
-  const appId = process.env.GITHUB_APP_ID;
-  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
-
-  if (!appId || !privateKey) {
-    throw new Error("GitHub App credentials not configured");
-  }
-
   try {
     // Generate JWT for GitHub App authentication
-    const jwt = await generateAppJWT(appId, privateKey);
+    const jwt = await generateAppJWT();
+    
+    if (!jwt) {
+      throw new Error("Failed to generate GitHub App JWT");
+    }
 
     // Fetch installation details
     const response = await fetch(
@@ -181,31 +179,4 @@ async function storeInstallation(data: {
       suspended: false
     });
   }
-}
-
-/**
- * Generate JWT for GitHub App authentication
- */
-async function generateAppJWT(appId: string, privateKey: string): Promise<string> {
-  // For now, we'll use a simplified JWT generation
-  // In production, you should use the 'jose' library
-  
-  const header = {
-    alg: "RS256",
-    typ: "JWT"
-  };
-  
-  const now = Math.floor(Date.now() / 1000);
-  const payload = {
-    iss: appId,
-    iat: now,
-    exp: now + 600 // 10 minutes
-  };
-  
-  const encodedHeader = Buffer.from(JSON.stringify(header)).toString("base64url");
-  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  
-  // Note: This is a placeholder. Real implementation needs proper RSA signing.
-  // We'll implement this properly in the github-app service
-  return `${encodedHeader}.${encodedPayload}.SIGNATURE_PLACEHOLDER`;
 }
