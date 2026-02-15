@@ -40,7 +40,7 @@ GitHub OAuth callback URL:
 **OAuth Scope:** `read:user user:email` (no repository access)
 - Reads your profile and email for authentication only
 - **Public repositories:** Can be scanned without authentication
-- **Private repositories:** Add a `GITHUB_TOKEN` in Settings (server-side, secure)
+- **Private repositories:** Add a `GITHUB_TOKEN` in Settings for secure private repos scanning
 
 This approach respects your privacy by not requesting broad repository permissions.
 

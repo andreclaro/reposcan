@@ -29,8 +29,8 @@ export function GitHubSignInButton({ callbackUrl = "/app" }: SignInButtonProps) 
           <strong>Public repos:</strong> Can be scanned without authentication.
         </p>
         <p>
-          <strong>Private repos:</strong> Add a GitHub token in Settings for secure, 
-          server-side scanning.
+          <strong>Private repos:</strong> Add a GitHub token in Settings for secure 
+          private repos scanning.
         </p>
       </div>
     </div>
