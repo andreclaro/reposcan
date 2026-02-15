@@ -22,9 +22,10 @@ ARG OSV_SCANNER_VERSION=2.3.2
 ARG HADOLINT_VERSION=2.12.0
 ARG TRUFFLEHOG_VERSION=3.93.0
 
-# Install only essential packages (no build-essential, no default-jre)
+# Install essential packages (build-essential needed for cargo install)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        build-essential \
         ca-certificates \
         curl \
         git \
