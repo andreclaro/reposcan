@@ -106,7 +106,7 @@ services:
   worker:
     build:
       context: ..
-      dockerfile: docker/Dockerfile
+      dockerfile: docker/Dockerfile.worker
     env_file:
       - ../frontend/.env.local
     environment:
