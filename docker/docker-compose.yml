@@ -112,6 +112,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - RESULTS_DIR=/work/results
+      - PORT=8080
       # Override DATABASE_URL to use the postgres service name instead of localhost
       # NOTE: Use internal port 5432 (not host-mapped 5433) for container-to-container communication
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/sec_audit
@@ -140,6 +141,11 @@ services:
     command: >
       sh -c "mkdir -p /work/results && chmod 777 /work/results &&
              celery -A worker.scan_worker worker --loglevel=info --concurrency=50"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     # Resource limits
     deploy:
       resources:

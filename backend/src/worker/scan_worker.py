@@ -9,7 +9,9 @@ from pathlib import Path
 from typing import Dict, Any
 import traceback
 
+import celery_worker_healthcheck
 from celery import Celery
+from celery import signals
 from celery.utils.log import get_task_logger
 
 from audit.repos import clone_repo, clone_repo_with_token, repo_name, update_submodules_if_present, get_commit_hash
@@ -81,7 +83,12 @@ celery_app.conf.update(
     task_track_started=True,
     task_time_limit=3600,  # 1 hour max
     task_soft_time_limit=3300,  # 55 min soft limit
+    # HTTP health check for Railway/Kubernetes (listens on PORT, responds to any path)
+    worker_healthcheck_bind=f"0.0.0.0:{os.getenv('PORT', '8080')}",
+    worker_healthcheck_minimum=1,
 )
+
+signals.worker_init.connect(weak=False)(celery_worker_healthcheck.start)
 
 
 @celery_app.task(bind=True, name='tasks.scan_worker.run_scan', max_retries=3)

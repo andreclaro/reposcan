@@ -20,15 +20,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Get user's GitHub token
+    // Get user's GitHub token (for private repos)
+    // Public repos can be checked without authentication
     const token = await getUserGitHubToken(session.user.id);
-    
-    if (!token) {
-      return NextResponse.json(
-        { error: "GitHub token not found" },
-        { status: 403 }
-      );
-    }
 
     // Check repo visibility
     const isPrivate = await isRepoPrivate(token, repoUrl);

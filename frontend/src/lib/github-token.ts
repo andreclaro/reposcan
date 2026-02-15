@@ -171,7 +171,7 @@ export async function verifyRepoAccess(
  * @returns True if the repo is private, false if public or unknown
  */
 export async function isRepoPrivate(
-  token: string,
+  token: string | null,
   repoUrl: string
 ): Promise<boolean | null> {
   try {
@@ -183,20 +183,39 @@ export async function isRepoPrivate(
     const [, owner, repo] = match;
     const repoName = repo.replace(/\.git$/, "");
 
-    const response = await fetch(
+    // First, try without authentication (works for public repos)
+    const publicResponse = await fetch(
       `https://api.github.com/repos/${owner}/${repoName}`,
       {
         headers: {
-          "Authorization": `Bearer ${token}`,
           "Accept": "application/vnd.github+json",
           "X-GitHub-Api-Version": "2022-11-28"
         }
       }
     );
 
-    if (response.status === 200) {
-      const data = await response.json();
+    if (publicResponse.status === 200) {
+      const data = await publicResponse.json();
       return data.private === true;
+    }
+
+    // If public check failed (404/403), try with token (for private repos)
+    if (token) {
+      const authResponse = await fetch(
+        `https://api.github.com/repos/${owner}/${repoName}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28"
+          }
+        }
+      );
+
+      if (authResponse.status === 200) {
+        const data = await authResponse.json();
+        return data.private === true;
+      }
     }
 
     return null;
