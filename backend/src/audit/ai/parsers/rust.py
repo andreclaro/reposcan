@@ -106,11 +106,19 @@ def _parse_cargo_text(content: str, scan_id: str) -> List[Finding]:
         
         # Extract package
         crate_match = re.search(r"Crate:\s*(.+)", section)
-        package = crate_match.group(1).strip() if crate_match else "unknown"
+        package = crate_match.group(1).strip() if crate_match else None
         
         # Extract title
         title_match = re.search(r"Title:\s*(.+)", section)
-        title = title_match.group(1).strip() if title_match else f"Vulnerability in {package}"
+        title = title_match.group(1).strip() if title_match else None
+        
+        # Skip if no vulnerability data found (not a vulnerability section)
+        if not any([cve, package, title]):
+            continue
+        
+        # Use defaults for missing fields
+        package = package or "unknown"
+        title = title or f"Vulnerability in {package}"
         
         # Extract description
         desc_match = re.search(r"Description:\s*(.+?)(?=\n[A-Z]|$)", section, re.DOTALL)
