@@ -9,31 +9,11 @@ const githubClientSecret = process.env.AUTH_GITHUB_SECRET;
 const providers = [];
 
 if (githubClientId && githubClientSecret) {
-  // Basic provider - only profile and email
-  // Public repos don't need authentication - just enter the URL
+  // Single GitHub provider with repo access for private repositories
   providers.push(
     GitHub({
       id: "github",
       name: "GitHub",
-      clientId: githubClientId,
-      clientSecret: githubClientSecret,
-      authorization: {
-        url: "https://github.com/login/oauth/authorize",
-        params: {
-          scope: "read:user user:email"
-        }
-      },
-      token: "https://github.com/login/oauth/access_token",
-      userinfo: "https://api.github.com/user"
-    })
-  );
-
-  // Private repos provider - adds repo scope for private repository access
-  // Note: GitHub OAuth doesn't have a read-only scope for private repos
-  providers.push(
-    GitHub({
-      id: "github-private",
-      name: "GitHub (with Private Repos)",
       clientId: githubClientId,
       clientSecret: githubClientSecret,
       authorization: {
@@ -103,14 +83,10 @@ export const authConfig: NextAuthConfig = {
     error: "/login"
   },
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
         token.isEnabled = (user as { isEnabled?: boolean }).isEnabled ?? true;
-      }
-      // Store whether user has private repo access
-      if (account?.provider === "github-private") {
-        token.hasPrivateRepoAccess = true;
       }
       return token;
     },
@@ -118,7 +94,6 @@ export const authConfig: NextAuthConfig = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.isEnabled = (token.isEnabled as boolean) ?? true;
-        (session.user as { hasPrivateRepoAccess?: boolean }).hasPrivateRepoAccess = token.hasPrivateRepoAccess as boolean;
       }
       return session;
     }
