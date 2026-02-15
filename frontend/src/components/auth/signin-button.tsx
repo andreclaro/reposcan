@@ -11,7 +11,7 @@ interface SignInButtonProps {
 export function GitHubSignInButton({ callbackUrl = "/app" }: SignInButtonProps) {
   return (
     <div className="space-y-4">
-      {/* Basic Login - No repo access */}
+      {/* Basic Login - No repo access needed for public repos */}
       <div className="space-y-1">
         <Button
           onClick={() => signIn("github", { callbackUrl })}
@@ -20,26 +20,10 @@ export function GitHubSignInButton({ callbackUrl = "/app" }: SignInButtonProps) 
           variant="outline"
         >
           <Lock className="h-4 w-4" />
-          Continue with GitHub (Basic)
+          Continue with GitHub
         </Button>
         <p className="text-xs text-muted-foreground text-center">
-          Only email and profile. No repository access.
-        </p>
-      </div>
-
-      {/* Public Repos Only */}
-      <div className="space-y-1">
-        <Button
-          onClick={() => signIn("github-public", { callbackUrl })}
-          className="w-full h-11 gap-2"
-          size="lg"
-          variant="secondary"
-        >
-          <Github className="h-5 w-5" />
-          Continue with GitHub (Public Repos)
-        </Button>
-        <p className="text-xs text-muted-foreground text-center">
-          Read-only access to your public repositories.
+          For public repositories. Just email and profile.
         </p>
       </div>
 
@@ -60,9 +44,9 @@ export function GitHubSignInButton({ callbackUrl = "/app" }: SignInButtonProps) 
 
       <div className="pt-2 border-t">
         <p className="text-xs text-muted-foreground">
-          <strong>Privacy note:</strong> Choose the minimum access level you need. 
-          You can also use a <code>GITHUB_TOKEN</code> in settings for server-side access 
-          without granting OAuth permissions.
+          <strong>Note:</strong> Public repositories can be scanned without any GitHub permissions. 
+          Choose the private repos option only if you need to scan private repositories. 
+          You can also add a <code>GITHUB_TOKEN</code> in settings for server-side access.
         </p>
       </div>
     </div>

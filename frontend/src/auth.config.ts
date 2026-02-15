@@ -9,7 +9,8 @@ const githubClientSecret = process.env.AUTH_GITHUB_SECRET;
 const providers = [];
 
 if (githubClientId && githubClientSecret) {
-  // Basic provider - only profile and email, no repo access
+  // Basic provider - only profile and email
+  // Public repos don't need authentication - just enter the URL
   providers.push(
     GitHub({
       id: "github",
@@ -27,30 +28,12 @@ if (githubClientId && githubClientSecret) {
     })
   );
 
-  // Public repos only - read-only access to public repositories
-  providers.push(
-    GitHub({
-      id: "github-public",
-      name: "GitHub (Public Repos)",
-      clientId: githubClientId,
-      clientSecret: githubClientSecret,
-      authorization: {
-        url: "https://github.com/login/oauth/authorize",
-        params: {
-          scope: "read:user user:email public_repo"
-        }
-      },
-      token: "https://github.com/login/oauth/access_token",
-      userinfo: "https://api.github.com/user"
-    })
-  );
-
-  // Private repos - full repo access (read/write, public and private)
-  // Note: GitHub OAuth doesn't have a read-only private repo scope
+  // Private repos provider - adds repo scope for private repository access
+  // Note: GitHub OAuth doesn't have a read-only scope for private repos
   providers.push(
     GitHub({
       id: "github-private",
-      name: "GitHub (Private Repos)",
+      name: "GitHub (with Private Repos)",
       clientId: githubClientId,
       clientSecret: githubClientSecret,
       authorization: {
@@ -125,13 +108,9 @@ export const authConfig: NextAuthConfig = {
         token.id = user.id;
         token.isEnabled = (user as { isEnabled?: boolean }).isEnabled ?? true;
       }
-      // Store repo access level based on provider used
-      if (account?.provider === "github-public") {
-        token.repoAccess = "public";
-      } else if (account?.provider === "github-private") {
-        token.repoAccess = "private";
-      } else {
-        token.repoAccess = "none";
+      // Store whether user has private repo access
+      if (account?.provider === "github-private") {
+        token.hasPrivateRepoAccess = true;
       }
       return token;
     },
@@ -139,7 +118,7 @@ export const authConfig: NextAuthConfig = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.isEnabled = (token.isEnabled as boolean) ?? true;
-        (session.user as { repoAccess?: string }).repoAccess = token.repoAccess as string;
+        (session.user as { hasPrivateRepoAccess?: boolean }).hasPrivateRepoAccess = token.hasPrivateRepoAccess as boolean;
       }
       return session;
     }

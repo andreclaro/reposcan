@@ -17,7 +17,7 @@ import { eq, and } from "drizzle-orm";
 /**
  * GitHub provider IDs used for authentication
  */
-const GITHUB_PROVIDERS = ["github", "github-public", "github-private"];
+const GITHUB_PROVIDERS = ["github", "github-private"];
 
 /**
  * Get the GitHub OAuth access token for a user.
