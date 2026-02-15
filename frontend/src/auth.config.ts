@@ -34,7 +34,7 @@ if (DEV_BYPASS_AUTH) {
 
 export const authConfig: NextAuthConfig = {
   secret: process.env.AUTH_SECRET,
-  trustHost: process.env.NODE_ENV === "development",
+  trustHost: true,
   cookies: {
     sessionToken: {
       name: process.env.NODE_ENV === "production" ? "__Secure-authjs.session-token" : "authjs.session-token",
