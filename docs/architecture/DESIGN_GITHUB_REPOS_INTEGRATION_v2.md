@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines design options for integrating with GitHub repositories to enable security scanning of both public and private repositories.
+This document outlines the recommended approach for integrating with GitHub repositories to enable security scanning of both public and private repositories.
 
 ## Current State
 
@@ -11,101 +11,9 @@ This document outlines design options for integrating with GitHub repositories t
 - Public repos: Can be scanned without authentication
 - Private repos: Not supported
 
-## Design Options
+## Recommended Architecture: OAuth App + GitHub App
 
-### Option 1: Personal Access Tokens (PATs)
-
-Users create and store their own GitHub Personal Access Tokens in our application settings.
-
-#### Implementation
-
-```typescript
-// Database schema addition
-export const userGitHubTokens = pgTable("user_github_token", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  encryptedToken: text("encrypted_token").notNull(),
-  tokenHint: text("token_hint"), // Last 4 chars for display: "...ghp_xxxx"
-  scopes: text("scopes"), // Stored scopes at time of save
-  createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
-  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow()
-});
-```
-
-#### Token Types
-
-| Token Type | Granularity | Security | Setup Complexity |
-|------------|-------------|----------|------------------|
-| Classic PAT | All repos, all permissions | Medium (can be too broad) | Simple |
-| Fine-grained PAT | Repo-specific, permission-specific | High | Medium |
-
-#### UI Flow
-
-1. User navigates to Settings → GitHub Token
-2. Instructions shown with link to GitHub token creation page
-3. User creates token with required scopes:
-   - `repo` (for private repos) or `public_repo` (for public only)
-   - `read:org` (if scanning org repos)
-4. User pastes token into secure input field
-5. Token encrypted with AES-256 and stored server-side
-6. Display token hint (e.g., "ghp_...abcd") for verification
-
-#### Security Considerations
-
-**Pros:**
-- User controls token scope and expiration
-- Can use fine-grained PATs for least privilege
-- Tokens never exposed to client-side JavaScript
-- Encryption at rest with application-level key
-
-**Cons:**
-- Users must manually rotate tokens when expired
-- Classic PATs can be overly broad
-- No automatic token refresh
-
-#### Encryption Implementation
-
-```typescript
-// lib/token-encryption.ts
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto';
-
-const ALGORITHM = 'aes-256-gcm';
-const KEY = scryptSync(process.env.TOKEN_ENCRYPTION_SECRET!, 'salt', 32);
-
-export function encryptToken(token: string): { encrypted: string; iv: string; authTag: string } {
-  const iv = randomBytes(16);
-  const cipher = createCipheriv(ALGORITHM, KEY, iv);
-  
-  let encrypted = cipher.update(token, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  
-  return {
-    encrypted,
-    iv: iv.toString('hex'),
-    authTag: cipher.getAuthTag().toString('hex')
-  };
-}
-
-export function decryptToken(encrypted: string, iv: string, authTag: string): string {
-  const decipher = createDecipheriv(ALGORITHM, KEY, Buffer.from(iv, 'hex'));
-  decipher.setAuthTag(Buffer.from(authTag, 'hex'));
-  
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  
-  return decrypted;
-}
-```
-
----
-
-### Option 2: GitHub Apps (Recommended for Private Repos)
-
-**Use GitHub App alongside OAuth App** - OAuth for authentication, GitHub App for repository access. This is the recommended approach for fine-grained repository access control.
-
-#### Architecture
+Use **both** OAuth App and GitHub App together - they serve different purposes:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -125,20 +33,20 @@ export function decryptToken(encrypted: string, iv: string, authTag: string): st
 │           │         │  Repository Access (Optional)       │     │
 │           │         │  ┌─────────────────────────────┐    │     │
 │           │         │  │   GitHub App                │    │     │
-│           └────────►│  │  (user installation)        │    │     │
-│                     │  │                             │    │     │
-│                     │  │  Permissions:               │    │     │
-│                     │  │  - Contents: Read-only      │    │     │
-│                     │  │  - Metadata: Read-only      │    │     │
-│                     │  │                             │    │     │
-│                     │  │  User selects specific      │    │     │
-│                     │  │  repositories to share      │    │     │
-│                     │  └─────────────────────────────┘    │     │
-│                     └─────────────────────────────────────┘     │
+│           │         │  │  (user installation)        │    │     │
+│           │         │  │                             │    │     │
+│           │         │  │  Permissions:               │    │     │
+│           │         │  │  - Contents: Read-only      │    │     │
+│           │         │  │  - Metadata: Read-only      │    │     │
+│           │         │  │                             │    │     │
+│           │         │  │  User selects specific      │    │     │
+│           │         │  │  repositories to share      │    │     │
+│           │         │  └─────────────────────────────┘    │     │
+│           │         └─────────────────────────────────────┘     │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Why use both?**
+### Why use both?
 
 | Aspect | OAuth App | GitHub App |
 |--------|-----------|------------|
@@ -147,26 +55,22 @@ export function decryptToken(encrypted: string, iv: string, authTag: string): st
 | **Scope** | read:user user:email | Repo-specific, fine-grained |
 | **Token Lifetime** | Until revoked | Short-lived (1 hour), auto-refresh |
 
-**Key Benefits:**
-1. **Progressive permission** - Sign in with minimal OAuth, upgrade later for private repos
-2. **Fine-grained control** - User selects specific repos (not all-or-nothing)
-3. **Better org support** - GitHub Apps handle organization approvals better
-4. **Short-lived tokens** - No long-lived PATs stored in database
-5. **Easy revocation** - Uninstall app = instant access removal
+### Key Benefits
 
-#### Implementation
+1. **Progressive permission** - Sign in with minimal OAuth, connect repos later
+2. **Fine-grained control** - User selects specific repos (not all-or-nothing)
+3. **Better security** - Short-lived tokens, no long-term storage needed
+4. **Easy revocation** - Uninstall app = instant access removal
+5. **Org-friendly** - GitHub Apps work better with organizations
+
+---
+
+## Implementation
+
+### Database Schema
 
 ```typescript
-// GitHub App configuration
-const GITHUB_APP_CONFIG = {
-  appId: process.env.GITHUB_APP_ID!,
-  privateKey: process.env.GITHUB_APP_PRIVATE_KEY!,
-  clientId: process.env.GITHUB_APP_CLIENT_ID!,
-  clientSecret: process.env.GITHUB_APP_CLIENT_SECRET!,
-  webhookSecret: process.env.GITHUB_APP_WEBHOOK_SECRET!,
-};
-
-// Database schema
+// GitHub App installation tracking
 export const githubAppInstallations = pgTable("github_app_installation", {
   id: serial("id").primaryKey(),
   userId: text("user_id")
@@ -181,7 +85,19 @@ export const githubAppInstallations = pgTable("github_app_installation", {
 });
 ```
 
-#### Permissions Required
+### GitHub App Configuration
+
+```typescript
+const GITHUB_APP_CONFIG = {
+  appId: process.env.GITHUB_APP_ID!,
+  privateKey: process.env.GITHUB_APP_PRIVATE_KEY!,
+  clientId: process.env.GITHUB_APP_CLIENT_ID!,
+  clientSecret: process.env.GITHUB_APP_CLIENT_SECRET!,
+  webhookSecret: process.env.GITHUB_APP_WEBHOOK_SECRET!,
+};
+```
+
+### Required Permissions
 
 | Permission | Access Level | Purpose |
 |------------|--------------|---------|
@@ -189,9 +105,9 @@ export const githubAppInstallations = pgTable("github_app_installation", {
 | Metadata | Read-only | List repositories |
 | Issues | Read-only | Read security issues (optional) |
 
-#### Installation Flow
+### Installation Flow
 
-1. User clicks "Connect GitHub Repositories"
+1. User clicks "Connect GitHub Repositories" in Settings
 2. Redirected to GitHub App installation page
 3. User selects:
    - Personal repositories (all or selected)
@@ -200,7 +116,7 @@ export const githubAppInstallations = pgTable("github_app_installation", {
 5. Backend exchanges for installation access token
 6. Store installation ID and repository list
 
-#### Token Generation
+### Token Generation
 
 ```typescript
 import { App } from 'octokit';
@@ -219,238 +135,118 @@ async function getInstallationToken(installationId: number) {
 }
 ```
 
-#### Security Considerations
-
-**Pros:**
-- Fine-grained repository selection
-- Short-lived installation tokens (auto-refresh)
-- User controls which repos to grant access
-- No long-term token storage needed
-- Supports organizations with admin approval
-
-**Cons:**
-- More complex setup (private key management)
-- Requires webhook handling for installation events
-- Users must install app per-account (personal + each org)
-- Migration from OAuth App requires re-authentication
-
 ---
 
-### Option 3: Hybrid - OAuth + Optional PAT
-
-Keep current OAuth for authentication, add optional PAT for private repo access.
-
-#### Flow
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Authentication                          │
-│  ┌─────────────┐         ┌─────────────────────────────┐   │
-│  │  OAuth App  │         │  Optional: GitHub PAT       │   │
-│  │  (minimal)  │         │  (for private repos)        │   │
-│  └─────────────┘         └─────────────────────────────┘   │
-│        │                           │                        │
-│        ▼                           ▼                        │
-│  ┌─────────────┐         ┌─────────────────────────────┐   │
-│  │  User ID    │         │  Encrypted Token Storage    │   │
-│  │  Profile    │         │  (AES-256-GCM)              │   │
-│  └─────────────┘         └─────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-```
-
-#### Database Schema
-
-Same as Option 1 (PAT storage).
-
-#### UI Design
+## UI Design
 
 ```
 ┌─────────────────────────────────────────┐
 │         GitHub Integration              │
 ├─────────────────────────────────────────┤
 │                                         │
-│  Status: ● Connected (oauth)            │
+│  Status: ● Connected (OAuth)            │
 │  Email: user@example.com                │
 │                                         │
 ├─────────────────────────────────────────┤
-│  Private Repository Access              │
+│  Repository Access                      │
 ├─────────────────────────────────────────┤
 │                                         │
-│  [Add GitHub Token]                     │
+│  GitHub App: ○ Not connected            │
 │                                         │
-│  ┌─────────────────────────────────┐    │
-│  │ Token: [********************]   │    │
-│  │                                   │    │
-│  │ Scope: repo (read access)         │    │
-│  │                                   │    │
-│  │ [Save Token]  [Test Connection]   │    │
-│  └─────────────────────────────────┘    │
+│  [Connect GitHub Repositories]          │
 │                                         │
-│  ℹ Create token at:                     │
-│    github.com/settings/tokens           │
+│  ─── OR ───                             │
 │                                         │
-│  Recommended: Fine-grained PAT with:    │
-│  - Repository access: Selected repos    │
-│  - Permissions: Contents (Read)         │
+│  Public repositories can be scanned     │
+│  without authentication.                │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+After connecting:
+
+```
+┌─────────────────────────────────────────┐
+│         GitHub Integration              │
+├─────────────────────────────────────────┤
+│                                         │
+│  Status: ● Connected (OAuth)            │
+│  Email: user@example.com                │
+│                                         │
+├─────────────────────────────────────────┤
+│  Repository Access                      │
+├─────────────────────────────────────────┤
+│                                         │
+│  GitHub App: ● Connected                │
+│  Account: andreclaro (User)             │
+│  Repositories: 5 selected               │
+│                                         │
+│  [Manage Repositories]  [Disconnect]    │
+│                                         │
+│  Selected repositories:                 │
+│  ☑ andreclaro/repo-1                    │
+│  ☑ andreclaro/repo-2                    │
+│  ☑ andreclaro/private-repo              │
+│  ☑ org-name/shared-repo                 │
 │                                         │
 └─────────────────────────────────────────┘
 ```
 
 ---
 
-### Option 4: GitHub App with OAuth Fallback
-
-Primary: GitHub App for repo access
-Fallback: OAuth for users who don't want to install app
-
-#### Architecture
-
-```
-                    ┌─────────────────────┐
-                    │   User Login        │
-                    └──────────┬──────────┘
-                               │
-              ┌────────────────┼────────────────┐
-              ▼                ▼                ▼
-    ┌─────────────────┐ ┌─────────────┐ ┌──────────────┐
-    │  GitHub App     │ │   OAuth     │ │   Email/Pass │
-    │  (Recommended)  │ │  (Fallback) │ │   (Fallback) │
-    └────────┬────────┘ └──────┬──────┘ └──────┬───────┘
-             │                 │               │
-             ▼                 ▼               ▼
-    ┌─────────────────┐ ┌─────────────┐ ┌──────────────┐
-    │ Repo Access +   │ │  Auth Only  │ │  Auth Only   │
-    │  Auth           │ │  (PAT req)  │ │  (PAT req)   │
-    └─────────────────┘ └─────────────┘ └──────────────┘
-```
-
----
-
-## Comparison Matrix
-
-| Criteria | PAT Only | GitHub App (Replace OAuth) | Hybrid (OAuth+PAT) | OAuth + GitHub App |
-|----------|----------|---------------------------|-------------------|-------------------|
-| **Setup Complexity** | Low | High (complex auth flow) | Low | Medium |
-| **User Experience** | Medium | Medium (must install to login) | Medium | **High** |
-| **Security** | Medium-High | High | Medium-High | **High** |
-| **Granularity** | High (fine-grained) | High | High | **High** |
-| **Token Rotation** | Manual | Automatic | Manual | **Automatic** |
-| **Org Support** | Yes | Yes (admin approval) | Yes | Yes (best) |
-| **Migration Effort** | Low | High | Low | Medium |
-| **Maintenance** | Low | Medium | Low | Medium |
-| **Progressive Permission** | ❌ | ❌ | ✅ | ✅ |
-
-**Note:** "OAuth + GitHub App" = Keep OAuth for auth, add GitHub App for repo access (Option 2 updated above). This is different from "GitHub App (Replace OAuth)" which replaces OAuth entirely.
-
----
-
-## Recommendation
-
-### Phase 1: Hybrid (OAuth + Optional PAT) - Immediate
-
-**Rationale:**
-- Minimal changes to existing architecture
-- Quick implementation (1-2 days)
-- Users can start scanning private repos immediately
-- Supports fine-grained PATs for security-conscious users
-
-**Implementation:**
-1. Add `user_github_tokens` table with encryption
-2. Create API endpoints (save/get/delete/test token)
-3. Update profile page with token management UI
-4. Update scan worker to use user token when available
-
-### Phase 2: OAuth + GitHub App - Future
-
-**Rationale:**
-- Best long-term user experience
-- Automatic token management (no manual PAT rotation)
-- Native repository picker on GitHub's site
-- Short-lived tokens (1 hour) with automatic refresh
-- Better organization support (admin approval workflow)
-- Users can revoke access instantly by uninstalling
-
-**Implementation:**
-1. Create GitHub App in GitHub Marketplace
-2. Keep existing OAuth App for authentication
-3. Add "Connect GitHub Repositories" button in settings
-4. Handle GitHub App installation webhook
-5. Generate short-lived installation tokens on-demand
-6. Fall back to PAT if GitHub App not installed
-
-**Key difference from Phase 1:** Replace PAT storage with GitHub App installation, keep OAuth for auth.
-- Better for enterprise/organization adoption
-
-**Implementation:**
-1. Create GitHub App in marketplace
-2. Implement installation flow
-3. Add webhook handlers
-4. Migrate existing users (optional)
-5. Deprecate PAT option (optional)
-
----
-
-## Security Requirements
-
-### Token Storage
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Encryption Requirements                                │
-├─────────────────────────────────────────────────────────┤
-│  Algorithm: AES-256-GCM                                 │
-│  Key Management: Environment variable (KMS recommended) │
-│  Key Rotation: Quarterly                                │
-│  Access Logging: All token access logged                │
-│  Retention: Tokens deleted on account deletion          │
-└─────────────────────────────────────────────────────────┘
-```
-
-### Access Controls
-
-- Tokens only decrypted in scan worker (server-side)
-- Never log full tokens
-- Token hints visible to user for identification
-- Rate limiting on token save/delete endpoints
-
----
-
 ## API Endpoints
 
-### Save GitHub Token
+### Initiate GitHub App Installation
 
 ```http
-POST /api/github/token
-Content-Type: application/json
+POST /api/github/install
 
-{
-  "token": "github_pat_xxx"
-}
+Response: 302 Redirect
+Location: https://github.com/apps/securitykit/installations/new
+```
+
+### Handle Installation Callback
+
+```http
+GET /api/github/install/callback?installation_id=123&setup_action=install
+
+Response: 302 Redirect
+Location: /app/settings?github=connected
+```
+
+### Get Installation Status
+
+```http
+GET /api/github/install
 
 Response: 200 OK
 {
-  "success": true,
-  "hint": "...abcd"
+  "connected": true,
+  "installationId": 123,
+  "accountLogin": "andreclaro",
+  "accountType": "User",
+  "repositories": ["repo-1", "repo-2", "private-repo"]
 }
 ```
 
-### Get Token Status
+### List Available Repositories
 
 ```http
-GET /api/github/token
+GET /api/github/repos?installation_id=123
 
 Response: 200 OK
 {
-  "hasToken": true,
-  "hint": "...abcd",
-  "scopes": ["repo"]
+  "repositories": [
+    { "name": "repo-1", "fullName": "andreclaro/repo-1", "private": false },
+    { "name": "private-repo", "fullName": "andreclaro/private-repo", "private": true }
+  ]
 }
 ```
 
-### Delete Token
+### Disconnect GitHub App
 
 ```http
-DELETE /api/github/token
+DELETE /api/github/install
 
 Response: 200 OK
 {
@@ -458,19 +254,73 @@ Response: 200 OK
 }
 ```
 
-### Test Token
+---
 
-```http
-POST /api/github/token/test
+## Security Considerations
 
-Response: 200 OK
-{
-  "valid": true,
-  "scopes": ["repo", "read:org"],
-  "rateLimit": {
-    "limit": 5000,
-    "remaining": 4999
+### Pros
+
+- **Fine-grained repository selection** - Users choose which repos to share
+- **Short-lived tokens** - Installation tokens expire after 1 hour
+- **Automatic refresh** - No manual token rotation needed
+- **User-controlled access** - Can revoke access anytime by uninstalling app
+- **Organization support** - Proper admin approval workflow for orgs
+- **No token storage** - Only installation ID stored, tokens generated on-demand
+
+### Implementation Security
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Security Requirements                                    │
+├─────────────────────────────────────────────────────────┤
+│  Private Key: Stored in environment variable             │
+│  Key Rotation: Quarterly (manual regeneration)           │
+│  Webhook Verification: HMAC-SHA256 signature check       │
+│  Access Logging: All repo access logged                  │
+│  Token Lifetime: 1 hour (GitHub-enforced)                │
+│  Token Scope: Installation tokens scoped to selected     │
+│               repositories only                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Webhook Handling
+
+GitHub App sends webhooks for installation events:
+
+```typescript
+// app/api/github/webhook/route.ts
+import { verifyWebhookSignature } from '@/lib/github-webhook';
+
+export async function POST(request: Request) {
+  const body = await request.text();
+  const signature = request.headers.get('x-hub-signature-256');
+  
+  if (!verifyWebhookSignature(body, signature)) {
+    return new Response('Invalid signature', { status: 401 });
   }
+  
+  const event = JSON.parse(body);
+  
+  switch (event.action) {
+    case 'created':
+      // Installation created - store in database
+      await storeInstallation(event.installation);
+      break;
+      
+    case 'deleted':
+      // Installation deleted - remove from database
+      await removeInstallation(event.installation.id);
+      break;
+      
+    case 'suspend':
+      // Installation suspended - mark as inactive
+      await suspendInstallation(event.installation.id);
+      break;
+  }
+  
+  return new Response('OK');
 }
 ```
 
@@ -478,44 +328,113 @@ Response: 200 OK
 
 ## Migration Plan
 
-1. **Database Migration**
+### Phase 1: GitHub App Setup
+
+1. Create GitHub App in GitHub Marketplace
+   - Set name, description, homepage URL
+   - Configure callback URL: `/api/github/install/callback`
+   - Setup webhook URL: `/api/github/webhook`
+   - Request permissions: Contents (read), Metadata (read)
+   - Subscribe to events: Installation, Repository
+
+2. Database migration
    ```sql
-   CREATE TABLE user_github_token (
-     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   CREATE TABLE github_app_installation (
+     id SERIAL PRIMARY KEY,
      user_id TEXT NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
-     encrypted_token TEXT NOT NULL,
-     iv TEXT NOT NULL,
-     auth_tag TEXT NOT NULL,
-     token_hint TEXT,
-     scopes TEXT,
+     installation_id INTEGER NOT NULL UNIQUE,
+     account_login TEXT NOT NULL,
+     account_type TEXT NOT NULL, -- 'User' or 'Organization'
+     repositories JSONB DEFAULT '[]',
      created_at TIMESTAMP DEFAULT NOW(),
      updated_at TIMESTAMP DEFAULT NOW(),
-     UNIQUE(user_id)
+     UNIQUE(user_id, installation_id)
    );
    
-   CREATE INDEX idx_user_github_token_user_id ON user_github_token(user_id);
+   CREATE INDEX idx_github_app_installation_user_id ON github_app_installation(user_id);
+   CREATE INDEX idx_github_app_installation_installation_id ON github_app_installation(installation_id);
    ```
 
-2. **Environment Variables**
+3. Environment variables
    ```bash
-   # Add to .env.local
-   TOKEN_ENCRYPTION_SECRET=<generate with openssl rand -base64 32>
+   GITHUB_APP_ID=123456
+   GITHUB_APP_CLIENT_ID=Iv1.xxx
+   GITHUB_APP_CLIENT_SECRET=xxx
+   GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n..."
+   GITHUB_APP_WEBHOOK_SECRET=xxx
    ```
 
-3. **Feature Flag**
-   - Add `GITHUB_TOKEN_ENABLED` feature flag
-   - Gradually roll out to users
+### Phase 2: API Implementation
+
+1. Installation flow endpoints
+2. Webhook handler
+3. Token generation service
+4. Repository listing API
+
+### Phase 3: UI Implementation
+
+1. Settings page - GitHub integration section
+2. Repository picker/modal
+3. Connection status indicator
+4. Disconnect functionality
+
+### Phase 4: Worker Integration
+
+Update scan worker to use GitHub App installation tokens:
+
+```typescript
+// In scan worker
+async function getTokenForRepo(userId: string, repoUrl: string) {
+  // Check if user has GitHub App installation
+  const installation = await getInstallationForUser(userId);
+  
+  if (installation && hasRepoAccess(installation, repoUrl)) {
+    // Generate short-lived installation token
+    return await generateInstallationToken(installation.installationId);
+  }
+  
+  // Fall back to server token (for public repos)
+  return process.env.GITHUB_TOKEN;
+}
+```
+
+---
+
+## Environment Variables
+
+```bash
+# OAuth App (existing)
+AUTH_GITHUB_ID=xxx
+AUTH_GITHUB_SECRET=xxx
+
+# GitHub App (new)
+GITHUB_APP_ID=xxx
+GITHUB_APP_CLIENT_ID=Iv1.xxx
+GITHUB_APP_CLIENT_SECRET=xxx
+GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----
+...
+-----END RSA PRIVATE KEY-----"
+GITHUB_APP_WEBHOOK_SECRET=xxx
+
+# Server token (for public repos, optional)
+GITHUB_TOKEN=ghp_xxx
+```
 
 ---
 
 ## Conclusion
 
-**Recommended approach: Hybrid (OAuth + Optional PAT)**
+**Recommended approach: OAuth App + GitHub App**
 
-This provides immediate value with minimal engineering effort while leaving the door open for GitHub App migration in the future.
+This provides:
+- Simple authentication with OAuth
+- Fine-grained repository access with GitHub App
+- Progressive permission model
+- Best security practices (short-lived tokens)
+- Excellent user experience
 
 **Key Principles:**
-1. Privacy-first: OAuth only requests minimal permissions
-2. User control: Optional PAT with fine-grained scope selection
-3. Security: Server-side encryption, never expose tokens to client
-4. Simplicity: Single OAuth flow, optional enhancement for power users
+1. **Separation of concerns** - OAuth for auth, GitHub App for repos
+2. **User control** - Explicit repository selection
+3. **Security** - Short-lived tokens, no long-term storage
+4. **Flexibility** - Optional GitHub App installation
