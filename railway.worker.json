@@ -1,7 +1,7 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "dockerfilePath": "../docker/Dockerfile.worker"
+    "dockerfilePath": "docker/Dockerfile.worker"
   },
   "deploy": {
     "startCommand": "celery -A worker.scan_worker worker --loglevel=info --concurrency=50",
