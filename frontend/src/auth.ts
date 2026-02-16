@@ -32,6 +32,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const db = getDb();
       const userEmail = user.email;
 
+      console.log("[auth] signIn callback:", { 
+        provider: account?.provider, 
+        hasEmail: !!userEmail,
+        email: userEmail ? `${userEmail.substring(0, 3)}...` : null,
+        hasProfile: !!profile,
+        userName: user.name
+      });
+
       if (!userEmail) {
         console.log("[auth] signIn rejected: no email");
         return "/login?error=EmailRequired";
