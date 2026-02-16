@@ -20,19 +20,6 @@ export function GitHubSignInButton({ callbackUrl = "/app" }: SignInButtonProps) 
         Continue with GitHub
       </Button>
 
-      <div className="space-y-2 text-xs text-muted-foreground">
-        <p>
-          <strong>Permissions:</strong> Email and profile only. 
-          No repository access requested.
-        </p>
-        <p>
-          <strong>Public repos:</strong> Can be scanned without authentication.
-        </p>
-        <p>
-          <strong>Private repos:</strong> Add a GitHub token in Settings for secure 
-          private repos scanning.
-        </p>
-      </div>
     </div>
   );
 }
