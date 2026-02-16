@@ -15,22 +15,29 @@ export default async function AdminScannersPage() {
     redirect("/app");
   }
 
-  // Fetch backend scanner registry and DB settings in parallel.
-  const [scannerMeta, rows] = await Promise.all([
-    getScannerRegistry(),
-    db.select().from(scannerSettings),
-  ]);
+  try {
+    // Fetch backend scanner registry and DB settings in parallel.
+    const [scannerMeta, rows] = await Promise.all([
+      getScannerRegistry(),
+      db.select().from(scannerSettings),
+    ]);
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Scanners</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage scanner availability globally and per plan. Global toggle
-          disables a scanner for everyone; plan toggles control access per tier.
-        </p>
+    console.log("[admin/scanners] scannerMeta:", scannerMeta.length, "rows:", rows.length);
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Scanners</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage scanner availability globally and per plan. Global toggle
+            disables a scanner for everyone; plan toggles control access per tier.
+          </p>
+        </div>
+        <AdminScanners initialSettings={rows} scannerMeta={scannerMeta} />
       </div>
-      <AdminScanners initialSettings={rows} scannerMeta={scannerMeta} />
-    </div>
-  );
+    );
+  } catch (error) {
+    console.error("[admin/scanners] Error loading page:", error);
+    throw error;
+  }
 }
