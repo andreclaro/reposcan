@@ -258,7 +258,7 @@ export default function HomePage() {
                   className="mb-6 w-fit gap-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  Now with AI-powered analysis
+                  AI-Powered Analysis
                 </Badge>
               </motion.div>
               
@@ -494,7 +494,7 @@ export default function HomePage() {
           <div className="grid gap-12 lg:grid-cols-2 items-center">
             <SlideInLeft>
               <Badge className="mb-4 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20">
-                New
+                Coming soon to Pro tier
               </Badge>
               <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
                 AI-powered security analysis
