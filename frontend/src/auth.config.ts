@@ -25,7 +25,37 @@ if (githubClientId && githubClientSecret) {
         }
       },
       token: "https://github.com/login/oauth/access_token",
-      userinfo: "https://api.github.com/user"
+      userinfo: {
+        url: "https://api.github.com/user",
+        async request({ tokens, provider }: { tokens: { access_token?: string }; provider: { userinfo?: { url?: string } } }) {
+          const profile = await fetch(provider.userinfo?.url as string, {
+            headers: {
+              Authorization: `Bearer ${tokens.access_token}`,
+              "User-Agent": "authjs"
+            }
+          }).then(async (res) => await res.json());
+
+          // If email is not public, fetch from /user/emails endpoint
+          if (!profile.email) {
+            const emails = await fetch("https://api.github.com/user/emails", {
+              headers: {
+                Authorization: `Bearer ${tokens.access_token}`,
+                "User-Agent": "authjs"
+              }
+            }).then(async (res) => await res.json());
+
+            if (Array.isArray(emails) && emails.length > 0) {
+              // Find primary email, or fall back to first verified, or first available
+              const primaryEmail = emails.find((e: { primary: boolean; email: string }) => e.primary)?.email
+                || emails.find((e: { verified: boolean; email: string }) => e.verified)?.email
+                || emails[0]?.email;
+              profile.email = primaryEmail;
+            }
+          }
+
+          return profile;
+        }
+      }
     })
   );
 }

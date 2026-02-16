@@ -34,7 +34,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       if (!userEmail) {
         console.log("[auth] signIn rejected: no email");
-        return false;
+        return "/login?error=EmailRequired";
       }
 
       // Check if admin (admins are always allowed)

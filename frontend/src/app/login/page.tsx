@@ -28,6 +28,11 @@ const ERROR_MESSAGES: Record<string, { title: string; message: string; type: "er
     message: "Your GitHub account was disconnected. Please click the link below to reset your account.",
     type: "warning"
   },
+  EmailRequired: {
+    title: "Email Access Required",
+    message: "We need access to your email address to create your account. Please ensure your GitHub email is verified and try again.",
+    type: "warning"
+  },
   Configuration: {
     title: "Configuration Error",
     message: "There's a problem with the server configuration. Please try again later.",
