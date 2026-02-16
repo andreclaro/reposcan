@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, CreditCard, Users, Scan, Shield } from "lucide-react";
+import { LayoutDashboard, CreditCard, Users, Scan, Shield, Activity } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,8 @@ const adminNav: Array<{
   { name: "Scans", href: "/app/admin", icon: Scan },
   { name: "Plans", href: "/app/admin/plans", icon: CreditCard },
   { name: "Users", href: "/app/admin/users", icon: Users },
-  { name: "Scanners", href: "/app/admin/scanners", icon: Shield }
+  { name: "Scanners", href: "/app/admin/scanners", icon: Shield },
+  { name: "Status", href: "/app/admin/status", icon: Activity }
 ];
 
 export default function AdminNav() {

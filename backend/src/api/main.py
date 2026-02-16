@@ -1,4 +1,5 @@
 """FastAPI service for security audit API."""
+from datetime import datetime
 import os
 import uuid
 from fastapi import FastAPI, HTTPException, Request
@@ -189,6 +190,49 @@ async def list_scanners(request: Request):
 async def health(request: Request):
     """Health check endpoint."""
     return HealthResponse(status="ok")
+
+
+@app.get("/health/detailed")
+@limiter.limit("60000/minute")  # Rate limit: 60000 health checks per minute per IP
+async def health_detailed(request: Request):
+    """Detailed health check including PostgreSQL and Redis status."""
+    import asyncpg
+    import redis
+    
+    status = {
+        "api": "up",
+        "postgresql": "down",
+        "redis": "down",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    
+    # Check PostgreSQL
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        try:
+            conn = await asyncpg.connect(dsn=database_url, timeout=5)
+            await conn.fetchval("SELECT 1")
+            await conn.close()
+            status["postgresql"] = "up"
+        except Exception:
+            pass
+    
+    # Check Redis
+    if REDIS_URL:
+        try:
+            r = redis.from_url(REDIS_URL, socket_connect_timeout=5)
+            r.ping()
+            status["redis"] = "up"
+        except Exception:
+            pass
+    
+    # Overall status is up only if all components are up
+    overall = "up" if all(
+        status[k] == "up" for k in ["api", "postgresql", "redis"]
+    ) else "degraded" if status["api"] == "up" else "down"
+    
+    status["overall"] = overall
+    return status
 
 
 if __name__ == "__main__":
