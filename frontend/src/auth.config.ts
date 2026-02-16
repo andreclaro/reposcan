@@ -28,32 +28,54 @@ if (githubClientId && githubClientSecret) {
       userinfo: {
         url: "https://api.github.com/user",
         async request({ tokens, provider }: { tokens: { access_token?: string }; provider: { userinfo?: { url?: string } } }) {
-          const profile = await fetch(provider.userinfo?.url as string, {
-            headers: {
-              Authorization: `Bearer ${tokens.access_token}`,
-              "User-Agent": "authjs"
-            }
-          }).then(async (res) => await res.json());
-
-          // If email is not public, fetch from /user/emails endpoint
-          if (!profile.email) {
-            const emails = await fetch("https://api.github.com/user/emails", {
+          try {
+            const userRes = await fetch(provider.userinfo?.url as string, {
               headers: {
                 Authorization: `Bearer ${tokens.access_token}`,
                 "User-Agent": "authjs"
               }
-            }).then(async (res) => await res.json());
-
-            if (Array.isArray(emails) && emails.length > 0) {
-              // Find primary email, or fall back to first verified, or first available
-              const primaryEmail = emails.find((e: { primary: boolean; email: string }) => e.primary)?.email
-                || emails.find((e: { verified: boolean; email: string }) => e.verified)?.email
-                || emails[0]?.email;
-              profile.email = primaryEmail;
+            });
+            
+            if (!userRes.ok) {
+              console.error("[auth] GitHub /user API error:", userRes.status, await userRes.text());
+              throw new Error(`GitHub API error: ${userRes.status}`);
             }
-          }
+            
+            const profile = await userRes.json();
+            console.log("[auth] GitHub profile fetched:", { login: profile.login, hasEmail: !!profile.email });
 
-          return profile;
+            // If email is not public, fetch from /user/emails endpoint
+            if (!profile.email) {
+              console.log("[auth] Fetching emails from /user/emails");
+              const emailsRes = await fetch("https://api.github.com/user/emails", {
+                headers: {
+                  Authorization: `Bearer ${tokens.access_token}`,
+                  "User-Agent": "authjs"
+                }
+              });
+              
+              if (!emailsRes.ok) {
+                console.error("[auth] GitHub /user/emails API error:", emailsRes.status);
+              } else {
+                const emails = await emailsRes.json();
+                console.log("[auth] GitHub emails fetched:", { count: emails?.length });
+
+                if (Array.isArray(emails) && emails.length > 0) {
+                  // Find primary email, or fall back to first verified, or first available
+                  const primaryEmail = emails.find((e: { primary: boolean; email: string }) => e.primary)?.email
+                    || emails.find((e: { verified: boolean; email: string }) => e.verified)?.email
+                    || emails[0]?.email;
+                  profile.email = primaryEmail;
+                  console.log("[auth] Selected email:", primaryEmail ? `${primaryEmail.substring(0, 3)}...` : null);
+                }
+              }
+            }
+
+            return profile;
+          } catch (error) {
+            console.error("[auth] Error in userinfo request:", error);
+            throw error;
+          }
         }
       }
     })
