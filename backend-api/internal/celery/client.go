@@ -60,23 +60,32 @@ type CeleryEnvelope struct {
 
 // CeleryProperties represents the properties section of a Celery message.
 type CeleryProperties struct {
-	ContentType   string                 `json:"content_type"`
-	ContentEncoding string               `json:"content_encoding"`
-	DeliveryTag   string                 `json:"delivery_tag"`
-	DeliveryMode  int                    `json:"delivery_mode"`
-	Priority      int                    `json:"priority"`
-	CorrelationID string                 `json:"correlation_id"`
-	ReplyTo       string                 `json:"reply_to"`
-	Headers       map[string]interface{} `json:"headers"`
+	BodyEncoding    string                 `json:"body_encoding"`
+	ContentType     string                 `json:"content_type"`
+	ContentEncoding string                 `json:"content_encoding"`
+	DeliveryInfo    DeliveryInfo           `json:"delivery_info"`
+	DeliveryMode    int                    `json:"delivery_mode"`
+	DeliveryTag     string                 `json:"delivery_tag"`
+	Priority        int                    `json:"priority"`
+	CorrelationID   string                 `json:"correlation_id"`
+	ReplyTo         string                 `json:"reply_to"`
+}
+
+// DeliveryInfo represents the delivery information.
+type DeliveryInfo struct {
+	Exchange    string `json:"exchange"`
+	RoutingKey  string `json:"routing_key"`
+	Priority    int    `json:"priority"`
+	Redelivered bool   `json:"redelivered"`
 }
 
 // ResultMessage represents a Celery result message.
 type ResultMessage struct {
-	Status    string      `json:"status"`
-	Result    interface{} `json:"result,omitempty"`
-	Traceback string      `json:"traceback,omitempty"`
+	Status    string        `json:"status"`
+	Result    interface{}   `json:"result,omitempty"`
+	Traceback string        `json:"traceback,omitempty"`
 	Children  []interface{} `json:"children,omitempty"`
-	TaskID    string      `json:"task_id,omitempty"`
+	TaskID    string        `json:"task_id,omitempty"`
 }
 
 // NewClient creates a new Celery client.
@@ -137,26 +146,32 @@ func (c *Client) SendTask(ctx context.Context, taskName string, args []interface
 		ContentEncoding: "utf-8",
 		ContentType:     "application/json",
 		Headers: map[string]interface{}{
-			"task": taskName,
-			"id":   taskID,
+			"task":       taskName,
+			"id":         taskID,
+			"retries":    0,
+			"lang":       "py",
+			"root_id":    taskID,
+			"parent_id":  nil,
+			"group":      nil,
+			"timelimit":  []interface{}{nil, nil},
+			"origin":     "gen-go-api@localhost",
+			"ignore_result": false,
 		},
 		Properties: CeleryProperties{
+			BodyEncoding:    "base64",
 			ContentType:     "application/json",
 			ContentEncoding: "utf-8",
-			DeliveryTag:     uuid.New().String(),
-			DeliveryMode:    2, // Persistent
-			Priority:        0,
-			CorrelationID:   taskID,
-			ReplyTo:         taskID,
-			Headers: map[string]interface{}{
-				"task":    taskName,
-				"id":      taskID,
-				"retries": 0,
-				"lang":    "py",
-				"root_id": taskID,
-				"parent_id": nil,
-				"group":   nil,
+			DeliveryInfo: DeliveryInfo{
+				Exchange:    "celery",
+				RoutingKey:  "celery",
+				Priority:    0,
+				Redelivered: false,
 			},
+			DeliveryMode:  2, // Persistent
+			DeliveryTag:   uuid.New().String(),
+			Priority:      0,
+			CorrelationID: taskID,
+			ReplyTo:       taskID,
 		},
 	}
 
