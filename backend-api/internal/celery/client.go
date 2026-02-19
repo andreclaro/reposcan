@@ -3,6 +3,7 @@ package celery
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -13,48 +14,69 @@ import (
 
 // Client represents a Celery client.
 type Client struct {
-	redis      *redis.Client
-	brokerURL  string
-	queue      string
+	redis     *redis.Client
+	brokerURL string
+	queue     string
 }
 
 // TaskState represents Celery task states.
 const (
-	TaskStatePending   = "PENDING"
-	TaskStateProgress  = "PROGRESS"
-	TaskStateSuccess   = "SUCCESS"
-	TaskStateFailure   = "FAILURE"
-	TaskStateRetry     = "RETRY"
-	TaskStateStarted   = "STARTED"
-	TaskStateRevoked   = "REVOKED"
+	TaskStatePending  = "PENDING"
+	TaskStateProgress = "PROGRESS"
+	TaskStateSuccess  = "SUCCESS"
+	TaskStateFailure  = "FAILURE"
+	TaskStateRetry    = "RETRY"
+	TaskStateStarted  = "STARTED"
+	TaskStateRevoked  = "REVOKED"
 )
 
 // TaskInfo represents Celery task information from the result backend.
 type TaskInfo struct {
-	State      string                 `json:"status"`
-	Result     map[string]interface{} `json:"result,omitempty"`
-	Traceback  string                 `json:"traceback,omitempty"`
-	Children   []interface{}          `json:"children,omitempty"`
-	TaskID     string                 `json:"task_id,omitempty"`
+	State     string                 `json:"status"`
+	Result    map[string]interface{} `json:"result,omitempty"`
+	Traceback string                 `json:"traceback,omitempty"`
+	Children  []interface{}          `json:"children,omitempty"`
+	TaskID    string                 `json:"task_id,omitempty"`
 }
 
-// TaskMessage represents a Celery task message.
+// TaskMessage represents a Celery task message body.
 type TaskMessage struct {
-	Task    string        `json:"task"`
-	ID      string        `json:"id"`
-	Args    []interface{} `json:"args"`
+	Task    string                 `json:"task"`
+	ID      string                 `json:"id"`
+	Args    []interface{}          `json:"args"`
 	Kwargs  map[string]interface{} `json:"kwargs"`
-	Retries int           `json:"retries"`
-	ETA     *string       `json:"eta,omitempty"`
+	Retries int                    `json:"retries"`
+	ETA     *string                `json:"eta,omitempty"`
+}
+
+// CeleryEnvelope represents the full Celery message format expected by Python Celery.
+type CeleryEnvelope struct {
+	Body            string                 `json:"body"`
+	ContentEncoding string                 `json:"content-encoding"`
+	ContentType     string                 `json:"content-type"`
+	Headers         map[string]interface{} `json:"headers"`
+	Properties      CeleryProperties       `json:"properties"`
+}
+
+// CeleryProperties represents the properties section of a Celery message.
+type CeleryProperties struct {
+	ContentType   string                 `json:"content_type"`
+	ContentEncoding string               `json:"content_encoding"`
+	DeliveryTag   string                 `json:"delivery_tag"`
+	DeliveryMode  int                    `json:"delivery_mode"`
+	Priority      int                    `json:"priority"`
+	CorrelationID string                 `json:"correlation_id"`
+	ReplyTo       string                 `json:"reply_to"`
+	Headers       map[string]interface{} `json:"headers"`
 }
 
 // ResultMessage represents a Celery result message.
 type ResultMessage struct {
-	Status    string                 `json:"status"`
-	Result    interface{}            `json:"result,omitempty"`
-	Traceback string                 `json:"traceback,omitempty"`
-	Children  []interface{}          `json:"children,omitempty"`
-	TaskID    string                 `json:"task_id,omitempty"`
+	Status    string      `json:"status"`
+	Result    interface{} `json:"result,omitempty"`
+	Traceback string      `json:"traceback,omitempty"`
+	Children  []interface{} `json:"children,omitempty"`
+	TaskID    string      `json:"task_id,omitempty"`
 }
 
 // NewClient creates a new Celery client.
@@ -69,7 +91,7 @@ func NewClient(redisURL string) (*Client, error) {
 	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	if err := client.Ping(ctx).Err(); err != nil {
 		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
 	}
@@ -92,14 +114,50 @@ func (c *Client) SendTask(ctx context.Context, taskName string, args []interface
 		taskID = uuid.New().String()
 	}
 
-	// Celery uses a specific message format with headers and body
-	// For simplicity, we're using the JSON serializer format
-	envelope := map[string]interface{}{
-		"task":    taskName,
-		"id":      taskID,
-		"args":    args,
-		"kwargs":  map[string]interface{}{},
-		"retries": 0,
+	// Create the task message body
+	taskBody := TaskMessage{
+		Task:    taskName,
+		ID:      taskID,
+		Args:    args,
+		Kwargs:  map[string]interface{}{},
+		Retries: 0,
+	}
+
+	bodyJSON, err := json.Marshal(taskBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal task body: %w", err)
+	}
+
+	// Base64 encode the body (Celery's default for JSON serializer with Redis)
+	encodedBody := base64.StdEncoding.EncodeToString(bodyJSON)
+
+	// Create the full Celery envelope
+	envelope := CeleryEnvelope{
+		Body:            encodedBody,
+		ContentEncoding: "utf-8",
+		ContentType:     "application/json",
+		Headers: map[string]interface{}{
+			"task": taskName,
+			"id":   taskID,
+		},
+		Properties: CeleryProperties{
+			ContentType:     "application/json",
+			ContentEncoding: "utf-8",
+			DeliveryTag:     uuid.New().String(),
+			DeliveryMode:    2, // Persistent
+			Priority:        0,
+			CorrelationID:   taskID,
+			ReplyTo:         taskID,
+			Headers: map[string]interface{}{
+				"task":    taskName,
+				"id":      taskID,
+				"retries": 0,
+				"lang":    "py",
+				"root_id": taskID,
+				"parent_id": nil,
+				"group":   nil,
+			},
+		},
 	}
 
 	envelopeBody, err := json.Marshal(envelope)
@@ -120,7 +178,7 @@ func (c *Client) SendTask(ctx context.Context, taskName string, args []interface
 func (c *Client) GetTaskResult(ctx context.Context, taskID string) (*TaskInfo, error) {
 	// Celery stores results in Redis with key pattern: celery-task-meta-<task_id>
 	key := fmt.Sprintf("celery-task-meta-%s", taskID)
-	
+
 	data, err := c.redis.Get(ctx, key).Result()
 	if err == redis.Nil {
 		// Task not found, return pending state
