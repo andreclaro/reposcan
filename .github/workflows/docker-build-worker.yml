@@ -1,21 +1,21 @@
-name: Build and Push API Image
+name: Build and Push Worker Image
 
 on:
   push:
     branches: [main, master]
     paths:
-      - 'backend-api/**'
-      - 'infra/docker/Dockerfile.api'
-      - '.github/workflows/docker-build-api.yml'
+      - 'backend-worker/**'
+      - 'infra/docker/Dockerfile.worker'
+      - '.github/workflows/docker-build-worker.yml'
     tags:
       - 'v*'
-      - 'api-*'
+      - 'worker-*'
   pull_request:
     branches: [main, master]
     paths:
-      - 'backend-api/**'
-      - 'infra/docker/Dockerfile.api'
-      - '.github/workflows/docker-build-api.yml'
+      - 'backend-worker/**'
+      - 'infra/docker/Dockerfile.worker'
+      - '.github/workflows/docker-build-worker.yml'
   workflow_dispatch:
     inputs:
       push:
@@ -29,7 +29,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/api
+  IMAGE_NAME: ${{ github.repository }}/worker
 
 jobs:
   build:
@@ -73,7 +73,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: infra/docker/Dockerfile.api
+          file: infra/docker/Dockerfile.worker
           push: ${{ github.event_name != 'pull_request' && github.event.inputs.push != 'false' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
