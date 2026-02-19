@@ -1,0 +1,188 @@
+# Base values for all environments
+#
+# Note: DATABASE_URL and other secrets are managed via the 'securefast-secrets' Secret
+# created manually using the create-secrets.sh script.
+# See: ./create-secrets.sh
+
+namespace: securefast-worker
+
+# =============================================================================
+# Global Configuration
+# =============================================================================
+
+global:
+  # Note: DATABASE_URL is managed via the 'securefast-secrets' Secret
+  # Use ./create-secrets.sh to set it
+  databaseUrl: ""
+  
+  # Redis configuration (auto-generated if empty)
+  redisUrl: ""
+  
+  # AI Analysis configuration
+  aiAnalysisEnabled: "false"
+  aiProvider: "anthropic"
+  aiModel: "claude-3-sonnet-20240229"
+  anthropicApiKey: ""
+  openaiApiKey: ""
+  kimiApiKey: ""
+  
+  # Storage configuration
+  resultsDir: "/work/results"
+  storageBackend: "local"  # or "s3"
+  s3Bucket: ""
+  s3Region: ""
+  awsAccessKeyId: ""
+  awsSecretAccessKey: ""
+
+# =============================================================================
+# Redis Configuration
+# =============================================================================
+
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+  
+  service:
+    type: ClusterIP
+    port: 6379
+
+# =============================================================================
+# API Configuration (FastAPI)
+# =============================================================================
+
+api:
+  enabled: true
+  replicaCount: 1
+  
+  image:
+    repository: sec-audit-api
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+  
+  # Ingress configuration
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts: []
+    tls: []
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+  
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# =============================================================================
+# Worker Configuration (Celery)
+# =============================================================================
+
+worker:
+  enabled: true
+  replicaCount: 1
+  
+  image:
+    repository: sec-audit-worker
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  concurrency: 50
+  logLevel: info
+  
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+  
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 8080
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Pod Configuration
+# =============================================================================
+
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

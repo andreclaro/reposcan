@@ -1,0 +1,44 @@
+# Staging environment values
+
+api:
+  replicaCount: 2
+  image:
+    tag: staging
+    pullPolicy: Always
+  
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-staging"
+    hosts:
+      - host: staging.securefast.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: securefast-api-tls
+        hosts:
+          - staging.securefast.example.com
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+
+worker:
+  replicaCount: 3
+  image:
+    tag: staging
+    pullPolicy: Always
+  concurrency: 50
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+
+redis:
+  persistence:
+    enabled: true
+    size: 5Gi

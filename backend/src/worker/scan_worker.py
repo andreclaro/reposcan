@@ -800,6 +800,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                         or os.getenv("OPENAI_API_KEY")
                         or os.getenv("KIMI_API_KEY")
                         or os.getenv("MOONSHOT_API_KEY")
+                        or os.getenv("OPENROUTER_API_KEY")
                     )
                     if not ai_api_key:
                         logger.warning("AI analysis enabled but no API key found")
@@ -842,7 +843,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                                 scan_id,
                                 ai_summary["summary"],
                                 mapped_recommendations,
-                                ai_summary["riskScore"],
+                                0,  # risk_score deprecated
                                 top_findings_db_ids,
                                 ai_summary.get("model", "unknown"),
                                 ai_summary.get("modelVersion", "unknown"),
@@ -852,7 +853,7 @@ def run_scan(self, scan_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]
                         ai_analysis_id = asyncio.run(run_with_db(db_url, store_ai))
                         results['ai_analysis'] = {
                             'id': ai_analysis_id,
-                            'risk_score': ai_summary['riskScore'],
+                            # 'risk_score' deprecated
                             'tokens_used': ai_summary['tokensUsed']
                         }
                         logger.info("AI analysis completed")
@@ -940,11 +941,12 @@ def generate_ai_analysis(self, scan_id: str) -> Dict[str, Any]:
         or os.getenv("OPENAI_API_KEY")
         or os.getenv("KIMI_API_KEY")
         or os.getenv("MOONSHOT_API_KEY")
+        or os.getenv("OPENROUTER_API_KEY")
     )
     if not ai_enabled or not ai_api_key:
         logger.warning(
             "generate_ai_analysis: AI not enabled or no API key. "
-            "Set AI_ANALYSIS_ENABLED=true and one of ANTHROPIC_API_KEY, OPENAI_API_KEY, KIMI_API_KEY, MOONSHOT_API_KEY"
+            "Set AI_ANALYSIS_ENABLED=true and one of ANTHROPIC_API_KEY, OPENAI_API_KEY, KIMI_API_KEY, MOONSHOT_API_KEY, OPENROUTER_API_KEY"
         )
         return {
             "ok": False,
@@ -968,7 +970,7 @@ def generate_ai_analysis(self, scan_id: str) -> Dict[str, Any]:
             scan_id,
             ai_summary["summary"],
             mapped_recommendations,
-            ai_summary["riskScore"],
+            0,  # risk_score deprecated
             top_findings_db_ids,
             ai_summary.get("model", "unknown"),
             ai_summary.get("modelVersion", "unknown"),

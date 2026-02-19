@@ -94,7 +94,7 @@ const howItWorks = [
     title: "Fix",
     description: "Review prioritized findings with AI-generated fix suggestions.",
     icon: FileSearch,
-    details: ["AI-powered risk scoring", "Prioritized recommendations", "Code-level remediation"],
+    details: ["AI-powered security analysis", "Prioritized recommendations", "Code-level remediation"],
   },
 ];
 
@@ -512,7 +512,6 @@ export default function HomePage() {
                 className="mt-8 space-y-4"
               >
                 {[
-                  "Risk scoring from 0-100",
                   "Executive summary generation",
                   "Prioritized fix recommendations",
                   "Effort estimation for remediation",
@@ -532,17 +531,7 @@ export default function HomePage() {
             <SlideInRight>
               <div className="relative rounded-2xl bg-slate-800 p-8">
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-300">
-                      Risk Score
-                    </span>
-                    <span className="text-2xl font-bold text-red-400">72</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-700">
-                    <div className="h-full w-[72%] rounded-full bg-gradient-to-r from-yellow-500 to-red-500" />
-                  </div>
-                  <p className="text-sm text-red-400">High Risk</p>
-                  <div className="mt-6 rounded-xl bg-slate-900/50 p-4">
+                  <div className="rounded-xl bg-slate-900/50 p-4">
                     <p className="text-sm font-medium text-slate-300">
                       Executive Summary
                     </p>
@@ -551,6 +540,25 @@ export default function HomePage() {
                       levels. The critical SQL injection in user-auth.js requires
                       immediate attention...
                     </p>
+                  </div>
+                  <div className="rounded-xl bg-slate-900/50 p-4">
+                    <p className="text-sm font-medium text-slate-300 mb-2">
+                      Top Findings
+                    </p>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="w-2 h-2 rounded-full bg-red-400" />
+                        <span className="text-slate-300">SQL Injection</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="w-2 h-2 rounded-full bg-orange-400" />
+                        <span className="text-slate-300">Hardcoded Secret</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="w-2 h-2 rounded-full bg-yellow-400" />
+                        <span className="text-slate-300">Outdated Dependency</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

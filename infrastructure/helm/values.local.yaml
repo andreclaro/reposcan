@@ -1,0 +1,40 @@
+# Local development environment values
+
+api:
+  replicaCount: 1
+  image:
+    pullPolicy: Never  # Use local images
+  
+  # No ingress for local - use port-forward
+  ingress:
+    enabled: false
+  
+  # Lower resources for local dev
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+worker:
+  replicaCount: 1
+  image:
+    pullPolicy: Never  # Use local images
+  
+  # Lower concurrency for local dev
+  concurrency: 5
+  
+  # Lower resources for local dev
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+redis:
+  persistence:
+    enabled: false  # No persistence needed for local dev

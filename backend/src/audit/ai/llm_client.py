@@ -77,7 +77,13 @@ class AnthropicClient(LLMClient):
         response = await asyncio.to_thread(_call_api)
         
         content = response.content[0].text if response.content else ""
-        tokens_used = response.usage.input_tokens + response.usage.output_tokens
+        
+        # Handle different response formats
+        tokens_used = 0
+        if hasattr(response, 'usage') and response.usage:
+            input_tokens = getattr(response.usage, 'input_tokens', 0) or 0
+            output_tokens = getattr(response.usage, 'output_tokens', 0) or 0
+            tokens_used = input_tokens + output_tokens
         
         return {
             'content': content,
@@ -205,7 +211,11 @@ class KimiClient(LLMClient):
         response = await asyncio.to_thread(_call_api)
 
         content = response.choices[0].message.content if response.choices else ""
-        tokens_used = response.usage.total_tokens if response.usage else 0
+        
+        # Handle different response formats
+        tokens_used = 0
+        if hasattr(response, 'usage') and response.usage:
+            tokens_used = getattr(response.usage, 'total_tokens', 0) or 0
 
         return {
             "content": content,

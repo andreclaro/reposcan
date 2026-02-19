@@ -105,12 +105,14 @@ def _create_finding(
     
     # Create title and description
     title = f"{pkg_name}@{pkg_version}: {summary or vuln_id}"
+    # Build CVE line separately to avoid backslash in f-string expression
+    cve_line = f"CVE: {cve}" if cve else ""
     description = f"""
 Package: {pkg_name}@{pkg_version}
 Ecosystem: {pkg_ecosystem}
 Source: {source_path}
 Vulnerability: {vuln_id}
-{CVE: {cve}\n if cve else ""}
+{cve_line}
 
 {details or summary}
     """.strip()

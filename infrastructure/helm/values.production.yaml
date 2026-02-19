@@ -1,0 +1,79 @@
+# Production environment values
+
+api:
+  replicaCount: 3
+  image:
+    tag: stable
+    pullPolicy: Always
+  
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    hosts:
+      - host: api.securefast.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: securefast-api-tls
+        hosts:
+          - api.securefast.example.com
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+worker:
+  replicaCount: 5
+  image:
+    tag: stable
+    pullPolicy: Always
+  concurrency: 100
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+  
+  resources:
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+
+redis:
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: fast-ssd  # Use fast storage for production
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+# Pod disruption budget for high availability
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2

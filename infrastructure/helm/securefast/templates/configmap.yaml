@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "securefast.fullname" . }}-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "securefast.labels" . | nindent 4 }}
+data:
+  REDIS_URL: {{ include "securefast.redisUrl" . | quote }}
+  RESULTS_DIR: {{ .Values.global.resultsDir | quote }}
+  AI_ANALYSIS_ENABLED: {{ .Values.global.aiAnalysisEnabled | quote }}
+  AI_PROVIDER: {{ .Values.global.aiProvider | quote }}
+  AI_MODEL: {{ .Values.global.aiModel | quote }}
+  STORAGE_BACKEND: {{ .Values.global.storageBackend | quote }}
+  S3_BUCKET: {{ .Values.global.s3Bucket | quote }}
+  S3_REGION: {{ .Values.global.s3Region | quote }}

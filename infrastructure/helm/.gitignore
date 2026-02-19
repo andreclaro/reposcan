@@ -1,0 +1,10 @@
+# Secret files (unencrypted)
+secrets.*.yaml
+!secrets.*.yaml.example
+
+# Local environment files
+.env
+.env.local
+
+# Helm packages
+*.tgz

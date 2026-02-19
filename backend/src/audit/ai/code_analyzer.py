@@ -92,7 +92,7 @@ Format as JSON with fields: analysis, exploit_scenario, remediation_code, additi
                 'exploit_scenario': result.get('exploit_scenario', ''),
                 'remediation_code': result.get('remediation_code', ''),
                 'additional_notes': result.get('additional_notes', ''),
-                'tokensUsed': response['tokensUsed'],
+                'tokensUsed': response['tokens_used'],
                 'model': response['model']
             }
         
@@ -103,7 +103,7 @@ Format as JSON with fields: analysis, exploit_scenario, remediation_code, additi
                 'exploit_scenario': '',
                 'remediation_code': '',
                 'additional_notes': 'JSON parsing failed',
-                'tokensUsed': response.get('tokensUsed', 0),
+                'tokensUsed': response.get('tokens_used', 0),
                 'model': response.get('model', 'unknown')
             }
         except Exception as e:

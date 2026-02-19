@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Brain, AlertTriangle, TrendingUp, ExternalLink, RefreshCw } from "lucide-react";
+import { Brain, AlertTriangle, ExternalLink, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -36,47 +36,6 @@ const priorityColors: Record<string, string> = {
   medium: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
   low: "bg-blue-500/10 text-blue-600 border-blue-500/20",
 };
-
-function RiskScoreGauge({ score }: { score: number }) {
-  const getColor = (score: number) => {
-    if (score >= 75) return "text-red-600";
-    if (score >= 50) return "text-orange-600";
-    if (score >= 25) return "text-yellow-600";
-    return "text-green-600";
-  };
-
-  const getLabel = (score: number) => {
-    if (score >= 75) return "Critical";
-    if (score >= 50) return "High";
-    if (score >= 25) return "Medium";
-    return "Low";
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">Risk Score</span>
-        <span className={cn("text-2xl font-bold", getColor(score))}>
-          {score}
-        </span>
-      </div>
-      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-        <div
-          className={cn("h-full transition-all", {
-            "bg-red-600": score >= 75,
-            "bg-orange-600": score >= 50 && score < 75,
-            "bg-yellow-600": score >= 25 && score < 50,
-            "bg-green-600": score < 25,
-          })}
-          style={{ width: `${score}%` }}
-        />
-      </div>
-      <p className={cn("text-xs font-medium", getColor(score))}>
-        {getLabel(score)} Risk
-      </p>
-    </div>
-  );
-}
 
 export default function AIAnalysisView({ scanId, initialData }: AIAnalysisViewProps) {
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(initialData ?? null);
@@ -196,17 +155,6 @@ export default function AIAnalysisView({ scanId, initialData }: AIAnalysisViewPr
           <p className="w-full text-xs text-muted-foreground">{regenerateMessage}</p>
         )}
       </div>
-
-      {/* Risk Score */}
-      {analysis.riskScore !== null && (
-        <div className="rounded-2xl border bg-background p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="size-5 text-primary" />
-            <h2 className="text-lg font-semibold">Overall Risk Assessment</h2>
-          </div>
-          <RiskScoreGauge score={analysis.riskScore} />
-        </div>
-      )}
 
       {/* Executive Summary */}
       <div className="rounded-2xl border bg-background p-6 shadow-sm">

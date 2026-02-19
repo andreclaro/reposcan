@@ -1,0 +1,98 @@
+# Helmfile for SecureFast Worker deployment
+# Documentation: https://helmfile.readthedocs.io/
+#
+# Prerequisites:
+#   1. Run ./create-secrets.sh <environment> to create required secrets
+#      This creates the 'securefast-secrets' Secret in the cluster with DATABASE_URL
+#
+# Quick Start:
+#   ./create-secrets.sh local                    # Create secrets first
+#   helmfile --environment local sync            # Deploy locally
+#
+# Commands:
+#   helmfile diff                            # Preview changes
+#   helmfile destroy                         # Remove deployment
+#   helmfile template                        # Render templates
+
+# =============================================================================
+# Environments (must be defined before releases)
+# =============================================================================
+
+environments:
+  default:
+    values:
+      - environment: local
+        
+  local:
+    values:
+      - environment: local
+      - domain: localhost
+        tls: false
+        
+  development:
+    values:
+      - environment: development
+      - domain: dev.securefast.example.com
+        tls: true
+        
+  staging:
+    values:
+      - environment: staging
+      - domain: staging.securefast.example.com
+        tls: true
+        
+  production:
+    values:
+      - environment: production
+      - domain: api.securefast.example.com
+        tls: true
+
+---
+
+# =============================================================================
+# Releases
+# =============================================================================
+
+releases:
+  - name: securefast-worker
+    namespace: securefast-worker
+    createNamespace: true
+    chart: ./securefast
+    version: 0.1.0
+    installed: true
+    
+    values:
+      - values.yaml
+      - values.{{ .Environment.Name }}.yaml
+    
+    # Note: Secrets are created manually using ./create-secrets.sh
+    # The secret 'securefast-worker-secrets' contains DATABASE_URL and other sensitive data
+    
+    # Wait for all resources to be ready
+    wait: true
+    waitForJobs: true
+    
+    # Timeout for helm operations (10 minutes)
+    timeout: 600
+    
+    # Atomic deployment - rollback on failure
+    atomic: true
+    
+    # Cleanup on fail
+    cleanupOnFail: true
+
+# =============================================================================
+# Helm Configuration
+# =============================================================================
+
+helmDefaults:
+  recreatePods: false
+  force: false
+  atomic: true
+  cleanupOnFail: true
+  timeout: 600
+  wait: true
+
+repositories:
+  - name: stable
+    url: https://charts.helm.sh/stable
