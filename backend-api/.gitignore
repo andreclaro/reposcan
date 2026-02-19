@@ -4,7 +4,10 @@
 *.dll
 *.so
 *.dylib
-api
+
+# Binary output (root level only, not directories)
+/api
+*.bin
 
 # Test binary, built with `go test -c`
 *.test
