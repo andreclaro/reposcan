@@ -14,3 +14,4 @@ data:
   STORAGE_BACKEND: {{ .Values.global.storageBackend | quote }}
   S3_BUCKET: {{ .Values.global.s3Bucket | quote }}
   S3_REGION: {{ .Values.global.s3Region | quote }}
+  CORS_ALLOWED_ORIGINS: {{ .Values.global.corsAllowedOrigins | quote }}

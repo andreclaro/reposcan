@@ -55,9 +55,14 @@ securefast/
 
 ## Technology Stack
 
-### Backend (Python)
+### Backend API (Go)
+- **Go**: 1.22+
+- **Gin**: HTTP web framework
+- **Gin CORS**: Cross-origin resource sharing middleware
+- **pgx**: PostgreSQL driver
+
+### Worker (Python)
 - **Python**: 3.11+
-- **FastAPI**: 0.104.1 - HTTP API framework
 - **Celery**: 5.3.4 - Distributed task queue
 - **Redis**: 7.x - Message broker and cache
 - **PostgreSQL**: 16+ - Primary database (via asyncpg)
@@ -486,6 +491,50 @@ redis-cli -n 0 keys "celery-task-meta-*"
 - `docs/architecture/DESIGN_v0.md`: Full SaaS architecture design
 - `docs/architecture/DESIGN_v0-AI.md`: AI integration design
 - `docs/architecture/DESIGN_SEC_APP_SIMPLE_v0.md`: Simple API backend design
+- `docs/deployment/HETZNER_K8S_VERCEL.md`: Hetzner K8s + Vercel deployment guide
+
+## Deployment Architecture
+
+### Production Setup (Hetzner K8s + Vercel)
+
+```
+┌─────────────────┐         ┌─────────────────────────────────────┐
+│     Vercel      │         │        Hetzner Kubernetes           │
+│  ┌───────────┐  │         │  ┌─────────┐  ┌─────────┐ ┌──────┐  │
+│  │  Next.js  │──┼──HTTPS──┼─▶│ Go API  │──│  Redis  │─│Worker│  │
+│  └───────────┘  │         │  └─────────┘  └─────────┘ └──────┘  │
+└─────────────────┘         └─────────────────────────────────────┘
+```
+
+- **Frontend**: Next.js app deployed on Vercel
+- **API**: Go API (Gin) running on Hetzner Kubernetes
+- **Worker**: Python Celery workers on Hetzner Kubernetes
+- **Redis**: Message broker on Hetzner Kubernetes
+- **Database**: PostgreSQL (can be on Hetzner or managed like Neon/Supabase)
+
+### Environment Variables for Production
+
+**Vercel (Frontend)**:
+```bash
+FASTAPI_BASE_URL=https://api.yourdomain.com
+NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+DATABASE_URL=postgresql://...
+AUTH_SECRET=...
+AUTH_GITHUB_ID=...
+AUTH_GITHUB_SECRET=...
+```
+
+**Hetzner K8s (via Helm values)**:
+```yaml
+global:
+  # Note: CORS not needed for server-to-server (Vercel -> Go API)
+  # Only set if allowing direct browser access
+  corsAllowedOrigins: "*"
+  databaseUrl: "postgresql://..."
+  redisUrl: "redis://securefast-redis:6379/0"
+```
+
+See `docs/deployment/HETZNER_K8S_VERCEL.md` for detailed deployment instructions.
 
 ## License
 

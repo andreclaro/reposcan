@@ -18,6 +18,11 @@ global:
   # Redis configuration (auto-generated if empty)
   redisUrl: ""
   
+  # CORS configuration for API (comma-separated list of allowed origins)
+  # Example: "https://your-app.vercel.app,https://app.yourdomain.com"
+  # Use "*" to allow all origins (not recommended for production)
+  corsAllowedOrigins: "*"
+  
   # AI Analysis configuration
   aiAnalysisEnabled: "false"
   aiProvider: "anthropic"

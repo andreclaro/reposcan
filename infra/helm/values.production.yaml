@@ -1,8 +1,25 @@
-# Production environment values
+# Production environment values for Hetzner K8s + Vercel deployment
+#
+# Architecture:
+# - Next.js frontend: Deployed on Vercel
+# - Go API: Deployed on Hetzner Kubernetes
+# - Redis: Deployed on Hetzner Kubernetes
+# - Celery Worker: Deployed on Hetzner Kubernetes
+#
+# Note: CORS is typically NOT needed since requests flow:
+# Browser -> Vercel (Next.js API routes) -> Go API (server-to-server)
+# Only enable CORS if you need direct browser access to the API.
+
+global:
+  # CORS origins - ONLY needed for direct browser access to API
+  # Leave as "*" or empty since Vercel backend -> Go API is server-to-server
+  # If you need direct browser access, set to: "https://your-app.vercel.app"
+  corsAllowedOrigins: "*"
 
 api:
   replicaCount: 3
   image:
+    repository: securefast-api
     tag: stable
     pullPolicy: Always
   
@@ -13,6 +30,7 @@ api:
       cert-manager.io/cluster-issuer: "letsencrypt-prod"
       nginx.ingress.kubernetes.io/rate-limit: "100"
       nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      # CORS headers handled by Go API, not ingress
     hosts:
       - host: api.securefast.example.com
         paths:
@@ -41,6 +59,7 @@ api:
 worker:
   replicaCount: 5
   image:
+    repository: sec-audit-worker
     tag: stable
     pullPolicy: Always
   concurrency: 100

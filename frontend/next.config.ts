@@ -1,5 +1,9 @@
 import type { NextConfig } from "next";
 
+// API URL for CSP connect-src directive
+// In production, this should be your Hetzner K8s API domain
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   typedRoutes: true,
@@ -45,7 +49,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
               "font-src 'self'",
-              "connect-src 'self' https://api.github.com http://localhost:8000",
+              `connect-src 'self' https://api.github.com ${apiUrl}`,
               "frame-ancestors 'none'",
               "form-action 'self'",
               "base-uri 'self'",
