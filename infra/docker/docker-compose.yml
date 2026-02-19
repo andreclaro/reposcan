@@ -1,5 +1,5 @@
-# Run from repo root: docker compose -f docker/docker-compose.yml up -d
-# Or from this directory: docker compose -f docker-compose.yml up -d (paths assume cwd is docker/)
+# Run from repo root: docker compose -f infra/docker/docker-compose.yml up -d
+# Or from this directory: docker compose -f docker-compose.yml up -d (paths assume cwd is infra/)
 services:
   postgres:
     image: postgres:16-alpine
@@ -50,12 +50,12 @@ services:
 
   api:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile.api
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.api
     ports:
       - "8000:8000"
     env_file:
-      - ../frontend/.env.local
+      - ../../frontend/.env.local
     environment:
       - REDIS_URL=redis://redis:6379/0
       - RESULTS_DIR=/work/results
@@ -63,7 +63,7 @@ services:
       # NOTE: Use internal port 5432 (not host-mapped 5433) for container-to-container communication
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/sec_audit
     volumes:
-      - ../backend-worker/src:/work
+      - ../../backend-worker/src:/work
       - results_data:/work/results
     depends_on:
       redis:
@@ -105,10 +105,10 @@ services:
 
   worker:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile.worker
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.worker
     env_file:
-      - ../frontend/.env.local
+      - ../../frontend/.env.local
     environment:
       - REDIS_URL=redis://redis:6379/0
       - RESULTS_DIR=/work/results
@@ -121,7 +121,7 @@ services:
       - DOCKER_TLS_VERIFY=1
       - DOCKER_CERT_PATH=/certs/client
     volumes:
-      - ../backend-worker/src:/work
+      - ../../backend-worker/src:/work
       - results_data:/work/results
       # Use TLS certs from DinD instead of host socket
       - docker_certs:/certs/client:ro
