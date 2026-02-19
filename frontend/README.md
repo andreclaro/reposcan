@@ -1,6 +1,6 @@
 # SecurityKit Webapp
 
-Next.js frontend for the sec-audit-repos FastAPI service. Includes GitHub OAuth,
+Next.js frontend for the securefast FastAPI service. Includes GitHub OAuth,
 an authenticated `/app` dashboard, and scan management.
 
 ## Prerequisites

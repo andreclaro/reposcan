@@ -62,7 +62,7 @@ healthcheckPath = "/api/health"
 ```
 
 ```toml
-# backend/railway.toml (API)
+# backend-worker/railway.toml (Worker-only; API is now in backend-api/)
 [build]
 dockerfilePath = "./Dockerfile.api"
 [deploy]
@@ -71,7 +71,7 @@ numReplicas = 2
 ```
 
 ```toml
-# backend/railway.worker.toml (Worker)
+# backend-worker/railway.worker.toml (Worker)
 [build]
 dockerfilePath = "./Dockerfile"
 [deploy]
@@ -257,7 +257,7 @@ def run_worker():
 # Hetzner CPX41 ($28/mo)
 ssh root@your-server
 git clone <repo>
-cd sec-audit-repos/docker
+cd securefast/docker
 docker compose up -d
 ```
 

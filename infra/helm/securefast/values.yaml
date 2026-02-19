@@ -1,0 +1,223 @@
+# Default values for securefast
+# Deploy to securefast namespace
+
+namespace: securefast
+
+# =============================================================================
+# Global Configuration
+# =============================================================================
+
+global:
+  # PostgreSQL connection (required)
+  databaseUrl: ""
+  
+  # Redis configuration (if using external Redis)
+  redisUrl: ""
+  
+  # AI Analysis configuration
+  aiAnalysisEnabled: "false"
+  aiProvider: "anthropic"
+  aiModel: "claude-3-sonnet-20240229"
+  anthropicApiKey: ""
+  openaiApiKey: ""
+  kimiApiKey: ""
+  
+  # Storage configuration
+  resultsDir: "/work/results"
+  storageBackend: "local"  # or "s3"
+  s3Bucket: ""
+  s3Region: ""
+  awsAccessKeyId: ""
+  awsSecretAccessKey: ""
+
+# =============================================================================
+# Redis Configuration
+# =============================================================================
+
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+  
+  service:
+    type: ClusterIP
+    port: 6379
+
+# =============================================================================
+# API Configuration (FastAPI)
+# =============================================================================
+
+api:
+  enabled: true
+  replicaCount: 1
+  
+  image:
+    repository: securefast-api
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+  
+  # Ingress configuration
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts:
+      - host: api.securefast.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+  
+  # Health check
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# =============================================================================
+# Worker Configuration (Celery)
+# =============================================================================
+
+worker:
+  enabled: true
+  replicaCount: 1
+  
+  image:
+    repository: sec-audit-worker
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  # Celery worker configuration
+  concurrency: 50
+  logLevel: info
+  
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+  
+  # Health check (using celery-worker-healthcheck)
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 8080
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Pod Configuration
+# =============================================================================
+
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# =============================================================================
+# Node Affinity and Tolerations
+# =============================================================================
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# =============================================================================
+# Pod Disruption Budget (for high availability)
+# =============================================================================
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1  # Alternative to minAvailable
+
+# =============================================================================
+# Secret Management
+# =============================================================================
+# By default, secrets are created manually using the create-secrets.sh script.
+# Set this to true only if you want Helm to manage the secret (not recommended
+# for production as it requires storing credentials in values files).
+
+secrets:
+  create: false  # Set to true to let Helm create the secret
+
+# =============================================================================
+# Pod Disruption Budget (for high availability)
+# =============================================================================
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1  # Alternative to minAvailable

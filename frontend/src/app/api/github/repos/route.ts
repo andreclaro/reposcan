@@ -44,7 +44,7 @@ export async function GET(request: Request) {
 
     const headers: Record<string, string> = {
       Accept: "application/vnd.github.v3+json",
-      "User-Agent": "sec-audit-repos-frontend"
+      "User-Agent": "securefast-frontend"
     };
     
     if (token) {

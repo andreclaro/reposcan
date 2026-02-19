@@ -87,7 +87,7 @@ This document proposes v0.5 of the AI integration, extending beyond scanner outp
 ### Code Structure
 
 ```python
-# backend/src/audit/ai/llm_client.py
+# backend-worker/src/audit/ai/llm_client.py
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -417,7 +417,7 @@ Analyze application source code for OWASP Top 10 vulnerabilities, business logic
 ### Code Structure
 
 ```python
-# backend/src/audit/ai/analyzers/source_code.py
+# backend-worker/src/audit/ai/analyzers/source_code.py
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -700,7 +700,7 @@ Analyze Dockerfiles for container security misconfigurations, CIS Docker Benchma
 ### Code Structure
 
 ```python
-# backend/src/audit/ai/analyzers/dockerfile.py
+# backend-worker/src/audit/ai/analyzers/dockerfile.py
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -885,7 +885,7 @@ Analyze Infrastructure as Code (IaC) configurations for security misconfiguratio
 ### Code Structure
 
 ```python
-# backend/src/audit/ai/analyzers/infrastructure.py
+# backend-worker/src/audit/ai/analyzers/infrastructure.py
 
 from dataclasses import dataclass
 from enum import Enum
@@ -1206,7 +1206,7 @@ Coordinate all AI analyzers, manage context sharing, and consolidate findings in
 ### Code Structure
 
 ```python
-# backend/src/audit/ai/orchestrator.py
+# backend-worker/src/audit/ai/orchestrator.py
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -1363,7 +1363,7 @@ def create_ai_orchestrator_from_env() -> Optional[AIAnalysisOrchestrator]:
 ## Shared Models
 
 ```python
-# backend/src/audit/ai/models.py
+# backend-worker/src/audit/ai/models.py
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
@@ -1572,7 +1572,7 @@ Large repositories (10K+ files, monorepos) cannot be analyzed in a single LLM re
 ### Implementation: Smart File Prioritizer
 
 ```python
-# backend/src/audit/ai/token_manager.py
+# backend-worker/src/audit/ai/token_manager.py
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -1976,7 +1976,7 @@ class AnalysisCache:
 ### Tier-Based Analysis Limits
 
 ```python
-# backend/src/audit/ai/tier_config.py
+# backend-worker/src/audit/ai/tier_config.py
 
 from dataclasses import dataclass
 from typing import Optional
@@ -2178,7 +2178,7 @@ Hardcoded secrets (API keys, passwords, tokens) are the **#1 cause of security b
 ### Implementation
 
 ```python
-# backend/src/audit/scanners.py (addition)
+# backend-worker/src/audit/scanners.py (addition)
 
 import subprocess
 import json
@@ -2481,7 +2481,7 @@ GITLEAKS_CONFIG_PATH=/config/gitleaks.toml
 ### Tier Enforcement Implementation
 
 ```python
-# backend/src/api/dependencies.py
+# backend-api/internal/api/dependencies.py
 
 from fastapi import HTTPException, Depends
 from typing import Optional

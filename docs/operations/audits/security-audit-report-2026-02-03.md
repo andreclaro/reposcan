@@ -2,14 +2,14 @@
 
 **Date:** 2026-02-03  
 **Auditor:** Security Engineer  
-**Project:** sec-audit-repos  
+**Project:** securefast  
 **Scope:** Full codebase review (Python backend, API, Celery worker, Next.js frontend, Docker configuration)
 
 ---
 
 ## Executive Summary
 
-A comprehensive security review of the `sec-audit-repos` codebase has been conducted. The codebase is generally well-structured with several security controls in place, but **9 security issues** have been identified ranging from **Critical** to **Low** severity.
+A comprehensive security review of the `securefast` codebase has been conducted. The codebase is generally well-structured with several security controls in place, but **9 security issues** have been identified ranging from **Critical** to **Low** severity.
 
 ### Risk Summary
 

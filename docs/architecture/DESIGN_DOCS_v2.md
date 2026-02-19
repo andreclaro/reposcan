@@ -11,7 +11,7 @@ Proposed
 This v2 keeps the same core direction (Next.js-integrated docs with MDX), but improves the architecture by:
 
 1. Defining clear content ownership and boundaries.
-2. Generating reference docs from backend/frontend source of truth.
+2. Generating reference docs from backend-worker/frontend source of truth.
 3. Adding CI guardrails to prevent docs drift.
 4. Rolling out in phases with measurable acceptance criteria.
 
@@ -59,10 +59,10 @@ The original plan is strong on UI/features, but weak on maintainability and corr
    - `docs/architecture/*`
    - `docs/operations/*`
 3. API contract source is in FastAPI:
-   - `backend/src/api/main.py`
-   - `backend/src/api/models.py`
+   - `backend-api/internal/api/main.py`
+   - `backend-api/internal/api/models.py`
 4. Scanner capability source is:
-   - `backend/src/audit/scanner_config.py`
+   - `backend-worker/src/audit/scanner_config.py`
 
 ## Proposed Architecture
 
@@ -146,8 +146,8 @@ scripts/
 
 | Docs Topic | Source of Truth | Output |
 |---|---|---|
-| API endpoints and schemas | `backend/src/api/main.py`, `backend/src/api/models.py` (OpenAPI) | `frontend/src/content/docs/reference/api/*.mdx` |
-| Scanner catalog and defaults | `backend/src/audit/scanner_config.py` | `frontend/src/content/docs/reference/scanners.mdx` |
+| API endpoints and schemas | `backend-api/internal/api/handlers.go`, `backend-api/internal/models/models.go` | `frontend/src/content/docs/reference/api/*.mdx` |
+| Scanner catalog and defaults | `backend-worker/src/audit/scanner_config.py` | `frontend/src/content/docs/reference/scanners.mdx` |
 | Environment variables (public) | `.env.example`, `frontend/.env.local.example` + allowlist | `frontend/src/content/docs/reference/configuration.mdx` |
 | How-to guides | curated authored markdown (optionally informed by `docs/internal-guides/*`) | `frontend/src/content/docs/guides/*.mdx` |
 
@@ -302,9 +302,9 @@ Exit criteria:
 ## References
 
 1. `docs/architecture/DESIGN_DOCS.md` (v1 baseline)
-2. `backend/src/api/main.py`
-3. `backend/src/api/models.py`
-4. `backend/src/audit/scanner_config.py`
+2. `backend-api/internal/api/handlers.go`
+3. `backend-api/internal/models/models.go`
+4. `backend-worker/src/audit/scanner_config.py`
 5. `docs/internal-guides/API.md`
 6. `docs/internal-guides/CLI.md`
 7. `docs/internal-guides/CONFIGURATION.md`

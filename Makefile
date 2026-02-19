@@ -1,4 +1,4 @@
-# sec-audit-repos – common commands
+# securefast – common commands
 # Run from repo root.
 
 .PHONY: install-backend test run-api run-worker run-frontend docker-build docker-up docker-down docker-logs audit help
@@ -17,16 +17,16 @@ help:
 	@echo "  audit            Run CLI (usage: make audit CSV=repos.csv OUT=./output)"
 
 install-backend:
-	pip install -e backend/
+	pip install -e backend-worker/
 
 test:
-	PYTHONPATH=backend/src pytest backend/tests/ -v -m "not integration"
+	PYTHONPATH=backend-worker/src pytest backend-worker/tests/ -v -m "not integration"
 
 run-api:
-	PYTHONPATH=backend/src uvicorn api.main:app --reload --port 8000
+	PYTHONPATH=backend-worker/src uvicorn api.main:app --reload --port 8000
 
 run-worker:
-	PYTHONPATH=backend/src celery -A worker.scan_worker worker --loglevel=info
+	PYTHONPATH=backend-worker/src celery -A worker.scan_worker worker --loglevel=info
 
 run-frontend:
 	cd frontend && pnpm dev
@@ -44,4 +44,4 @@ docker-logs:
 	docker compose -f docker/docker-compose.yml logs -f
 
 audit:
-	PYTHONPATH=backend/src python backend/audit.py $(or $(CSV),repositories.csv) $(or $(OUT),./output)
+	PYTHONPATH=backend-worker/src python backend-worker/audit.py $(or $(CSV),repositories.csv) $(or $(OUT),./output)

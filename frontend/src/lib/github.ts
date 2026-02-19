@@ -32,7 +32,7 @@ export async function getCommitShaForBranch(
   const token = process.env.GITHUB_TOKEN;
   const headers: Record<string, string> = {
     Accept: "application/vnd.github.v3+json",
-    "User-Agent": "sec-audit-repos-frontend"
+    "User-Agent": "securefast-frontend"
   };
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -73,7 +73,7 @@ export async function getRepoHasIssues(
   const token = process.env.GITHUB_TOKEN;
   const headers: Record<string, string> = {
     Accept: "application/vnd.github.v3+json",
-    "User-Agent": "sec-audit-repos-frontend"
+    "User-Agent": "securefast-frontend"
   };
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;

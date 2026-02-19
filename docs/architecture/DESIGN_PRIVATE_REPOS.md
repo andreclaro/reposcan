@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document outlines the architecture and implementation plan for adding **private repository scanning** support to the `sec-audit-repos` platform. Currently, only public GitHub repositories can be scanned. This feature will enable users to scan their private repositories by leveraging their existing GitHub OAuth authentication.
+This document outlines the architecture and implementation plan for adding **private repository scanning** support to the `securefast` platform. Currently, only public GitHub repositories can be scanned. This feature will enable users to scan their private repositories by leveraging their existing GitHub OAuth authentication.
 
 **Recommended Approach**: **Ephemeral Token Pass-Through** - Tokens are encrypted and passed directly to workers via the queue, never stored in the database. This is simpler and more secure than persistent token storage.
 
@@ -206,7 +206,7 @@ export async function POST(request: Request) {
 ### 4. Backend: Token Decryption
 
 ```python
-# backend/src/audit/token_ephemeral.py
+# backend-worker/src/audit/token_ephemeral.py
 import os
 import base64
 from typing import Optional
@@ -258,7 +258,7 @@ def decrypt_token(encrypted_payload: str) -> str:
 ### 5. Worker: Authenticated Clone
 
 ```python
-# backend/src/audit/repos.py
+# backend-worker/src/audit/repos.py
 import os
 import tempfile
 import subprocess
@@ -334,7 +334,7 @@ async def clone_repo_with_token(
 ### 6. Worker Integration
 
 ```python
-# backend/src/worker/scan_worker.py
+# backend-worker/src/worker/scan_worker.py
 from audit.token_ephemeral import decrypt_token
 from audit.repos import clone_repo_with_token
 
@@ -568,7 +568,7 @@ See Appendix A for full Token Vault implementation details.
 **Day 1-2: Setup**
 - [ ] Add `WORKER_ENCRYPTION_SECRET` to environment configs
 - [ ] Create `lib/token-ephemeral.ts` (frontend encryption)
-- [ ] Create `backend/src/audit/token_ephemeral.py` (decryption)
+- [ ] Create `backend-worker/src/audit/token_ephemeral.py` (decryption)
 - [ ] Add cryptography library to requirements.txt
 
 **Day 3-4: Backend Integration**
@@ -635,7 +635,7 @@ See Appendix A for full Token Vault implementation details.
 ### Unit Tests
 
 ```python
-# backend/tests/test_token_ephemeral.py
+# backend-worker/tests/test_token_ephemeral.py
 import pytest
 from audit.token_ephemeral import decrypt_token
 
@@ -779,7 +779,7 @@ export class SecureTokenVault {
 ### Worker Token Retrieval
 
 ```python
-# backend/src/audit/token_vault.py (Alternative)
+# backend-worker/src/audit/token_vault.py (Alternative)
 class TokenVaultClient:
     """Client to retrieve encrypted tokens from frontend API."""
     

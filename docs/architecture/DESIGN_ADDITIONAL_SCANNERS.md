@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document outlines a strategic plan for expanding the `sec-audit-repos` security scanning capabilities by integrating additional industry-leading security scanners. The recommendations are based on comprehensive research of industry tools (including CodeRabbit AI's tool stack, OWASP recommendations, and 2024-2025 SAST/DAST tool comparisons) to ensure comprehensive security coverage.
+This document outlines a strategic plan for expanding the `securefast` security scanning capabilities by integrating additional industry-leading security scanners. The recommendations are based on comprehensive research of industry tools (including CodeRabbit AI's tool stack, OWASP recommendations, and 2024-2025 SAST/DAST tool comparisons) to ensure comprehensive security coverage.
 
 ## Current Scanner Inventory
 
@@ -742,7 +742,7 @@ Next Steps: Testing
 
   1. Build the Docker Image
 
-  cd /Users/andreclaro/Code/Security/sec-audit-repos
+  cd /Users/andreclaro/Code/Security/securefast
   docker build -f docker/Dockerfile -t sec-audit-scanner .
 
   2. Test Individual Scanners
@@ -795,7 +795,7 @@ Next Steps: Testing
 
   5. Run Unit Tests (if they exist)
 
-  cd /Users/andreclaro/Code/Security/sec-audit-repos/backend
+  cd /Users/andreclaro/Code/Security/securefast/backend
   pytest tests/ -v
 
 please perform all the above steps in loop untill you confirm the scanners are working correctly...        

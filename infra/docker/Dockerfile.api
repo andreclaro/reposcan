@@ -1,0 +1,36 @@
+# API image. Build context: repo root (..)
+# Used by: docker-compose. Standalone: docker build -f docker/Dockerfile.api -t securefast-api .
+
+# Build stage
+FROM golang:1.22-alpine AS builder
+
+# Install git for fetching dependencies
+RUN apk add --no-cache git
+
+WORKDIR /build
+
+# Copy go.mod and go.sum first for better caching
+COPY backend-api/go.mod backend-api/go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY backend-api/ .
+
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o api ./cmd/api/main.go
+
+# CA certificates for HTTPS (scratch has no package manager)
+FROM alpine:3.19 AS certs
+RUN apk --no-cache add ca-certificates
+
+# Final stage
+FROM scratch
+
+# CA certificates for HTTPS connections
+COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Copy the binary from builder
+COPY --from=builder /build/api /api
+
+# Default command
+CMD ["/api"]

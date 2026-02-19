@@ -1,13 +1,13 @@
 # CLI Usage Guide
 
-The `sec-audit-repos` CLI tool allows you to batch scan multiple repositories from a CSV file.
+The `securefast` CLI tool allows you to batch scan multiple repositories from a CSV file.
 
 ## Quick Start
 
 From the repository root:
 
 ```sh
-PYTHONPATH=backend/src python backend/audit.py path/to/repositories.csv /path/to/clone/dir
+PYTHONPATH=backend-worker/src python backend-worker/audit.py path/to/repositories.csv /path/to/clone/dir
 ```
 
 ## CSV Format
@@ -27,7 +27,7 @@ https://github.com/user/repo3.git,
 ## Run Specific Audits
 
 ```sh
-PYTHONPATH=backend/src python backend/audit.py repositories.csv ./repos \
+PYTHONPATH=backend-worker/src python backend-worker/audit.py repositories.csv ./repos \
   --audit sast,terraform,dockerfile
 ```
 
@@ -48,7 +48,7 @@ PYTHONPATH=backend/src python backend/audit.py repositories.csv ./repos \
 ### Build the Image
 
 ```sh
-docker build -f docker/Dockerfile -t sec-audit-repos .
+docker build -f docker/Dockerfile -t securefast .
 ```
 
 ### Run with CSV
@@ -57,7 +57,7 @@ docker build -f docker/Dockerfile -t sec-audit-repos .
 docker run --rm \
   -v /absolute/path/to/repositories.csv:/work/repositories.csv \
   -v /absolute/path/to/clone/dir:/work/output \
-  sec-audit-repos \
+  securefast \
   /work/repositories.csv /work/output
 ```
 
@@ -67,7 +67,7 @@ Or if your CSV is in the current directory:
 docker run --rm \
   -v "$(pwd)/repositories.csv:/work/repositories.csv" \
   -v "$(pwd)/output:/work/output" \
-  sec-audit-repos \
+  securefast \
   /work/repositories.csv /work/output
 ```
 

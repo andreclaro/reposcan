@@ -1,4 +1,4 @@
-# sec-audit-repos
+# securefast
 
 Security audit tool for repositories with CLI, API, and web interfaces. Runs SAST (Semgrep), Dockerfile scans (Trivy), and language/infrastructure audits (Node, Go, Rust, Terraform).
 
@@ -24,8 +24,8 @@ make audit
 make audit CSV=path/to/repos.csv OUT=./output
 
 # Or run directly
-PYTHONPATH=backend/src python backend/audit.py repositories.csv ./output
-# Or install and use the audit command: pip install -e backend/ && audit repositories.csv ./output
+PYTHONPATH=backend-worker/src python backend-worker/audit.py repositories.csv ./output
+# Or install and use the audit command: pip install -e backend-worker/ && audit repositories.csv ./output
 ```
 
 See [docs/user-guides/CLI.md](docs/user-guides/CLI.md) for detailed CLI documentation.
@@ -73,9 +73,13 @@ See [docs/README.md](docs/README.md) for the full index. Quick links:
 ## Project Structure
 
 ```
-sec-audit-repos/
-├── backend/            # Python backend (audit CLI, API, Celery worker)
-│   ├── src/            # audit, api, worker packages
+securefast/
+├── backend-api/        # Go API backend
+│   ├── cmd/api/        # API entry point
+│   ├── internal/       # Internal packages
+│   └── go.mod          # Go dependencies
+├── backend-worker/     # Python worker (audit CLI, Celery worker)
+│   ├── src/            # audit, worker packages
 │   ├── requirements.txt
 │   └── audit.py        # CLI entry point
 ├── docker/             # Docker Compose and Dockerfiles (single location)
@@ -103,7 +107,7 @@ sec-audit-repos/
 ### Python Requirements
 
 - Python 3.11+
-- See `backend/requirements.txt` for dependencies
+- See `backend-worker/requirements.txt` for Python dependencies
 
 ## Configuration
 
@@ -124,7 +128,7 @@ From the repo root:
 | Command | Description |
 |---------|--------------|
 | `make help` | List all Make targets |
-| `make install-backend` | `pip install -e backend/` |
+| `make install-backend` | `pip install -e backend-worker/` |
 | `make test` | Run backend tests (no integration) |
 | `make run-api` | Start FastAPI on :8000 (needs Redis) |
 | `make run-worker` | Start Celery worker (needs Redis) |

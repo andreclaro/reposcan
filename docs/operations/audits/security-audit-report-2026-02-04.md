@@ -2,14 +2,14 @@
 
 **Date:** 2026-02-04  
 **Auditor:** Security Engineer  
-**Project:** sec-audit-repos  
+**Project:** securefast  
 **Scope:** Full codebase review - OWASP vulnerabilities, Docker configurations, Backend (Python/FastAPI/Celery), Frontend (Next.js/TypeScript), Production deployment readiness
 
 ---
 
 ## Executive Summary
 
-A comprehensive security review of the `sec-audit-repos` codebase has been conducted. The codebase shows significant improvement from the previous audit with several security controls already in place. **12 security issues** were identified ranging from **Critical** to **Low** severity. **All issues have been fixed** including 3 Critical, 4 High, 3 Medium, and 2 Low severity issues.
+A comprehensive security review of the `securefast` codebase has been conducted. The codebase shows significant improvement from the previous audit with several security controls already in place. **12 security issues** were identified ranging from **Critical** to **Low** severity. **All issues have been fixed** including 3 Critical, 4 High, 3 Medium, and 2 Low severity issues.
 
 ### Risk Summary
 
@@ -26,7 +26,7 @@ A comprehensive security review of the `sec-audit-repos` codebase has been condu
 
 ### 1. 🚨 Shell Command Injection via Version Manager (FIXED ✅)
 
-**Location:** `backend/src/audit/version_manager.py` (Lines 186-191, 214-217, 239)
+**Location:** `backend-worker/src/audit/version_manager.py` (Lines 186-191, 214-217, 239)
 
 **Issue:** The functions `get_node_version_shell()`, `get_go_version_shell()`, and `get_rust_version_shell()` construct shell commands by directly embedding user-controlled version strings without proper escaping, leading to command injection.
 
@@ -294,7 +294,7 @@ USER appuser
 
 ### 8. 🔴 No Rate Limiting on API Endpoints (FIXED ✅)
 
-**Location:** `backend/src/api/main.py` (Multiple endpoints)
+**Location:** `backend-api/internal/api/main.py` (Multiple endpoints)
 
 **Issue:** No rate limiting is implemented on API endpoints, making the service vulnerable to brute force attacks, DoS, and resource exhaustion.
 
@@ -323,7 +323,7 @@ async def create_scan(request: Request, ...):
 
 ### 9. 🟡 Path Traversal in Storage Backend (FIXED ✅)
 
-**Location:** `backend/src/audit/ai/storage_backend.py` (Lines 60-69)
+**Location:** `backend-worker/src/audit/ai/storage_backend.py` (Lines 60-69)
 
 **Issue:** The `LocalStorageBackend.upload_file()` doesn't sanitize the `remote_path` parameter, allowing path traversal if user-controlled data reaches this function.
 
@@ -353,7 +353,7 @@ if not str(remote_full_path).startswith(str(self.base_path.resolve())):
 
 ### 10. 🟡 SSRF Risk in Git Operations (FIXED ✅)
 
-**Location:** `backend/src/audit/repos.py` (Lines 82-88)
+**Location:** `backend-worker/src/audit/repos.py` (Lines 82-88)
 
 **Issue:** While `validate_repo_url()` exists to prevent SSRF, the `get_default_branch()` function uses `git ls-remote` with user-controlled URLs that could potentially bypass validation via DNS rebinding or other techniques.
 
@@ -379,7 +379,7 @@ def is_internal_ip(hostname):
 
 ### 11. 🟡 Debug Logging with Sensitive Information (FIXED ✅)
 
-**Location:** `backend/src/audit/ai/storage.py` (Multiple lines: 39-45, 51-56, etc.)
+**Location:** `backend-worker/src/audit/ai/storage.py` (Multiple lines: 39-45, 51-56, etc.)
 
 **Issue:** Debug log entries write sensitive information (scan_ids, database operations, errors) to `/work/debug.log` which could persist in container images or be exposed.
 
@@ -662,7 +662,7 @@ These tasks must be completed before deploying to production:
 | Priority | Task | Command/Tool | Owner |
 |----------|------|--------------|-------|
 | P0 | Scan Docker images for CVEs | `trivy image sec-audit-worker:latest` | DevOps |
-| P0 | Scan API image for CVEs | `trivy image sec-audit-api:latest` | DevOps |
+| P0 | Scan API image for CVEs | `trivy image securefast-api:latest` | DevOps |
 | P0 | Validate network isolation | `docker network inspect` + penetration test | Security |
 | P0 | SSL/TLS configuration test | https://www.ssllabs.com/ssltest/ | DevOps |
 | P0 | Set strong database password | `openssl rand -base64 32` | DevOps |

@@ -223,7 +223,7 @@ resources:
   # Note: Don't include postgres.yaml and redis.yaml - using managed!
 
 images:
-  - name: ghcr.io/YOUR_USERNAME/sec-audit-api
+  - name: ghcr.io/YOUR_USERNAME/securefast-api
     newTag: v1.0.0
   - name: ghcr.io/YOUR_USERNAME/sec-audit-worker
     newTag: v1.0.0
@@ -363,7 +363,7 @@ metadata:
     
     # Configure images to watch
     argocd-image-updater.argoproj.io/image-list: |
-      api=ghcr.io/YOUR_USERNAME/sec-audit-api:~1.x
+      api=ghcr.io/YOUR_USERNAME/securefast-api:~1.x
       worker=ghcr.io/YOUR_USERNAME/sec-audit-worker:~1.x
       frontend=ghcr.io/YOUR_USERNAME/sec-audit-frontend:~1.x
     
@@ -375,7 +375,7 @@ spec:
   project: default
   
   source:
-    repoURL: https://github.com/YOUR_ORG/sec-audit-repos.git
+    repoURL: https://github.com/YOUR_ORG/securefast.git
     targetRevision: main
     path: k8s/overlays/production
     
@@ -408,8 +408,8 @@ kubectl apply -f k8s/argocd/application.yaml
 ```yaml
 # k8s/overlays/production/kustomization.yaml
 images:
-  - name: ghcr.io/YOUR_USERNAME/sec-audit-api
-    newName: ghcr.io/YOUR_USERNAME/sec-audit-api
+  - name: ghcr.io/YOUR_USERNAME/securefast-api
+    newName: ghcr.io/YOUR_USERNAME/securefast-api
     newTag: 1.0.0  # Image Updater will change this
   - name: ghcr.io/YOUR_USERNAME/sec-audit-worker
     newName: ghcr.io/YOUR_USERNAME/sec-audit-worker
@@ -465,17 +465,17 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./backend
-          file: ./backend/Dockerfile.api
+          file: ./docker/Dockerfile.api
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/sec-audit-api:${{ steps.version.outputs.version }}
-            ghcr.io/${{ github.repository_owner }}/sec-audit-api:latest
+            ghcr.io/${{ github.repository_owner }}/securefast-api:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/securefast-api:latest
       
       - name: Build and push Worker
         uses: docker/build-push-action@v5
         with:
           context: ./backend
-          file: ./backend/Dockerfile
+          file: ./docker/Dockerfile.worker
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/sec-audit-worker:${{ steps.version.outputs.version }}

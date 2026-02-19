@@ -29,7 +29,7 @@ docker compose -f docker/docker-compose.yml down
 
 1. **Install dependencies:**
    ```bash
-   pip install -r backend/requirements.txt
+   pip install -r backend-worker/requirements.txt
    ```
 
 2. **Start Redis:**

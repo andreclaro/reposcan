@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document outlines the architecture for transforming the `sec-audit-repos` CLI tool into a scalable SaaS platform. The solution integrates with indie-kit (Next.js frontend + backend API) and implements a microservices architecture with HTTP API integration and a queue-based worker system for asynchronous scan processing.
+This document outlines the architecture for transforming the `securefast` CLI tool into a scalable SaaS platform. The solution integrates with indie-kit (Next.js frontend + backend API) and implements a microservices architecture with HTTP API integration and a queue-based worker system for asynchronous scan processing.
 
 **Key Architecture Decision**: **Single Worker Per Repository Pipeline** - Each Celery worker handles the complete scan pipeline for one repository (clone → detect → scan → store), ensuring efficiency, consistency, and simplicity. This approach matches the existing CLI implementation and avoids duplicate work.
 

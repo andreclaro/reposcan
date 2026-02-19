@@ -1,10 +1,10 @@
 # AGENTS.md - Security Audit Tool for AI Coding Agents
 
-This document provides essential information for AI coding agents working on the `sec-audit-repos` project.
+This document provides essential information for AI coding agents working on the `securefast` project.
 
 ## Project Overview
 
-`sec-audit-repos` is a comprehensive security audit tool for software repositories. It provides:
+`securefast` is a comprehensive security audit tool for software repositories. It provides:
 
 - **CLI Tool**: Batch scan multiple repositories from CSV files
 - **API Backend**: HTTP API with async processing via Celery workers
@@ -26,11 +26,18 @@ This document provides essential information for AI coding agents working on the
 ## Project Structure
 
 ```
-sec-audit-repos/
-├── backend/                # Python backend
+securefast/
+├── backend-api/            # Go API backend
+│   ├── cmd/api/           # API entry point
+│   ├── internal/          # Internal packages
+│   │   ├── api/           # HTTP handlers
+│   │   ├── celery/        # Celery Redis client
+│   │   ├── config/        # Configuration
+│   │   └── models/        # Request/response models
+│   └── go.mod             # Go dependencies
+├── backend-worker/         # Python worker backend
 │   ├── src/
 │   │   ├── audit/         # Core scanning logic (CLI, scanners, ecosystem, ai)
-│   │   ├── api/           # FastAPI service
 │   │   └── worker/        # Celery worker (scan_worker.py)
 │   └── tests/             # Python test suite
 ├── frontend/               # Next.js frontend application
@@ -40,7 +47,7 @@ sec-audit-repos/
 │   └── src/lib/           # Utility functions
 ├── infrastructure/         # Deploy, maintenance, monitoring scripts
 ├── docs/                   # Documentation (architecture, user-guides, development, operations)
-├── backend/
+├── backend-worker/
 │   └── requirements.txt   # Python dependencies
 └── docker/
     └── docker-compose.yml  # Local development stack
@@ -112,7 +119,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # Install dependencies
-pip install -r backend/requirements.txt
+pip install -r backend-worker/requirements.txt
 
 # Start FastAPI
 uvicorn api.main:app --reload --port 8000
@@ -161,7 +168,7 @@ See `ENV_VARIABLES.md` for complete documentation.
 pytest
 
 # Run specific test file
-pytest backend/tests/test_utils.py
+pytest backend-worker/tests/test_utils.py
 
 # Run integration tests (requires network, clones real repos)
 pytest -m integration
@@ -195,7 +202,7 @@ pnpm db:migrate     # Apply migrations
 docker build -f Dockerfile -t sec-audit-scanner .
 
 # Build API image (lightweight)
-docker build -f Dockerfile.api -t sec-audit-api .
+docker build -f Dockerfile.api -t securefast-api .
 
 # Run CLI via Docker
 docker run --rm \
@@ -207,7 +214,7 @@ docker run --rm \
 
 ## Code Organization
 
-### Core Modules (`backend/src/audit/`)
+### Core Modules (`backend-worker/src/audit/`)
 
 | Module | Purpose |
 |--------|---------|
@@ -219,7 +226,7 @@ docker run --rm \
 | `utils.py` | Input validation, CSV parsing, audit selection logic |
 | `version_manager.py` | Runtime version detection for Node.js, Go, Rust |
 
-### AI Module (`backend/src/audit/ai/`)
+### AI Module (`backend-worker/src/audit/ai/`)
 
 | Module | Purpose |
 |--------|---------|
@@ -231,12 +238,12 @@ docker run --rm \
 | `storage_backend.py` | Abstraction for local/S3 file storage |
 | `parsers/` | Scanner-specific output parsers (Semgrep, Trivy, npm, etc.) |
 
-### API Layer (`backend/src/api/`)
+### API Layer (`backend-api/internal/api/`)
 
 - `main.py`: FastAPI endpoints (`POST /scan`, `GET /scan/{id}/status`, `GET /health`)
 - `models.py`: Pydantic models for request/response validation
 
-### Worker (`backend/src/worker/`)
+### Worker (`backend-worker/src/worker/`)
 
 - `scan_worker.py`: Celery task that orchestrates the complete scan pipeline
   1. Clone repository
@@ -248,7 +255,7 @@ docker run --rm \
 
 ## Testing Strategy
 
-### Test Organization (`backend/tests/`)
+### Test Organization (`backend-worker/tests/`)
 
 | File | Coverage |
 |------|----------|
@@ -402,17 +409,17 @@ See `frontend/src/db/schema.ts` for complete schema definition.
 ### Adding a New Scanner
 
 1. Add scanner binary to `Dockerfile`
-2. Create wrapper function in `backend/src/audit/scanners.py`
-3. Add parser in `backend/src/audit/ai/parsers/` if normalization needed
-4. Integrate into `backend/src/worker/scan_worker.py` pipeline
-5. Add tests in `backend/tests/test_scanners.py`
+2. Create wrapper function in `backend-worker/src/audit/scanners.py`
+3. Add parser in `backend-worker/src/audit/ai/parsers/` if normalization needed
+4. Integrate into `backend-worker/src/worker/scan_worker.py` pipeline
+5. Add tests in `backend-worker/tests/test_scanners.py`
 
 ### Adding a New Audit Type
 
-1. Add to `ALLOWED_AUDITS` in `backend/src/audit/utils.py`
-2. Add detection logic in `backend/src/audit/fs.py` or `backend/src/audit/ecosystem.py`
-3. Add execution in `backend/src/audit/cli.py` and `backend/src/worker/scan_worker.py`
-4. Update API models in `backend/src/api/models.py`
+1. Add to `ALLOWED_AUDITS` in `backend-worker/src/audit/utils.py`
+2. Add detection logic in `backend-worker/src/audit/fs.py` or `backend-worker/src/audit/ecosystem.py`
+3. Add execution in `backend-worker/src/audit/cli.py` and `backend-worker/src/worker/scan_worker.py`
+4. Update API models in `backend-api/internal/models/models.go`
 5. Update documentation
 
 ### Modifying Database Schema
@@ -420,13 +427,13 @@ See `frontend/src/db/schema.ts` for complete schema definition.
 1. Edit `frontend/src/db/schema.ts`
 2. Run `pnpm db:generate` to create migration
 3. Apply with `pnpm db:migrate`
-4. Update Python storage functions in `backend/src/audit/ai/storage.py`
+4. Update Python storage functions in `backend-worker/src/audit/ai/storage.py`
 
 ### Adding AI Analysis Features
 
-1. Modify `backend/src/audit/ai/summarizer.py` for new analysis types
+1. Modify `backend-worker/src/audit/ai/summarizer.py` for new analysis types
 2. Update database schema if storing new data
-3. Update normalizer in `backend/src/audit/ai/normalizer.py` if needed
+3. Update normalizer in `backend-worker/src/audit/ai/normalizer.py` if needed
 
 ## Debugging Tips
 
