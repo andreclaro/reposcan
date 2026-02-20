@@ -36,7 +36,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Install Python packages
 COPY backend-worker/requirements.txt /tmp/
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r /tmp/requirements.txt
+    pip install --no-cache-dir -r /tmp/requirements.txt && \
+    pip install --no-cache-dir semgrep checkov bandit[sarif]
 
 # Aggressive cleanup of Python bloat
 RUN find /opt/venv -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true && \
