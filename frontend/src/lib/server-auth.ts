@@ -24,11 +24,25 @@ async function ensureDevUser() {
 }
 
 export async function getServerAuth(): Promise<Session | null> {
-  if (!DEV_BYPASS_AUTH) {
-    return nextAuth();
+  async function getSession(): Promise<Session | null> {
+    try {
+      return await nextAuth();
+    } catch (err) {
+      // JWTSessionError: malformed JWT, missing AUTH_SECRET, or secret mismatch.
+      // Auth.js destroys the cookie; return null so the app shows unauthenticated state.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("JWTSessionError") || msg.includes("JWT")) {
+        return null;
+      }
+      throw err;
+    }
   }
 
-  const liveSession = await nextAuth();
+  if (!DEV_BYPASS_AUTH) {
+    return getSession();
+  }
+
+  const liveSession = await getSession();
   if (liveSession?.user?.id) {
     return liveSession;
   }
