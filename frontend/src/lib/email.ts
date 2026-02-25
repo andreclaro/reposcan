@@ -21,7 +21,7 @@ export async function sendEmail(options: {
 }): Promise<SendEmailResult> {
   const apiKey = process.env.RESEND_API_KEY;
   const fromEmail =
-    process.env.RESEND_FROM ?? "SecureFast <onboarding@securefast.io>";
+    process.env.RESEND_FROM ?? "SecureFast <onboarding@resend.dev>";
 
   if (!apiKey) {
     logger.warn("sendEmail: RESEND_API_KEY not configured, skipping email");

@@ -59,7 +59,7 @@ export async function POST(request: Request) {
   const { Resend } = await import("resend");
   const client = new Resend(process.env.RESEND_API_KEY);
   const fromEmail =
-    process.env.RESEND_FROM ?? "SecureFast <onboarding@securefast.io>";
+    process.env.RESEND_FROM ?? "SecureFast <onboarding@resend.dev>";
 
   const { data, error } = await client.emails.send({
     from: fromEmail,

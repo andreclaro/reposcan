@@ -175,7 +175,7 @@ Used by `/contact` page via Resend:
 | Variable | Description |
 |----------|-------------|
 | `RESEND_API_KEY` | Resend API key |
-| `RESEND_FROM` | Sender address (default: `SecurityKit <onboarding@resend.dev>`) |
+| `RESEND_FROM` | Sender address (default: `SecureFast <onboarding@resend.dev>`) |
 | `CONTACT_EMAIL` | Recipient for contact form |
 
 ## Scan Timeouts
