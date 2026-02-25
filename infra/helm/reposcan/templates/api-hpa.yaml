@@ -2,15 +2,15 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "securefast.fullname" . }}-api
+  name: {{ include "reposcan.fullname" . }}-api
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "securefast.api.labels" . | nindent 4 }}
+    {{- include "reposcan.api.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "securefast.fullname" . }}-api
+    name: {{ include "reposcan.fullname" . }}-api
   minReplicas: {{ .Values.api.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.api.autoscaling.maxReplicas }}
   metrics:

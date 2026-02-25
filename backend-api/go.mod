@@ -1,4 +1,4 @@
-module github.com/securefast/api
+module github.com/reposcan/api
 
 go 1.22
 

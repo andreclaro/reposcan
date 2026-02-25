@@ -1,4 +1,4 @@
-# SecureFast Worker - Full Image with All Toolchains
+# RepoScan Worker - Full Image with All Toolchains
 # Target: ~2.4GB (includes Go and Rust toolchains)
 # Use when scanning Go/Rust projects that need full toolchain support
 

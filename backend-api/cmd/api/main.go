@@ -14,8 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/securefast/api/internal/api"
-	"github.com/securefast/api/internal/celery"
+	"github.com/reposcan/api/internal/api"
+	"github.com/reposcan/api/internal/celery"
 )
 
 func main() {

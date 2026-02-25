@@ -251,8 +251,8 @@ class OpenRouterClient(LLMClient):
         base = base_url or os.getenv("OPENROUTER_BASE_URL", OPENROUTER_API_BASE_URL)
         # Use a custom httpx client to avoid openai→httpx passing deprecated 'proxies' kwarg
         default_headers = {
-            "HTTP-Referer": "https://github.com/securefast",
-            "X-Title": "securefast",
+            "HTTP-Referer": "https://github.com/reposcan",
+            "X-Title": "reposcan",
         }
         if httpx is not None:
             http_client = httpx.Client(trust_env=False)

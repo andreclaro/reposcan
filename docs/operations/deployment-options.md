@@ -257,7 +257,7 @@ def run_worker():
 # Hetzner CPX41 ($28/mo)
 ssh root@your-server
 git clone <repo>
-cd securefast/docker
+cd reposcan/docker
 docker compose up -d
 ```
 

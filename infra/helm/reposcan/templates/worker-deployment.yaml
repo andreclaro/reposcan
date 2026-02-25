@@ -2,17 +2,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "securefast.fullname" . }}-worker
+  name: {{ include "reposcan.fullname" . }}-worker
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "securefast.worker.labels" . | nindent 4 }}
+    {{- include "reposcan.worker.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.worker.autoscaling.enabled }}
   replicas: {{ .Values.worker.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "securefast.selectorLabels" . | nindent 6 }}
+      {{- include "reposcan.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: worker
   template:
     metadata:
@@ -21,7 +21,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "securefast.worker.labels" . | nindent 8 }}
+        {{- include "reposcan.worker.labels" . | nindent 8 }}
     spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
@@ -42,9 +42,9 @@ spec:
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: {{ include "securefast.fullname" . }}-config
+                name: {{ include "reposcan.fullname" . }}-config
             - secretRef:
-                name: {{ include "securefast.fullname" . }}-secrets
+                name: {{ include "reposcan.fullname" . }}-secrets
           resources:
             {{- toYaml .Values.worker.resources | nindent 12 }}
           livenessProbe:

@@ -1,6 +1,6 @@
-# SecureFast Worker Helm Chart
+# RepoScan Worker Helm Chart
 
-This Helm chart deploys the SecureFast security audit platform to Kubernetes.
+This Helm chart deploys the RepoScan security audit platform to Kubernetes.
 
 ## Components
 
@@ -14,8 +14,8 @@ This Helm chart deploys the SecureFast security audit platform to Kubernetes.
 - Helm 3.0+
 - PostgreSQL database (external or deployed separately)
 - Container images built and pushed to a registry:
-  - `securefast-api:latest` (from `docker/Dockerfile.api`)
-  - `sec-audit-worker:latest` (from `docker/Dockerfile.worker`)
+  - `reposcan-api:latest` (from `docker/Dockerfile.api`)
+  - `reposcan-worker:latest` (from `docker/Dockerfile.worker`)
 
 ## Installation
 
@@ -23,33 +23,33 @@ This Helm chart deploys the SecureFast security audit platform to Kubernetes.
 
 ```bash
 # Build API image
-docker build -f docker/Dockerfile.api -t your-registry/securefast-api:latest .
-docker push your-registry/securefast-api:latest
+docker build -f docker/Dockerfile.api -t your-registry/reposcan-api:latest .
+docker push your-registry/reposcan-api:latest
 
 # Build Worker image
-docker build -f docker/Dockerfile.worker -t your-registry/sec-audit-worker:latest .
-docker push your-registry/sec-audit-worker:latest
+docker build -f docker/Dockerfile.worker -t your-registry/reposcan-worker:latest .
+docker push your-registry/reposcan-worker:latest
 ```
 
 ### 2. Install Helm chart
 
 ```bash
 # Create namespace
-kubectl create namespace securefast
+kubectl create namespace reposcan
 
 # Install with required values
-helm install securefast ./infrastructure/helm/securefast \
-  --namespace securefast \
+helm install reposcan ./infrastructure/helm/reposcan \
+  --namespace reposcan \
   --set global.databaseUrl="postgresql://user:password@postgres-host:5432/sec_audit" \
-  --set api.image.repository=your-registry/securefast-api \
-  --set worker.image.repository=your-registry/sec-audit-worker
+  --set api.image.repository=your-registry/reposcan-api \
+  --set worker.image.repository=your-registry/reposcan-worker
 ```
 
 ### 3. Upgrade
 
 ```bash
-helm upgrade securefast ./infrastructure/helm/securefast \
-  --namespace securefast \
+helm upgrade reposcan ./infrastructure/helm/reposcan \
+  --namespace reposcan \
   --set global.databaseUrl="postgresql://user:password@postgres-host:5432/sec_audit"
 ```
 
@@ -88,7 +88,7 @@ global:
 api:
   replicaCount: 2
   image:
-    repository: my-registry/securefast-api
+    repository: my-registry/reposcan-api
     tag: "v1.0.0"
   autoscaling:
     enabled: true
@@ -97,7 +97,7 @@ api:
   ingress:
     enabled: true
     hosts:
-      - host: api.securefast.example.com
+      - host: api.reposcan.example.com
         paths:
           - path: /
             pathType: Prefix
@@ -117,8 +117,8 @@ worker:
 Install with custom values:
 
 ```bash
-helm install securefast ./infrastructure/helm/securefast \
-  --namespace securefast \
+helm install reposcan ./infrastructure/helm/reposcan \
+  --namespace reposcan \
   -f values-production.yaml
 ```
 
@@ -127,7 +127,7 @@ helm install securefast ./infrastructure/helm/securefast \
 ### Port-forward (for local development)
 
 ```bash
-kubectl port-forward -n securefast svc/securefast-api 8000:8000
+kubectl port-forward -n reposcan svc/reposcan-api 8000:8000
 ```
 
 Then access: http://localhost:8000
@@ -142,14 +142,14 @@ api:
     enabled: true
     className: nginx
     hosts:
-      - host: api.securefast.example.com
+      - host: api.reposcan.example.com
         paths:
           - path: /
             pathType: Prefix
     tls:
       - secretName: api-tls
         hosts:
-          - api.securefast.example.com
+          - api.reposcan.example.com
 ```
 
 ## Monitoring
@@ -157,22 +157,22 @@ api:
 Check pod status:
 
 ```bash
-kubectl get pods -n securefast
+kubectl get pods -n reposcan
 ```
 
 View logs:
 
 ```bash
 # API logs
-kubectl logs -n securefast -l app.kubernetes.io/component=api
+kubectl logs -n reposcan -l app.kubernetes.io/component=api
 
 # Worker logs
-kubectl logs -n securefast -l app.kubernetes.io/component=worker
+kubectl logs -n reposcan -l app.kubernetes.io/component=worker
 ```
 
 ## Uninstallation
 
 ```bash
-helm uninstall securefast --namespace securefast
-kubectl delete namespace securefast
+helm uninstall reposcan --namespace reposcan
+kubectl delete namespace reposcan
 ```

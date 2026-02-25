@@ -52,7 +52,7 @@ The repository security scanning market is experiencing explosive growth, driven
 | **RASP** | **32%** | Zero-day protection needs |
 | **SCA** | 24% | Open-source dependency growth |
 
-### 1.4 Target Market for securefast
+### 1.4 Target Market for RepoScan
 
 **Serviceable Addressable Market (SAM)**:
 - Small-to-Medium Enterprises (SMEs) adopting DevSecOps
@@ -274,7 +274,7 @@ The repository security scanning market is experiencing explosive growth, driven
 - Not a direct competitor (code review vs security scanning)
 - Overlapping use case: AI-powered security insights
 - Lower price point than security-focused tools
-- Strong AI differentiator that securefast could learn from
+- Strong AI differentiator that RepoScan could learn from
 
 ---
 
@@ -287,7 +287,7 @@ The repository security scanning market is experiencing explosive growth, driven
 | **Value Prop** | PASS/FAIL verdicts within 60 seconds |
 
 **Analysis**:
-- Very similar positioning to securefast
+- Very similar positioning to RepoScan
 - AI-first approach with quick results
 - Likely targets similar market (developers, SMEs)
 - Limited public information on pricing and features
@@ -312,7 +312,7 @@ The repository security scanning market is experiencing explosive growth, driven
 | **OWASP ZAP** | DAST | Free, powerful | Requires expertise |
 | **SonarQube Community** | SAST/Quality | Code quality + security | Limited security rules |
 
-**Market Gap**: These tools are powerful individually but require significant effort to integrate into a cohesive platform. This is the opportunity for securefast.
+**Market Gap**: These tools are powerful individually but require significant effort to integrate into a cohesive platform. This is the opportunity for RepoScan.
 
 ---
 
@@ -320,7 +320,7 @@ The repository security scanning market is experiencing explosive growth, driven
 
 ### 3.1 Feature Comparison
 
-| Feature | Snyk | Checkmarx | Semgrep | GitHub AS | CodeRabbit | RepoScan.ai | **securefast** |
+| Feature | Snyk | Checkmarx | Semgrep | GitHub AS | CodeRabbit | RepoScan.ai | **RepoScan** |
 |---------|------|-----------|---------|-----------|------------|-------------|---------------------|
 | **SAST** | ✅ | ✅ | ✅ | ✅ (CodeQL) | ⚠️ | ✅ | ✅ (Semgrep) |
 | **SCA/Dependencies** | ✅ | ✅ | ⚠️ | ✅ | ❌ | ⚠️ | ✅ (npm/govulncheck/cargo) |
@@ -345,7 +345,7 @@ The repository security scanning market is experiencing explosive growth, driven
 | **Aikido** | Flat rate | ~$500/mo | ~$1,500/mo |
 | **CodeRabbit** | Per developer | $24/dev/mo | ~$2,400/mo |
 | **RepoScan.ai** | Unknown | Unknown | Unknown |
-| **securefast** | TBD | TBD | TBD |
+| **RepoScan** | TBD | TBD | TBD |
 
 **Recommended Positioning**: Position between open-source (free) and enterprise tools ($50+/dev/mo). Target $15-25/developer/month or usage-based pricing.
 
@@ -383,7 +383,7 @@ The repository security scanning market is experiencing explosive growth, driven
 
 ### 4.2 Market Gaps & Opportunities
 
-| Gap | Current State | Opportunity for securefast |
+| Gap | Current State | Opportunity for RepoScan |
 |-----|---------------|--------------------------------|
 | **Price-Performance** | Enterprise tools expensive, open-source requires expertise | Affordable, integrated platform |
 | **False Positives** | Snyk, Checkmarx generate noise | AI-powered prioritization |

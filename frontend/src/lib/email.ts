@@ -21,7 +21,7 @@ export async function sendEmail(options: {
 }): Promise<SendEmailResult> {
   const apiKey = process.env.RESEND_API_KEY;
   const fromEmail =
-    process.env.RESEND_FROM ?? "SecureFast <onboarding@resend.dev>";
+    process.env.RESEND_FROM ?? "RepoScan <onboarding@resend.dev>";
 
   if (!apiKey) {
     logger.warn("sendEmail: RESEND_API_KEY not configured, skipping email");
@@ -71,7 +71,7 @@ export function escapeHtml(s: string): string {
  */
 export function getAppConfig(): { appName: string; appUrl: string } {
   return {
-    appName: process.env.APP_NAME ?? "SecureFast",
+    appName: process.env.APP_NAME ?? "RepoScan",
     appUrl: process.env.APP_URL ?? "http://localhost:3003",
   };
 }

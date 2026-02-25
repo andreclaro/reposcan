@@ -1,4 +1,4 @@
-# securefast – common commands
+# RepoScan – common commands
 # Run from repo root.
 
 .PHONY: install-backend test run-api run-worker run-frontend docker-build docker-up docker-down docker-logs audit help

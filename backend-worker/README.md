@@ -1,4 +1,4 @@
-# Backend Worker (securefast)
+# Backend Worker (RepoScan)
 
 Python backend: audit CLI, FastAPI service, and Celery worker.
 

@@ -1,6 +1,6 @@
-# SecureFast API (Go)
+# RepoScan API (Go)
 
-This is the Go implementation of the SecureFast API backend, migrated from Python/FastAPI.
+This is the Go implementation of the RepoScan API backend, migrated from Python/FastAPI.
 
 ## Overview
 
@@ -77,7 +77,7 @@ Environment variables:
 go build -o api ./cmd/api/main.go
 
 # Build Docker image
-docker build -f ../docker/Dockerfile.api -t securefast-api ..
+docker build -f ../docker/Dockerfile.api -t reposcan-api ..
 ```
 
 ### Testing

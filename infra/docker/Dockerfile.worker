@@ -1,6 +1,6 @@
-# SecureFast Worker - Optimized Multi-Stage Build (SLIM)
+# RepoScan Worker - Optimized Multi-Stage Build (SLIM)
 # Target: ~1.5GB (from 3.5GB)
-# Build: docker build -f infra/docker/Dockerfile.worker -t securefast-worker:slim .
+# Build: docker build -f infra/docker/Dockerfile.worker -t reposcan-worker:slim .
 #
 # ⚠️  LIMITATION: Go and Rust toolchains are NOT included in this image.
 #     govulncheck and cargo-audit binaries are present but require:
@@ -8,7 +8,7 @@
 #     - Pre-downloaded dependencies
 #     
 #     For full Go/Rust support, use Dockerfile.worker.full:
-#     docker build -f infra/docker/Dockerfile.worker.full -t securefast-worker:full .
+#     docker build -f infra/docker/Dockerfile.worker.full -t reposcan-worker:full .
 #     Size: ~2.4GB (includes full Go and Rust toolchains)
 
 # ============================================

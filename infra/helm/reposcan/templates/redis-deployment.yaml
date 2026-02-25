@@ -2,20 +2,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "securefast.fullname" . }}-redis
+  name: {{ include "reposcan.fullname" . }}-redis
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "securefast.redis.labels" . | nindent 4 }}
+    {{- include "reposcan.redis.labels" . | nindent 4 }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "securefast.selectorLabels" . | nindent 6 }}
+      {{- include "reposcan.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: redis
   template:
     metadata:
       labels:
-        {{- include "securefast.redis.labels" . | nindent 8 }}
+        {{- include "reposcan.redis.labels" . | nindent 8 }}
     spec:
       containers:
         - name: redis
@@ -54,6 +54,6 @@ spec:
       volumes:
         - name: redis-data
           persistentVolumeClaim:
-            claimName: {{ include "securefast.fullname" . }}-redis
+            claimName: {{ include "reposcan.fullname" . }}-redis
       {{- end }}
 {{- end }}

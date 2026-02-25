@@ -2,17 +2,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "securefast.fullname" . }}-api
+  name: {{ include "reposcan.fullname" . }}-api
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "securefast.api.labels" . | nindent 4 }}
+    {{- include "reposcan.api.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.api.autoscaling.enabled }}
   replicas: {{ .Values.api.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "securefast.selectorLabels" . | nindent 6 }}
+      {{- include "reposcan.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: api
   template:
     metadata:
@@ -21,7 +21,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "securefast.api.labels" . | nindent 8 }}
+        {{- include "reposcan.api.labels" . | nindent 8 }}
     spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
@@ -35,9 +35,9 @@ spec:
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: {{ include "securefast.fullname" . }}-config
+                name: {{ include "reposcan.fullname" . }}-config
             - secretRef:
-                name: {{ include "securefast.fullname" . }}-secrets
+                name: {{ include "reposcan.fullname" . }}-secrets
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
           livenessProbe:

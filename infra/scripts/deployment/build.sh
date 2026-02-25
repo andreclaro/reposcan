@@ -108,7 +108,7 @@ fi
 if [ "$BUILD_ALL" = true ] || [ "$BUILD_API" = true ]; then
     print_status "Building API service image..."
     
-    IMAGE_NAME="securefast-api"
+    IMAGE_NAME="reposcan-api"
     if [ -n "$DOCKER_REGISTRY" ]; then
         IMAGE_NAME="$DOCKER_REGISTRY/$IMAGE_NAME"
     fi
@@ -164,9 +164,9 @@ echo ""
 echo "Built images:"
 if [ "$BUILD_ALL" = true ] || [ "$BUILD_API" = true ]; then
     if [ -n "$DOCKER_REGISTRY" ]; then
-        echo "  - $DOCKER_REGISTRY/securefast-api:$IMAGE_TAG"
+        echo "  - $DOCKER_REGISTRY/reposcan-api:$IMAGE_TAG"
     else
-        echo "  - securefast-api:$IMAGE_TAG"
+        echo "  - reposcan-api:$IMAGE_TAG"
     fi
 fi
 if [ "$BUILD_ALL" = true ] || [ "$BUILD_WORKER" = true ]; then

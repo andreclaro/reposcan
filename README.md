@@ -1,149 +1,33 @@
-# securefast
+# RepoScan
 
-Security audit tool for repositories with CLI, API, and web interfaces. Runs SAST (Semgrep), Dockerfile scans (Trivy), and language/infrastructure audits (Node, Go, Rust, Terraform).
-
-## Features
-
-- **SAST Scanning**: Semgrep for static analysis
-- **Dockerfile Scanning**: Trivy for container vulnerabilities
-- **Infrastructure Scanning**: tfsec, checkov, and tflint for Terraform
-- **Language Audits**: npm/pnpm, govulncheck, and cargo-audit for dependencies
-- **CLI Tool**: Batch scan multiple repositories from CSV
-- **API Backend**: HTTP API with async processing via Celery workers
-- **Web Application**: Next.js frontend with scan management and AI analysis
+Security audit tool for repositories. Runs SAST (Semgrep), Dockerfile scans (Trivy), and language/infrastructure audits (Node, Go, Rust, Terraform). Provides CLI, API, and web interfaces.
 
 ## Quick Start
 
-All commands below are meant to be run from the **repository root**. You can use the [Makefile](Makefile) for common tasks: run `make help` to list targets.
-
-### CLI Usage
-
 ```bash
-# Using Make (default CSV: repositories.csv, output: ./output)
+# CLI: batch scan from CSV
 make audit
-make audit CSV=path/to/repos.csv OUT=./output
+# Or: make audit CSV=repos.csv OUT=./output
 
-# Or run directly
-PYTHONPATH=backend-worker/src python backend-worker/audit.py repositories.csv ./output
-# Or install and use the audit command: pip install -e backend-worker/ && audit repositories.csv ./output
-```
-
-See [docs/user-guides/CLI.md](docs/user-guides/CLI.md) for detailed CLI documentation.
-
-### API Usage
-
-```bash
-# Start backend stack (postgres, redis, api, worker)
+# API + Worker: start backend stack
 make docker-up
-# Or: docker compose -f docker/docker-compose.yml up -d
+# Queue scan: curl -X POST http://localhost:8000/scan -H "Content-Type: application/json" -d '{"repo_url":"https://github.com/user/repo.git","audit_types":["sast"]}'
 
-# Queue a scan
-curl -X POST http://localhost:8000/scan \
-  -H "Content-Type: application/json" \
-  -d '{"repo_url": "https://github.com/user/repo.git", "audit_types": ["sast"]}'
-
-# Stop stackd
-make docker-down
+# Web: frontend (requires backend running)
+cd frontend && pnpm install && pnpm dev
 ```
 
-See [docs/user-guides/API.md](docs/user-guides/API.md) for API documentation and [docs/user-guides/DOCKER.md](docs/user-guides/DOCKER.md) for Docker setup.
-
-### Web Application
-
-```bash
-cd frontend
-pnpm install
-pnpm dev
-```
-
-The frontend expects the API at `http://localhost:8000`. Start the backend with `make docker-up` or `make run-api` (and Redis) first.
+Run `make help` from the repo root for all targets.
 
 ## Documentation
 
-See [docs/README.md](docs/README.md) for the full index. Quick links:
+See **[docs/](docs/)** for full documentation:
 
-| Document | Description |
-|----------|-------------|
-| [docs/user-guides/CLI.md](docs/user-guides/CLI.md) | CLI usage and CSV format |
-| [docs/user-guides/API.md](docs/user-guides/API.md) | API endpoints and examples |
-| [docs/user-guides/DOCKER.md](docs/user-guides/DOCKER.md) | Docker Compose setup |
-| [docs/user-guides/CONFIGURATION.md](docs/user-guides/CONFIGURATION.md) | Environment variables |
-| [docs/operations/troubleshooting.md](docs/operations/troubleshooting.md) | Common issues and solutions |
-
-## Project Structure
-
-```
-securefast/
-├── backend-api/        # Go API backend
-│   ├── cmd/api/        # API entry point
-│   ├── internal/       # Internal packages
-│   └── go.mod          # Go dependencies
-├── backend-worker/     # Python worker (audit CLI, Celery worker)
-│   ├── src/            # audit, worker packages
-│   ├── requirements.txt
-│   └── audit.py        # CLI entry point
-├── docker/             # Docker Compose and Dockerfiles (single location)
-│   ├── docker-compose.yml
-│   ├── Dockerfile      # Worker image
-│   └── Dockerfile.api  # API image
-├── frontend/           # Next.js frontend
-├── infrastructure/     # Deploy, maintenance, monitoring scripts
-├── docs/               # Documentation
-├── Makefile            # Common commands (make help)
-└── results/            # Scan results (gitignored)
-```
-
-## System Requirements
-
-### Required Tools
-
-- **Git** (with optional git-lfs)
-- **Semgrep** - `pip install semgrep`
-- **Trivy** - Container scanner
-- **tfsec**, **checkov**, **tflint** - Terraform scanners
-- **Node.js**, **Go**, **Rust** - For language audits
-- **Docker CLI** - For Dockerfile scanning
-
-### Python Requirements
-
-- Python 3.11+
-- See `backend-worker/requirements.txt` for Python dependencies
-
-## Configuration
-
-Minimal configuration:
-
-```bash
-REDIS_URL=redis://localhost:6379/0
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sec_audit
-RESULTS_DIR=./results
-```
-
-See [docs/user-guides/CONFIGURATION.md](docs/user-guides/CONFIGURATION.md) for complete configuration options.
-
-## Development
-
-From the repo root:
-
-| Command | Description |
-|---------|--------------|
-| `make help` | List all Make targets |
-| `make install-backend` | `pip install -e backend-worker/` |
-| `make test` | Run backend tests (no integration) |
-| `make run-api` | Start FastAPI on :8000 (needs Redis) |
-| `make run-worker` | Start Celery worker (needs Redis) |
-| `make docker-build` | Build API and worker images |
-| `make docker-up` | Start full stack (postgres, redis, api, worker) |
-| `make docker-down` | Stop stack |
-| `make docker-logs` | Follow service logs |
-| `make audit` | Run CLI (optional: `CSV=file.csv OUT=./out`) |
-
-## Design Documents
-
-- [docs/architecture/DESIGN_v0.md](docs/architecture/DESIGN_v0.md) - SaaS architecture design
-- [docs/architecture/DESIGN_v0-AI.md](docs/architecture/DESIGN_v0-AI.md) - AI integration design
-- [docs/architecture/DESIGN_SEC_APP_SIMPLE_v0.md](docs/architecture/DESIGN_SEC_APP_SIMPLE_v0.md) - API backend design
+- [docs/README.md](docs/README.md) – Documentation index
+- [docs/internal-guides/](docs/internal-guides/) – CLI, API, Docker, configuration
+- [docs/operations/](docs/operations/) – Troubleshooting, deployment
+- [docs/architecture/](docs/architecture/) – Design and architecture
 
 ## License
 
-[Add your license here]
+[MIT](LICENSE)

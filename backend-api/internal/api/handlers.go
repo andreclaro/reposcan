@@ -13,9 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/securefast/api/internal/celery"
-	"github.com/securefast/api/internal/config"
-	"github.com/securefast/api/internal/models"
+	"github.com/reposcan/api/internal/celery"
+	"github.com/reposcan/api/internal/config"
+	"github.com/reposcan/api/internal/models"
 )
 
 // Handler holds dependencies for API handlers.

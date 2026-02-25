@@ -1,13 +1,13 @@
 ---
-description: Project overview and architecture for sec-audit-repos
+description: Project overview and architecture for RepoScan
 alwaysApply: true
 ---
 
-# sec-audit-repos Project Overview
+# RepoScan Project Overview
 
 ## Purpose
 
-`sec-audit-repos` is a Python CLI tool that automates security auditing of multiple repositories. It clones repositories from a CSV file and runs various security scanners, outputting results to structured audit directories.
+RepoScan is a Python CLI tool that automates security auditing of multiple repositories. It clones repositories from a CSV file and runs various security scanners, outputting results to structured audit directories.
 
 ## Architecture
 

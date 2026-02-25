@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document outlines the architecture and implementation plan for adding **private repository scanning** support to the `securefast` platform. Currently, only public GitHub repositories can be scanned. This feature will enable users to scan their private repositories by leveraging their existing GitHub OAuth authentication.
+This document outlines the architecture and implementation plan for adding **private repository scanning** support to the `RepoScan` platform. Currently, only public GitHub repositories can be scanned. This feature will enable users to scan their private repositories by leveraging their existing GitHub OAuth authentication.
 
 **Recommended Approach**: **Ephemeral Token Pass-Through** - Tokens are encrypted and passed directly to workers via the queue, never stored in the database. This is simpler and more secure than persistent token storage.
 

@@ -1,10 +1,10 @@
 # AGENTS.md - Security Audit Tool for AI Coding Agents
 
-This document provides essential information for AI coding agents working on the `securefast` project.
+This document provides essential information for AI coding agents working on the RepoScan project.
 
 ## Project Overview
 
-`securefast` is a comprehensive security audit tool for software repositories. It provides:
+RepoScan is a comprehensive security audit tool for software repositories. It provides:
 
 - **CLI Tool**: Batch scan multiple repositories from CSV files
 - **API Backend**: HTTP API with async processing via Celery workers
@@ -26,7 +26,7 @@ This document provides essential information for AI coding agents working on the
 ## Project Structure
 
 ```
-securefast/
+reposcan/
 ├── backend-api/            # Go API backend
 │   ├── cmd/api/           # API entry point
 │   ├── internal/          # Internal packages
@@ -207,7 +207,7 @@ pnpm db:migrate     # Apply migrations
 docker build -f Dockerfile -t sec-audit-scanner .
 
 # Build API image (lightweight)
-docker build -f Dockerfile.api -t securefast-api .
+docker build -f Dockerfile.api -t reposcan-api .
 
 # Run CLI via Docker
 docker run --rm \
@@ -531,11 +531,11 @@ global:
   # Only set if allowing direct browser access
   corsAllowedOrigins: "*"
   databaseUrl: "postgresql://..."
-  redisUrl: "redis://securefast-redis:6379/0"
+  redisUrl: "redis://reposcan-redis:6379/0"
 ```
 
 See `docs/deployment/HETZNER_K8S_VERCEL.md` for detailed deployment instructions.
 
 ## License
 
-[Add your license here]
+[MIT](LICENSE)

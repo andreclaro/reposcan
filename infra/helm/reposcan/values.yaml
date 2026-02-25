@@ -1,7 +1,7 @@
-# Default values for securefast
-# Deploy to securefast namespace
+# Default values for RepoScan
+# Deploy to reposcan namespace
 
-namespace: securefast
+namespace: reposcan
 
 # =============================================================================
 # Global Configuration
@@ -67,7 +67,7 @@ api:
   replicaCount: 1
   
   image:
-    repository: securefast-api
+    repository: reposcan-api
     tag: latest
     pullPolicy: IfNotPresent
   
@@ -82,7 +82,7 @@ api:
     className: ""
     annotations: {}
     hosts:
-      - host: api.securefast.local
+      - host: api.reposcan.local
         paths:
           - path: /
             pathType: Prefix
@@ -131,7 +131,7 @@ worker:
   replicaCount: 1
   
   image:
-    repository: sec-audit-worker
+    repository: reposcan-worker
     tag: latest
     pullPolicy: IfNotPresent
   

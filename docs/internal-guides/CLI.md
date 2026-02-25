@@ -1,6 +1,6 @@
 # CLI Usage Guide
 
-The `securefast` CLI tool allows you to batch scan multiple repositories from a CSV file.
+The `RepoScan` CLI tool allows you to batch scan multiple repositories from a CSV file.
 
 ## Quick Start
 
@@ -48,7 +48,7 @@ PYTHONPATH=backend-worker/src python backend-worker/audit.py repositories.csv ./
 ### Build the Image
 
 ```sh
-docker build -f docker/Dockerfile -t securefast .
+docker build -f docker/Dockerfile -t reposcan .
 ```
 
 ### Run with CSV
@@ -57,7 +57,7 @@ docker build -f docker/Dockerfile -t securefast .
 docker run --rm \
   -v /absolute/path/to/repositories.csv:/work/repositories.csv \
   -v /absolute/path/to/clone/dir:/work/output \
-  securefast \
+  reposcan \
   /work/repositories.csv /work/output
 ```
 
@@ -67,7 +67,7 @@ Or if your CSV is in the current directory:
 docker run --rm \
   -v "$(pwd)/repositories.csv:/work/repositories.csv" \
   -v "$(pwd)/output:/work/output" \
-  securefast \
+  reposcan \
   /work/repositories.csv /work/output
 ```
 

@@ -1,11 +1,11 @@
-# SecureFast Helm Deployment
+# RepoScan Helm Deployment
 
-This directory contains Helm chart and Helmfile configuration for deploying SecureFast to Kubernetes.
+This directory contains Helm chart and Helmfile configuration for deploying RepoScan to Kubernetes.
 
 ## Structure
 
 ```
-infrastructure/helm/
+infra/helm/
 ├── create-secrets.sh                # Script to create Kubernetes secrets manually
 ├── helmfile.yaml                    # Main helmfile spec
 ├── values.yaml                      # Base values (all environments)
@@ -14,7 +14,7 @@ infrastructure/helm/
 ├── values.staging.yaml              # Staging environment overrides
 ├── values.production.yaml           # Production environment overrides
 ├── .gitignore                       # Git ignore file
-└── securefast/                      # Helm chart directory
+└── reposcan/                      # Helm chart directory
     ├── Chart.yaml
     ├── values.yaml
     ├── README.md
@@ -49,7 +49,7 @@ The script will:
 - Create the namespace if it doesn't exist
 - Prompt for DATABASE_URL (or use the environment variable)
 - Optionally prompt for AI API keys and AWS credentials
-- Create the `securefast-worker-secrets` Secret in the cluster
+- Create the `reposcan-worker-secrets` Secret in the cluster
 
 You can also set the values via environment variables:
 
@@ -76,11 +76,11 @@ helmfile --environment production sync
 
 ```bash
 # Check pods
-kubectl get pods -n securefast-worker
+kubectl get pods -n reposcan-worker
 
 # Check logs
-kubectl logs -n securefast-worker -l app.kubernetes.io/component=api -f
-kubectl logs -n securefast-worker -l app.kubernetes.io/component=worker -f
+kubectl logs -n reposcan-worker -l app.kubernetes.io/component=api -f
+kubectl logs -n reposcan-worker -l app.kubernetes.io/component=worker -f
 ```
 
 ## Commands
@@ -121,11 +121,11 @@ If you prefer to create secrets manually with kubectl:
 
 ```bash
 # Create the namespace
-kubectl create namespace securefast-worker
+kubectl create namespace reposcan-worker
 
 # Create the secret
-kubectl create secret generic securefast-worker-secrets \
-  --namespace=securefast \
+kubectl create secret generic reposcan-worker-secrets \
+  --namespace=reposcan \
   --from-literal=DATABASE_URL="postgresql://user:password@host:5432/db" \
   --from-literal=ANTHROPIC_API_KEY="..." \
   --from-literal=OPENAI_API_KEY="..." \
@@ -133,7 +133,7 @@ kubectl create secret generic securefast-worker-secrets \
   --from-literal=AWS_SECRET_ACCESS_KEY="..."
 
 # Verify
-kubectl get secret securefast-worker-secrets -n securefast-worker
+kubectl get secret reposcan-worker-secrets -n reposcan-worker
 ```
 
 ### Updating Secrets
@@ -147,15 +147,15 @@ To update secrets, simply run the script again:
 Or use kubectl:
 
 ```bash
-kubectl delete secret securefast-worker-secrets -n securefast-worker
-kubectl create secret generic securefast-worker-secrets ...
+kubectl delete secret reposcan-worker-secrets -n reposcan-worker
+kubectl create secret generic reposcan-worker-secrets ...
 ```
 
 Then restart the deployments to pick up new secrets:
 
 ```bash
-kubectl rollout restart deployment/securefast-api -n securefast-worker
-kubectl rollout restart deployment/securefast-worker -n securefast-worker
+kubectl rollout restart deployment/reposcan-api -n reposcan-worker
+kubectl rollout restart deployment/reposcan-worker -n reposcan-worker
 ```
 
 ## Configuration
@@ -188,7 +188,7 @@ kubectl rollout restart deployment/securefast-worker -n securefast-worker
 ### Port-forward (for local development)
 
 ```bash
-kubectl port-forward -n securefast-worker svc/securefast-api 8000:8000
+kubectl port-forward -n reposcan-worker svc/reposcan-api 8000:8000
 ```
 
 Then access: http://localhost:8000/health
@@ -202,40 +202,40 @@ Configure your DNS to point to the ingress controller, then access via the confi
 ### Check pod status
 
 ```bash
-kubectl get pods -n securefast-worker
-kubectl describe pod -n securefast-worker <pod-name>
+kubectl get pods -n reposcan-worker
+kubectl describe pod -n reposcan-worker <pod-name>
 ```
 
 ### View logs
 
 ```bash
 # API logs
-kubectl logs -n securefast-worker -l app.kubernetes.io/component=api -f
+kubectl logs -n reposcan-worker -l app.kubernetes.io/component=api -f
 
 # Worker logs
-kubectl logs -n securefast-worker -l app.kubernetes.io/component=worker -f
+kubectl logs -n reposcan-worker -l app.kubernetes.io/component=worker -f
 
 # Redis logs
-kubectl logs -n securefast-worker -l app.kubernetes.io/component=redis -f
+kubectl logs -n reposcan-worker -l app.kubernetes.io/component=redis -f
 ```
 
 ### Check events
 
 ```bash
-kubectl get events -n securefast-worker --sort-by='.lastTimestamp'
+kubectl get events -n reposcan-worker --sort-by='.lastTimestamp'
 ```
 
 ### Check secrets
 
 ```bash
-kubectl get secret securefast-worker-secrets -n securefast-worker
-kubectl describe secret securefast-worker-secrets -n securefast-worker
+kubectl get secret reposcan-worker-secrets -n reposcan-worker
+kubectl describe secret reposcan-worker-secrets -n reposcan-worker
 ```
 
 ### Exec into pod
 
 ```bash
-kubectl exec -it -n securefast-worker deployment/securefast-api -- /bin/bash
+kubectl exec -it -n reposcan-worker deployment/reposcan-api -- /bin/bash
 ```
 
 ## Building Images
@@ -244,8 +244,8 @@ Before deploying, build and push the container images:
 
 ```bash
 # Build API image
-docker build -f ../../docker/Dockerfile.api -t your-registry/securefast-api:latest ../..
-docker push your-registry/securefast-api:latest
+docker build -f ../../docker/Dockerfile.api -t your-registry/reposcan-api:latest ../..
+docker push your-registry/reposcan-api:latest
 
 # Build Worker image
 docker build -f ../../docker/Dockerfile.worker -t your-registry/sec-audit-worker:latest ../..
@@ -257,7 +257,7 @@ Update image repository in values files:
 ```yaml
 api:
   image:
-    repository: your-registry/securefast-api
+    repository: your-registry/reposcan-api
     
 worker:
   image:
@@ -275,10 +275,10 @@ helmfile --environment production sync
 
 ```bash
 # List releases
-helm list -n securefast-worker
+helm list -n reposcan-worker
 
 # Rollback to previous revision
-helm rollback -n securefast-worker securefast 1
+helm rollback -n reposcan-worker reposcan 1
 ```
 
 ## Uninstallation
@@ -290,8 +290,8 @@ helmfile --environment production destroy
 Or with Helm directly:
 
 ```bash
-helm uninstall securefast --namespace securefast-worker
-kubectl delete namespace securefast-worker
+helm uninstall reposcan --namespace reposcan-worker
+kubectl delete namespace reposcan-worker
 ```
 
 ## Advanced: Helm-managed Secrets (Not Recommended)

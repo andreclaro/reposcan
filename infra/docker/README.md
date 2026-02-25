@@ -6,7 +6,7 @@ Docker Compose and Dockerfiles for the Security Audit stack. All Dockerfiles liv
 
 - **docker-compose.yml** – Compose file for postgres, redis, api, and worker. Paths are relative to this directory (e.g. `../backend`, `../frontend/.env.local`). Build context for api/worker is `..` (repo root).
 - **Dockerfile** – Worker image (scanner tools). Used by Compose and for standalone: `docker build -f docker/Dockerfile -t sec-audit-worker .`
-- **Dockerfile.api** – API-only image. Used by Compose and for standalone: `docker build -f docker/Dockerfile.api -t securefast-api .`
+- **Dockerfile.api** – API-only image. Used by Compose and for standalone: `docker build -f docker/Dockerfile.api -t reposcan-api .`
 
 ## Usage
 

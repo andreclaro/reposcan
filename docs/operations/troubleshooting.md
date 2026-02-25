@@ -48,7 +48,7 @@ rm -rf results/<scan-id>
 docker compose down
 
 # Remove volumes if needed (WARNING: deletes data)
-docker volume rm securefast_postgres_data
+docker volume rm reposcan_postgres_data
 
 # Restart services
 docker compose up -d
@@ -271,7 +271,7 @@ docker compose up -d
 ### Reset Database (WARNING: Deletes all data)
 ```bash
 docker compose down -v
-docker volume rm securefast_postgres_data
+docker volume rm reposcan_postgres_data
 docker compose up -d
 ```
 

@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-This document outlines a comprehensive plan to improve and optimize the SecureFast Python worker while keeping it in Python. The goal is to achieve significant performance gains, better reliability, and improved observability without the cost and risk of a full language migration.
+This document outlines a comprehensive plan to improve and optimize the RepoScan Python worker while keeping it in Python. The goal is to achieve significant performance gains, better reliability, and improved observability without the cost and risk of a full language migration.
 
 **Target Improvements:**
 - 50-70% reduction in scan times through parallelization
@@ -267,7 +267,7 @@ class DatabaseManager:
                 command_timeout=60,
                 server_settings={
                     'jit': 'off',
-                    'application_name': 'securefast_worker'
+                    'application_name': 'reposcan_worker'
                 }
             )
         return cls._pool

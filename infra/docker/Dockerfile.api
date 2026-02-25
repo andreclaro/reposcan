@@ -1,5 +1,5 @@
 # API image. Build context: repo root (..)
-# Used by: docker-compose. Standalone: docker build -f docker/Dockerfile.api -t securefast-api .
+# Used by: docker-compose. Standalone: docker build -f docker/Dockerfile.api -t reposcan-api .
 
 # Build stage
 FROM golang:1.22-alpine AS builder

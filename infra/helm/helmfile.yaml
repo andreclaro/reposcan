@@ -1,9 +1,9 @@
-# Helmfile for SecureFast Worker deployment
+# Helmfile for RepoScan Worker deployment
 # Documentation: https://helmfile.readthedocs.io/
 #
 # Prerequisites:
 #   1. Run ./create-secrets.sh <environment> to create required secrets
-#      This creates the 'securefast-secrets' Secret in the cluster with DATABASE_URL
+#      This creates the 'reposcan-secrets' Secret in the cluster with DATABASE_URL
 #
 # Quick Start:
 #   ./create-secrets.sh local                    # Create secrets first
@@ -32,19 +32,19 @@ environments:
   development:
     values:
       - environment: development
-      - domain: dev.securefast.example.com
+      - domain: dev.reposcan.example.com
         tls: true
         
   staging:
     values:
       - environment: staging
-      - domain: staging.securefast.example.com
+      - domain: staging.reposcan.example.com
         tls: true
         
   production:
     values:
       - environment: production
-      - domain: api.securefast.example.com
+      - domain: api.reposcan.example.com
         tls: true
 
 ---
@@ -54,10 +54,10 @@ environments:
 # =============================================================================
 
 releases:
-  - name: securefast-worker
-    namespace: securefast-worker
+  - name: reposcan-worker
+    namespace: reposcan-worker
     createNamespace: true
-    chart: ./securefast
+    chart: ./reposcan
     version: 0.1.0
     installed: true
     
@@ -66,7 +66,7 @@ releases:
       - values.{{ .Environment.Name }}.yaml
     
     # Note: Secrets are created manually using ./create-secrets.sh
-    # The secret 'securefast-worker-secrets' contains DATABASE_URL and other sensitive data
+    # The secret 'reposcan-worker-secrets' contains DATABASE_URL and other sensitive data
     
     # Wait for all resources to be ready
     wait: true

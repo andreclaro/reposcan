@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Create Kubernetes secrets for SecureFast Worker
+# Create Kubernetes secrets for RepoScan Worker
 #
 # Usage:
 #   ./create-secrets.sh <environment>
@@ -16,9 +16,9 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENVIRONMENT="${1:-local}"
-NAMESPACE="securefast-worker"
-SECRET_NAME="securefast-worker-secrets"
-CHART_NAME="securefast"
+NAMESPACE="reposcan-worker"
+SECRET_NAME="reposcan-worker-secrets"
+CHART_NAME="reposcan"
 
 # Colors for output
 RED='\033[0;31m'
@@ -151,7 +151,7 @@ echo "2. Deploy with helmfile:"
 echo "   helmfile --environment $ENVIRONMENT sync"
 echo ""
 echo "Or if using Helm directly:"
-echo "   helm upgrade --install securefast-worker ./securefast-worker \\"
+echo "   helm upgrade --install reposcan-worker ./reposcan \\"
 echo "     --namespace $NAMESPACE \\"
 echo "     --set global.databaseUrl=\"\$DATABASE_URL\""
 echo ""

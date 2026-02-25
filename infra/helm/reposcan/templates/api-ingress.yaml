@@ -2,10 +2,10 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "securefast.fullname" . }}-api
+  name: {{ include "reposcan.fullname" . }}-api
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "securefast.api.labels" . | nindent 4 }}
+    {{- include "reposcan.api.labels" . | nindent 4 }}
   {{- with .Values.api.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -34,7 +34,7 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ include "securefast.fullname" $ }}-api
+                name: {{ include "reposcan.fullname" $ }}-api
                 port:
                   number: {{ $.Values.api.service.port }}
           {{- end }}

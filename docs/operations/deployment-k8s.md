@@ -223,7 +223,7 @@ resources:
   # Note: Don't include postgres.yaml and redis.yaml - using managed!
 
 images:
-  - name: ghcr.io/YOUR_USERNAME/securefast-api
+  - name: ghcr.io/YOUR_USERNAME/reposcan-api
     newTag: v1.0.0
   - name: ghcr.io/YOUR_USERNAME/sec-audit-worker
     newTag: v1.0.0
@@ -363,7 +363,7 @@ metadata:
     
     # Configure images to watch
     argocd-image-updater.argoproj.io/image-list: |
-      api=ghcr.io/YOUR_USERNAME/securefast-api:~1.x
+      api=ghcr.io/YOUR_USERNAME/reposcan-api:~1.x
       worker=ghcr.io/YOUR_USERNAME/sec-audit-worker:~1.x
       frontend=ghcr.io/YOUR_USERNAME/sec-audit-frontend:~1.x
     
@@ -375,7 +375,7 @@ spec:
   project: default
   
   source:
-    repoURL: https://github.com/YOUR_ORG/securefast.git
+    repoURL: https://github.com/YOUR_ORG/reposcan.git
     targetRevision: main
     path: k8s/overlays/production
     
@@ -408,8 +408,8 @@ kubectl apply -f k8s/argocd/application.yaml
 ```yaml
 # k8s/overlays/production/kustomization.yaml
 images:
-  - name: ghcr.io/YOUR_USERNAME/securefast-api
-    newName: ghcr.io/YOUR_USERNAME/securefast-api
+  - name: ghcr.io/YOUR_USERNAME/reposcan-api
+    newName: ghcr.io/YOUR_USERNAME/reposcan-api
     newTag: 1.0.0  # Image Updater will change this
   - name: ghcr.io/YOUR_USERNAME/sec-audit-worker
     newName: ghcr.io/YOUR_USERNAME/sec-audit-worker
@@ -468,8 +468,8 @@ jobs:
           file: ./docker/Dockerfile.api
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/securefast-api:${{ steps.version.outputs.version }}
-            ghcr.io/${{ github.repository_owner }}/securefast-api:latest
+            ghcr.io/${{ github.repository_owner }}/reposcan-api:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/reposcan-api:latest
       
       - name: Build and push Worker
         uses: docker/build-push-action@v5

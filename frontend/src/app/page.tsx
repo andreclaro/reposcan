@@ -171,7 +171,7 @@ export default function HomePage() {
               <Shield className="h-5 w-5 text-white" />
             </div>
             <span className="text-lg font-semibold text-slate-900">
-              SecureFast
+              RepoScan
             </span>
           </Link>
           <nav className="hidden items-center gap-8 md:flex">
@@ -633,7 +633,7 @@ export default function HomePage() {
                   <Shield className="h-5 w-5 text-white" />
                 </div>
                 <span className="text-lg font-semibold text-slate-900">
-                  SecureFast
+                  RepoScan
                 </span>
               </Link>
               <p className="text-sm text-slate-500">
@@ -704,7 +704,7 @@ export default function HomePage() {
           <Separator className="my-8" />
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
             <p className="text-sm text-slate-500">
-              © {new Date().getFullYear()} SecureFast. All rights reserved.
+              © {new Date().getFullYear()} RepoScan. All rights reserved.
             </p>
             <p className="text-sm text-slate-500">
               Built with security in mind.

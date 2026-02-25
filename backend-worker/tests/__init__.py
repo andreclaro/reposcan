@@ -1,1 +1,1 @@
-"""Tests for securefast."""
+"""Tests for RepoScan."""

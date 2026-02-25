@@ -1,5 +1,5 @@
 ---
-description: Docker best practices for sec-audit-repos containerization
+description: Docker best practices for RepoScan containerization
 globs: Dockerfile
 alwaysApply: false
 ---

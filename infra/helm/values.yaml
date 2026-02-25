@@ -1,17 +1,17 @@
 # Base values for all environments
 #
-# Note: DATABASE_URL and other secrets are managed via the 'securefast-secrets' Secret
+# Note: DATABASE_URL and other secrets are managed via the 'reposcan-secrets' Secret
 # created manually using the create-secrets.sh script.
 # See: ./create-secrets.sh
 
-namespace: securefast-worker
+namespace: reposcan-worker
 
 # =============================================================================
 # Global Configuration
 # =============================================================================
 
 global:
-  # Note: DATABASE_URL is managed via the 'securefast-secrets' Secret
+  # Note: DATABASE_URL is managed via the 'reposcan-secrets' Secret
   # Use ./create-secrets.sh to set it
   databaseUrl: ""
   
@@ -76,7 +76,7 @@ api:
   replicaCount: 1
   
   image:
-    repository: securefast-api
+    repository: reposcan-api
     tag: latest
     pullPolicy: IfNotPresent
   

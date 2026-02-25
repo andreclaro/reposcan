@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`sec-audit-repos` is a Python CLI tool that automates security auditing of multiple repositories. It clones repositories from a CSV file and runs various security scanners (Semgrep, Trivy, govulncheck, cargo-audit, tfsec, checkov, tflint), outputting structured audit reports.
+RepoScan is a Python CLI tool that automates security auditing of multiple repositories. It clones repositories from a CSV file and runs various security scanners (Semgrep, Trivy, govulncheck, cargo-audit, tfsec, checkov, tflint), outputting structured audit reports.
 
 ## Running the Tool
 
@@ -20,11 +20,11 @@ python -m audit path/to/repositories.csv /path/to/clone/dir --audit sast,terrafo
 
 **Docker usage:**
 ```bash
-docker build -f backend/Dockerfile -t sec-audit-repos backend
+docker build -f backend/Dockerfile -t reposcan backend
 docker run --rm \
   -v "$(pwd)/repositories.csv:/work/repositories.csv" \
   -v "$(pwd)/output:/work/output" \
-  sec-audit-repos /work/repositories.csv /work/output
+  reposcan /work/repositories.csv /work/output
 ```
 
 ## Architecture

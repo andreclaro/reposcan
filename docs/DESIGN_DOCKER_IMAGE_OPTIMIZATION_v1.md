@@ -313,7 +313,7 @@ RUN apt-get update \
 
 ```dockerfile
 # ===========================================
-# SecureFast Worker - Optimized
+# RepoScan Worker - Optimized
 # Target: <1GB (from 3.5GB)
 # ===========================================
 

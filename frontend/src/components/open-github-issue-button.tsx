@@ -81,7 +81,7 @@ function buildDefaultIssueBody(props: {
   }
 
   lines.push("---");
-  lines.push("*Powered by [SecureFast](https://securefast.io)*");
+  lines.push("*Powered by [RepoScan](https://reposcan.io)*");
   return lines.join("\n");
 }
 

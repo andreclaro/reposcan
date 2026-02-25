@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Next.js 16 SaaS frontend for the securefast security scanning platform. Provides GitHub OAuth authentication, a scan dashboard, AI analysis views, Stripe billing, and admin controls.
+Next.js 16 SaaS frontend for the RepoScan security scanning platform. Provides GitHub OAuth authentication, a scan dashboard, AI analysis views, Stripe billing, and admin controls.
 
 ## Commands
 

@@ -1,6 +1,6 @@
 # Deployment Guide: Hetzner K8s + Vercel
 
-This guide explains how to deploy the SecureFast application with:
+This guide explains how to deploy the RepoScan application with:
 - **Next.js Frontend**: Deployed on Vercel
 - **Go API + Redis + Celery Worker**: Deployed on Hetzner Kubernetes
 
@@ -57,10 +57,10 @@ This guide explains how to deploy the SecureFast application with:
 
 ```bash
 # Build the API image
-docker build -f infra/docker/Dockerfile.api -t your-registry/securefast-api:latest .
+docker build -f infra/docker/Dockerfile.api -t your-registry/reposcan-api:latest .
 
 # Push to registry
-docker push your-registry/securefast-api:latest
+docker push your-registry/reposcan-api:latest
 ```
 
 ### Build Worker Image
@@ -88,12 +88,12 @@ cd infra/helm
 Or create manually:
 
 ```bash
-kubectl create namespace securefast-worker
+kubectl create namespace reposcan-worker
 
-kubectl create secret generic securefast-secrets \
-  --namespace=securefast-worker \
+kubectl create secret generic reposcan-secrets \
+  --namespace=reposcan-worker \
   --from-literal=DATABASE_URL="postgresql://user:pass@host:5432/db" \
-  --from-literal=REDIS_URL="redis://securefast-redis:6379/0" \
+  --from-literal=REDIS_URL="redis://reposcan-redis:6379/0" \
   --from-literal=ANTHROPIC_API_KEY="sk-ant-api03-..." \
   --from-literal=AI_PROVIDER="anthropic" \
   --from-literal=AI_MODEL="claude-3-sonnet-20240229"
@@ -112,7 +112,7 @@ global:
 
 api:
   image:
-    repository: your-registry/securefast-api  # Your registry
+    repository: your-registry/reposcan-api  # Your registry
     tag: latest
   
   ingress:
@@ -122,7 +122,7 @@ api:
           - path: /
             pathType: Prefix
     tls:
-      - secretName: securefast-api-tls
+      - secretName: reposcan-api-tls
         hosts:
           - api.yourdomain.com
 
@@ -149,8 +149,8 @@ helmfile -e production sync
 cd infra/helm
 
 # Install/upgrade the release
-helm upgrade --install securefast ./securefast \
-  --namespace securefast-worker \
+helm upgrade --install reposcan ./reposcan \
+  --namespace reposcan-worker \
   --create-namespace \
   -f values.yaml \
   -f values.production.yaml
@@ -160,19 +160,19 @@ helm upgrade --install securefast ./securefast \
 
 ```bash
 # Check all pods are running
-kubectl get pods -n securefast-worker
+kubectl get pods -n reposcan-worker
 
 # Check API service
-kubectl get svc -n securefast-worker
+kubectl get svc -n reposcan-worker
 
 # Check ingress
-kubectl get ingress -n securefast-worker
+kubectl get ingress -n reposcan-worker
 
 # View API logs
-kubectl logs -n securefast-worker -l app.kubernetes.io/component=api --tail=100 -f
+kubectl logs -n reposcan-worker -l app.kubernetes.io/component=api --tail=100 -f
 
 # View worker logs
-kubectl logs -n securefast-worker -l app.kubernetes.io/component=worker --tail=100 -f
+kubectl logs -n reposcan-worker -l app.kubernetes.io/component=worker --tail=100 -f
 ```
 
 ## Step 5: Configure DNS
@@ -181,7 +181,7 @@ Point your API domain to the Hetzner load balancer:
 
 ```bash
 # Get the external IP
-kubectl get ingress -n securefast-worker
+kubectl get ingress -n reposcan-worker
 
 # Or if using LoadBalancer service
 kubectl get svc -n ingress-nginx
@@ -282,29 +282,29 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 2. **Verify ingress is working:**
    ```bash
-   kubectl describe ingress -n securefast-worker
+   kubectl describe ingress -n reposcan-worker
    ```
 
 3. **Check API logs:**
    ```bash
-   kubectl logs -n securefast-worker deployment/securefast-api --tail=200
+   kubectl logs -n reposcan-worker deployment/reposcan-api --tail=200
    ```
 
 ### Worker Issues
 
 1. **Check worker status:**
    ```bash
-   kubectl get pods -n securefast-worker -l app.kubernetes.io/component=worker
+   kubectl get pods -n reposcan-worker -l app.kubernetes.io/component=worker
    ```
 
 2. **View worker logs:**
    ```bash
-   kubectl logs -n securefast-worker deployment/securefast-worker --tail=200
+   kubectl logs -n reposcan-worker deployment/reposcan-worker --tail=200
    ```
 
 3. **Check Redis connection:**
    ```bash
-   kubectl exec -it -n securefast-worker deployment/securefast-redis -- redis-cli ping
+   kubectl exec -it -n reposcan-worker deployment/reposcan-redis -- redis-cli ping
    ```
 
 ### Database Connection
@@ -312,7 +312,7 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 Verify the worker can connect to the database:
 
 ```bash
-kubectl exec -it -n securefast-worker deployment/securefast-worker -- \
+kubectl exec -it -n reposcan-worker deployment/reposcan-worker -- \
   python3 -c "import asyncio; from audit.ai.storage import init_db; asyncio.run(init_db())"
 ```
 
@@ -342,10 +342,10 @@ worker:
 
 ```bash
 # Scale API
-kubectl scale deployment securefast-api --replicas=5 -n securefast-worker
+kubectl scale deployment reposcan-api --replicas=5 -n reposcan-worker
 
 # Scale workers
-kubectl scale deployment securefast-worker --replicas=10 -n securefast-worker
+kubectl scale deployment reposcan-worker --replicas=10 -n reposcan-worker
 ```
 
 ## Security Considerations
@@ -402,8 +402,8 @@ pg_dump $DATABASE_URL > backup_$(date +%Y%m%d_%H%M%S).sql
 
 ```bash
 # Build new images with new tag
-docker build -f infra/docker/Dockerfile.api -t your-registry/securefast-api:v1.1.0 .
-docker push your-registry/securefast-api:v1.1.0
+docker build -f infra/docker/Dockerfile.api -t your-registry/reposcan-api:v1.1.0 .
+docker push your-registry/reposcan-api:v1.1.0
 
 # Update values.production.yaml with new tag
 # Then apply:
@@ -414,10 +414,10 @@ helmfile -e production sync
 
 ```bash
 # Rollback to previous revision
-helm rollback securefast -n securefast-worker
+helm rollback reposcan -n reposcan-worker
 
 # Or to specific revision
-helm rollback securefast 2 -n securefast-worker
+helm rollback reposcan 2 -n reposcan-worker
 ```
 
 ## Cost Optimization
