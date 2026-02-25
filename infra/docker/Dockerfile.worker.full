@@ -1,33 +1,9 @@
-# SecureFast Worker - Optimized Multi-Stage Build (SLIM)
-# Target: ~1.5GB (from 3.5GB)
-# Build: docker build -f infra/docker/Dockerfile.worker -t securefast-worker:slim .
-#
-# ⚠️  LIMITATION: Go and Rust toolchains are NOT included in this image.
-#     govulncheck and cargo-audit binaries are present but require:
-#     - Pre-generated go.mod/go.sum or Cargo.toml/Cargo.lock
-#     - Pre-downloaded dependencies
-#     
-#     For full Go/Rust support, use Dockerfile.worker.full:
-#     docker build -f infra/docker/Dockerfile.worker.full -t securefast-worker:full .
-#     Size: ~2.4GB (includes full Go and Rust toolchains)
+# SecureFast Worker - Full Image with All Toolchains
+# Target: ~2.4GB (includes Go and Rust toolchains)
+# Use when scanning Go/Rust projects that need full toolchain support
 
 # ============================================
-# Stage 1: Go Builder
-# ============================================
-FROM golang:1.22-alpine AS go-builder
-
-RUN go install golang.org/x/vuln/cmd/govulncheck@latest
-
-# ============================================
-# Stage 2: Rust Builder
-# ============================================
-FROM rust:1.80-alpine AS rust-builder
-
-RUN apk add --no-cache musl-dev && \
-    cargo install cargo-audit --locked --version 0.21.1
-
-# ============================================
-# Stage 3: Python Dependencies
+# Stage 1: Python Dependencies
 # ============================================
 FROM python:3.11-slim-bookworm AS py-builder
 
@@ -42,47 +18,36 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Install Python packages
+# Install Python packages and scanners
 COPY backend-worker/requirements.txt /tmp/
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
     pip install --no-cache-dir semgrep checkov bandit[sarif]
 
-# Aggressive cleanup of Python bloat
+# Aggressive cleanup
 RUN find /opt/venv -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true && \
     find /opt/venv -type f -name "*.pyc" -delete && \
     find /opt/venv -type f -name "*.pyo" -delete && \
-    find /opt/venv -type f -name "*.so" -exec strip {} \; 2>/dev/null || true && \
     rm -rf /opt/venv/share/man /opt/venv/share/doc /opt/venv/share/info && \
     rm -rf /root/.cache/pip /tmp/*
 
 # ============================================
-# Stage 4: Scanner Binaries Downloader
+# Stage 2: Scanner Binaries Downloader
 # ============================================
 FROM alpine:3.19 AS scanner-builder
 
 ARG TARGETARCH
 WORKDIR /scanners
 
-# Download all scanner binaries
-# NOTE: Using alpine wget (busybox) for minimal dependencies
 RUN case "${TARGETARCH}" in \
     "amd64") \
-        TRIVY_ARCH="64bit"; \
-        TFSEC_ARCH="amd64"; \
-        TFLINT_ARCH="amd64"; \
-        GITLEAKS_ARCH="x64"; \
-        OSV_ARCH="amd64"; \
-        HADOLINT_ARCH="x86_64"; \
+        TRIVY_ARCH="64bit"; TFSEC_ARCH="amd64"; TFLINT_ARCH="amd64"; \
+        GITLEAKS_ARCH="x64"; OSV_ARCH="amd64"; HADOLINT_ARCH="x86_64"; \
         TRUFFLEHOG_ARCH="linux_amd64"; \
         ;; \
     "arm64") \
-        TRIVY_ARCH="ARM64"; \
-        TFSEC_ARCH="arm64"; \
-        TFLINT_ARCH="arm64"; \
-        GITLEAKS_ARCH="arm64"; \
-        OSV_ARCH="arm64"; \
-        HADOLINT_ARCH="arm64"; \
+        TRIVY_ARCH="ARM64"; TFSEC_ARCH="arm64"; TFLINT_ARCH="arm64"; \
+        GITLEAKS_ARCH="arm64"; OSV_ARCH="arm64"; HADOLINT_ARCH="arm64"; \
         TRUFFLEHOG_ARCH="linux_arm64"; \
         ;; \
     *) \
@@ -91,95 +56,89 @@ RUN case "${TARGETARCH}" in \
         ;; \
     esac && \
     \
-    # Trivy
     wget -q -O - "https://github.com/aquasecurity/trivy/releases/download/v0.68.2/trivy_0.68.2_Linux-${TRIVY_ARCH}.tar.gz" | tar -xzf - && \
     mv trivy /scanners/ && \
     \
-    # tfsec
     wget -q -O tfsec "https://github.com/aquasecurity/tfsec/releases/download/v1.28.14/tfsec-linux-${TFSEC_ARCH}" && \
     chmod +x tfsec && \
     \
-    # tflint
     wget -q -O tflint.zip "https://github.com/terraform-linters/tflint/releases/download/v0.60.0/tflint_linux_${TFLINT_ARCH}.zip" && \
-    unzip -q tflint.zip && \
-    rm tflint.zip && \
+    unzip -q tflint.zip && rm tflint.zip && \
     \
-    # gitleaks
     wget -q -O - "https://github.com/gitleaks/gitleaks/releases/download/v8.23.3/gitleaks_8.23.3_linux_${GITLEAKS_ARCH}.tar.gz" | tar -xzf - && \
     \
-    # osv-scanner
     wget -q -O osv-scanner "https://github.com/google/osv-scanner/releases/download/v2.3.2/osv-scanner_linux_${OSV_ARCH}" && \
     chmod +x osv-scanner && \
     \
-    # hadolint
     wget -q -O hadolint "https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-${HADOLINT_ARCH}" && \
     chmod +x hadolint && \
     \
-    # trufflehog
     wget -q -O - "https://github.com/trufflesecurity/trufflehog/releases/download/v3.93.0/trufflehog_3.93.0_${TRUFFLEHOG_ARCH}.tar.gz" | tar -xzf -
 
 # ============================================
-# Stage 5: Node.js Tools Builder
-# ============================================
-FROM node:20-slim AS node-builder
-
-# Install pnpm
-RUN npm install -g pnpm && \
-    npm cache clean --force
-
-# ============================================
-# Stage 6: Final Runtime Image
+# Stage 3: Final Runtime Image (FULL)
 # ============================================
 FROM python:3.11-slim-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PYTHONUNBUFFERED=1
 
-# Install runtime dependencies only
-# NOTE: Installing Node.js from nodesource to match original functionality
+# Install ALL runtime dependencies including Go and Rust
+ARG GO_VERSION=1.22.6
+ARG RUST_VERSION=1.80.0
+ARG CARGO_AUDIT_VERSION=0.21.1
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     git \
     git-lfs \
     openssh-client \
-    # build-essential is needed for some Python packages at runtime
     build-essential \
-    # Clean up
-    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /tmp/*
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
-# Install Node.js 20 (runtime only, no npm build tools needed after pnpm install)
+# Install Node.js 20
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
+# Install Go (FULL toolchain)
+ENV GOROOT=/usr/local/go
+ENV GOPATH=/go
+ENV PATH="${GOROOT}/bin:${GOPATH}/bin:${PATH}"
+RUN ARCH="$(dpkg --print-architecture)" && \
+    case "${ARCH}" in \
+        amd64) GO_ARCH="amd64" ;; \
+        arm64) GO_ARCH="arm64" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
+    esac && \
+    curl -fsSL https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz | tar -C /usr/local -xzf - && \
+    mkdir -p ${GOPATH} && \
+    go install golang.org/x/vuln/cmd/govulncheck@latest
+
+# Install Rust (FULL toolchain)
+ENV CARGO_HOME="/usr/local/cargo"
+ENV RUSTUP_HOME="/usr/local/rustup"
+ENV PATH="${CARGO_HOME}/bin:${PATH}"
+RUN ARCH="$(dpkg --print-architecture)" && \
+    case "${ARCH}" in \
+        amd64) RUST_ARCH="x86_64" ;; \
+        arm64) RUST_ARCH="aarch64" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
+    esac && \
+    curl -fsSL https://sh.rustup.rs | sh -s -- -y \
+        --default-toolchain ${RUST_VERSION} \
+        --component rustfmt && \
+    cargo install cargo-audit --locked --version ${CARGO_AUDIT_VERSION}
 
 # Copy Python virtual environment
 COPY --from=py-builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
     VIRTUAL_ENV=/opt/venv
 
-# Copy Go and Rust binaries
-COPY --from=go-builder /go/bin/govulncheck /usr/local/bin/
-COPY --from=rust-builder /usr/local/cargo/bin/cargo-audit /usr/local/bin/
-
 # Copy scanner binaries
 COPY --from=scanner-builder /scanners/* /usr/local/bin/
-
-# Verify all scanners are available
-RUN echo "Verifying scanners..." && \
-    trivy version && \
-    tfsec --version && \
-    tflint --version && \
-    gitleaks version && \
-    osv-scanner --version && \
-    hadolint --version && \
-    trufflehog --version && \
-    govulncheck -h > /dev/null 2>&1 && \
-    cargo-audit --version && \
-    echo "All scanners verified!"
 
 # Configure git
 RUN git config --global url."https://github.com/".insteadOf "git@github.com:" && \
@@ -200,8 +159,11 @@ COPY --chown=appuser:appgroup backend-worker/src/ /work/
 # Switch to non-root user
 USER appuser
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD python -c "import sys; sys.exit(0)"
+# Verify all toolchains
+RUN echo "=== Verification ===" && \
+    echo "Go: $(go version)" && \
+    echo "Cargo: $(cargo --version)" && \
+    echo "Govulncheck: $(govulncheck -h 2>&1 | head -1)" && \
+    echo "Cargo-audit: $(cargo-audit --version)"
 
 ENTRYPOINT ["python", "-m", "audit"]
