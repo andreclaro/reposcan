@@ -137,7 +137,7 @@ export default async function SharedScanPage({ params }: PageProps) {
               <Shield className="h-5 w-5 text-white" />
             </div>
             <span className="text-lg font-semibold text-slate-900">
-              RepoScan
+              SecureFast
             </span>
           </Link>
           <div className="flex items-center gap-4">
@@ -435,7 +435,7 @@ export default async function SharedScanPage({ params }: PageProps) {
         {/* Footer */}
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
           <p className="text-sm text-slate-400">
-            Powered by RepoScan
+            Powered by SecureFast
           </p>
           <Button asChild variant="outline" size="sm">
             <Link href="/">

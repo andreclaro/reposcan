@@ -4,8 +4,8 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const metadata = {
-  title: "Terms of Service - RepoScan",
-  description: "Terms of Service for RepoScan automated security scanning service."
+  title: "Terms of Service - SecureFast",
+  description: "Terms of Service for SecureFast automated security scanning service."
 };
 
 export default function TermsOfServicePage() {
@@ -14,7 +14,7 @@ export default function TermsOfServicePage() {
       <header className="border-b">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
           <Link href="/" className="text-sm font-semibold">
-            RepoScan
+            SecureFast
           </Link>
           <Button asChild variant="ghost" size="sm">
             <Link href="/">
@@ -34,7 +34,7 @@ export default function TermsOfServicePage() {
 
           <p>
             Please read these Terms of Service (&quot;Terms&quot;, &quot;Terms of Service&quot;) carefully
-            before using the RepoScan service operated by RepoScan (&quot;us&quot;, &quot;we&quot;, or &quot;our&quot;).
+            before using the SecureFast service operated by SecureFast (&quot;us&quot;, &quot;we&quot;, or &quot;our&quot;).
           </p>
 
           <h2>1. Acceptance of Terms</h2>
@@ -45,7 +45,7 @@ export default function TermsOfServicePage() {
 
           <h2>2. Description of Service</h2>
           <p>
-            RepoScan provides automated security scanning services for software repositories.
+            SecureFast provides automated security scanning services for software repositories.
             Our service analyzes source code, dependencies, container configurations, and
             infrastructure-as-code to identify potential security vulnerabilities and provide
             remediation guidance.
@@ -116,7 +116,7 @@ export default function TermsOfServicePage() {
           <h3>6.1 Our Property</h3>
           <p>
             The service, including its original content, features, and functionality, is owned
-            by RepoScan and is protected by international copyright, trademark, and other
+            by SecureFast and is protected by international copyright, trademark, and other
             intellectual property laws.
           </p>
 
@@ -170,7 +170,7 @@ export default function TermsOfServicePage() {
 
           <h2>9. Indemnification</h2>
           <p>
-            You agree to defend, indemnify, and hold harmless RepoScan and its officers,
+            You agree to defend, indemnify, and hold harmless SecureFast and its officers,
             directors, employees, and agents from any claims, damages, losses, or expenses
             (including reasonable attorneys&apos; fees) arising from:
           </p>
@@ -211,7 +211,7 @@ export default function TermsOfServicePage() {
           <h2>12. Governing Law</h2>
           <p>
             These Terms shall be governed by and construed in accordance with the laws of
-            the jurisdiction in which RepoScan operates, without regard to conflict of
+            the jurisdiction in which SecureFast operates, without regard to conflict of
             law provisions.
           </p>
 
@@ -233,7 +233,7 @@ export default function TermsOfServicePage() {
           <h2>15. Entire Agreement</h2>
           <p>
             These Terms, together with our Privacy Policy, constitute the entire agreement
-            between you and RepoScan regarding the service and supersede any prior
+            between you and SecureFast regarding the service and supersede any prior
             agreements.
           </p>
 

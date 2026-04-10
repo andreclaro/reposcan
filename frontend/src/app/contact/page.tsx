@@ -10,9 +10,9 @@ import { getServerAuth } from "@/lib/server-auth";
 import { HIDE_PLANS } from "@/lib/config";
 
 export const metadata = {
-  title: "Contact - RepoScan",
+  title: "Contact - SecureFast",
   description:
-    "Get in touch with RepoScan for Custom plans, enterprise, or support."
+    "Get in touch with SecureFast for Custom plans, enterprise, or support."
 };
 
 export default async function ContactPage() {
@@ -30,7 +30,7 @@ export default async function ContactPage() {
                 <Shield className="h-5 w-5 text-white" />
               </div>
               <span className="text-lg font-semibold text-slate-900">
-                RepoScan
+                SecureFast
               </span>
             </Link>
             <AppNav isAdmin={userIsAdmin} />
@@ -79,7 +79,7 @@ export default async function ContactPage() {
                 <Shield className="h-3.5 w-3.5 text-white" />
               </div>
               <span className="text-sm font-semibold text-slate-900">
-                RepoScan
+                SecureFast
               </span>
             </div>
             <div className="flex gap-6 text-sm text-slate-500">

@@ -234,7 +234,7 @@ export default function PlansPage() {
                 <Shield className="h-5 w-5 text-white" />
               </div>
               <span className="text-lg font-semibold text-slate-900">
-                RepoScan
+                SecureFast
               </span>
             </Link>
           </div>
@@ -655,7 +655,7 @@ export default function PlansPage() {
                 <Shield className="h-3.5 w-3.5 text-white" />
               </div>
               <span className="text-sm font-semibold text-slate-900">
-                RepoScan
+                SecureFast
               </span>
             </div>
             <div className="flex gap-6 text-sm text-slate-500">
